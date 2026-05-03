@@ -195,19 +195,19 @@ async function refreshHardware() {
         // Update Temperature Card
         const tempValEl = document.getElementById('stat-temp');
         if (tempValEl && tData.cpu_temp !== undefined) {
-            const temp = tData.cpu_temp || tData.gpu_temp;
-            if (temp != null) {
-                tempValEl.innerHTML = `${Math.round(temp)}<span>°C</span>`;
-                const tempIcon = tempValEl.parentElement.parentElement.querySelector('.stat-icon');
-                if (temp >= 85) {
-                    tempIcon.style.background = 'rgba(239, 68, 68, 0.15)'; tempIcon.style.color = '#ef4444';
-                } else if (temp >= 75) {
-                    tempIcon.style.background = 'rgba(245, 158, 11, 0.15)'; tempIcon.style.color = '#f59e0b';
-                } else {
-                    tempIcon.style.background = 'rgba(34, 197, 94, 0.15)'; tempIcon.style.color = '#22c55e';
-                }
+            const cpu = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
+            const gpu = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
+            
+            tempValEl.innerHTML = `${cpu}<span>°C</span> <small style="font-size: 0.6em; opacity: 0.5;">/</small> ${gpu}<span>°C</span>`;
+            
+            const maxTemp = Math.max(tData.cpu_temp || 0, tData.gpu_temp || 0);
+            const tempIcon = tempValEl.parentElement.parentElement.querySelector('.stat-icon');
+            if (maxTemp >= 85) {
+                tempIcon.style.background = 'rgba(239, 68, 68, 0.15)'; tempIcon.style.color = '#ef4444';
+            } else if (maxTemp >= 75) {
+                tempIcon.style.background = 'rgba(245, 158, 11, 0.15)'; tempIcon.style.color = '#f59e0b';
             } else {
-                tempValEl.innerHTML = `N/A`;
+                tempIcon.style.background = 'rgba(34, 197, 94, 0.15)'; tempIcon.style.color = '#22c55e';
             }
         }
 
@@ -297,7 +297,8 @@ async function refreshFleet() {
             const cpuClass = m.cpu != null ? getCpuClass(m.cpu) : '';
             
             // Sub-metrics for details
-            const temp = tData.cpu_temp || '—';
+            const cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
+            const gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
             const storage = sData.disks?.root?.percent != null ? sData.disks.root.percent + '%' : '—';
             const rowId = `details-${name.replace(/[^a-z0-9]/gi, '-')}`;
 
@@ -318,9 +319,9 @@ async function refreshFleet() {
                     <td colspan="6">
                         <div class="details-box">
                             <div class="details-metrics">
-                                <div><strong>CPU:</strong> ${cpu}</div>
-                                <div><strong>MEM:</strong> ${mem}</div>
-                                <div><strong>TEMP:</strong> ${temp}°C</div>
+                                <div><strong>CPU Usage:</strong> ${cpu}</div>
+                                <div><strong>MEM Usage:</strong> ${mem}</div>
+                                <div><strong>TEMP:</strong> ${cpuTemp}°C / ${gpuTemp}°C</div>
                                 <div><strong>STORAGE:</strong> ${storage}</div>
                                 <div><strong>UPTIME:</strong> ${uptime}</div>
                             </div>

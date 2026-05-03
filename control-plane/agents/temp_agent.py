@@ -41,16 +41,36 @@ def get_cpu_temp():
     return None
 
 def get_gpu_temp():
+    # 1. Try nvidia-smi
     try:
-        # Check nvidia-smi
         cmd = ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
         if res.returncode == 0:
             lines = res.stdout.strip().split("\n")
             if lines and lines[0].isdigit():
                 return float(lines[0])
     except Exception:
         pass
+
+    # 2. Try Linux hwmon (AMD Radeon / Radeon HD 5770)
+    try:
+        # Common paths for DRM card temperature sensors
+        paths = [
+            "/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input",
+            "/sys/class/drm/card0/device/hwmon/hwmon1/temp1_input",
+            "/sys/class/drm/card0/device/hwmon/hwmon2/temp1_input",
+            "/sys/class/hwmon/hwmon0/temp1_input",
+            "/sys/class/hwmon/hwmon1/temp1_input"
+        ]
+        for p in paths:
+            if os.path.exists(p):
+                with open(p, "r") as f:
+                    val = f.read().strip()
+                    if val.isdigit():
+                        return float(val) / 1000.0
+    except Exception:
+        pass
+
     return None
 
 def read_thermal_zone():
