@@ -167,11 +167,20 @@ async function refreshHealth() {
         const score = data.score || 0;
         const verdict = data.verdict || 'Healthy';
 
+        // Main Score
         setText('health-score', score);
         const ring = document.getElementById('health-ring');
         if (ring) {
             const offset = 220 - (220 * score / 100);
             ring.style.strokeDashoffset = offset;
+        }
+
+        // Mini Card Score
+        setText('health-score-mini', score);
+        const ringMini = document.getElementById('gsi-ring-mini');
+        if (ringMini) {
+            const offset = 220 - (220 * score / 100);
+            ringMini.style.strokeDashoffset = offset;
         }
 
         const verdictEl = document.getElementById('system-verdict');
