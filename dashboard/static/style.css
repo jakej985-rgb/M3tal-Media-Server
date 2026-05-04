@@ -182,23 +182,20 @@ body::before {
 /* ─── STAT CARDS ROW ────────────────────────────── */
 .stats-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr); /* Default desktop */
-    gap: 1rem;
+    grid-template-columns: 1fr; /* Mobile first: 1 per line */
+    gap: 0.75rem;
     padding: 0.5rem 0;
 }
 
-@media (max-width: 1024px) {
-    .stats-row { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 600px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 768px) {
-    .stats-row { 
-        grid-template-columns: repeat(2, 1fr) !important;
-        display: grid !important;
-        overflow-x: visible !important;
-        padding: 0.5rem;
-    }
+@media (min-width: 1024px) {
+    .stats-row { grid-template-columns: repeat(4, 1fr); }
 }
+
+
 
 .stat-card {
     background: var(--bg-card);
@@ -298,10 +295,27 @@ body::before {
 
 /* ─── MAIN GRID ─────────────────────────────────── */
 .main-grid {
-    display: grid;
-    grid-template-columns: 1fr 380px;
+    display: flex;
+    flex-direction: column;
     gap: 1.25rem;
-    align-items: start;
+}
+
+.right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    order: -1; /* Health/Resource panels first on mobile */
+}
+
+@media (min-width: 1024px) {
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        align-items: start;
+    }
+    .right-col {
+        order: 0; /* Health/Resource panels back to right side on desktop */
+    }
 }
 
 /* ─── PANEL ─────────────────────────────────────── */
@@ -990,17 +1004,7 @@ body::before {
 
 /* ─── RESPONSIVE ─────────────────────────────────── */
 @media (max-width: 1200px) {
-    .main-grid { grid-template-columns: 1fr; }
-    .right-col { 
-        display: flex !important; 
-        flex-direction: column !important; 
-        gap: 1rem; 
-        order: -1; 
-    }
-    .stats-row { 
-        grid-template-columns: 1fr !important; 
-        gap: 0.5rem;
-    }
+    /* Rules moved to mobile-first / desktop-min-width logic */
 }
 
 @media (max-width: 768px) {
@@ -1014,13 +1018,7 @@ body::before {
     .collapsible-stats { margin-bottom: 1rem; }
     .collapsible-stats .panel-body { padding: 0; }
 
-    .stats-row { 
-        grid-template-columns: 1fr !important;
-        display: grid !important;
-        overflow-x: visible !important;
-        gap: 0.5rem;
-        padding: 0.75rem;
-    }
+    /* .stats-row handled by mobile-first */
     
     .stat-card { 
         padding: 0.6rem;
@@ -1038,8 +1036,7 @@ body::before {
     .stat-val-grid { gap: 1rem; }
     .stat-drive-label { font-size: 0.55rem; }
 
-    .main-grid { grid-template-columns: 1fr; gap: 1rem; }
-    .right-col { order: -1; display: flex; flex-direction: column; gap: 1rem; } /* Health first on mobile, stacked vertically */
+    /* .main-grid / .right-col handled by mobile-first */
     
     .action-bar { display: none; } /* Move to expanded row */
     
