@@ -37,8 +37,8 @@ def get_drive_temp(dev_path):
     if not _device_types:
         try:
             scan_res = subprocess.run([_smartctl_path, "--scan"], capture_output=True, text=True, timeout=5)
+            logger.info(f"[STORAGE] Scan results: {scan_res.stdout.strip()}")
             for line in scan_res.stdout.splitlines():
-                # Format: /dev/sda -d sat # ...
                 if " -d " in line:
                     parts = line.split(" -d ")
                     dev = parts[0].strip()
@@ -48,7 +48,7 @@ def get_drive_temp(dev_path):
 
     # Try cached type first, then fallback to common types
     dev_type = _device_types.get(dev_path)
-    types_to_try = [dev_type] if dev_type else [None, "sat", "nvme", "scsi"]
+    types_to_try = [dev_type, None, "sat", "nvme", "scsi", "ata"]
     
     for d_type in types_to_try:
         try:
@@ -57,6 +57,8 @@ def get_drive_temp(dev_path):
             cmd.append(dev_path)
                 
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
+            if res.returncode != 0 and not res.stdout:
+                continue
             
             import re
             patterns = [
