@@ -20,27 +20,35 @@ def get_disk_stats():
     if not psutil:
         return None
     
-    # Check root and DATA_DIR
-    paths_to_check = [("/", "root")]
-    if DATA_DIR and DATA_DIR.exists():
-        paths_to_check.append((str(DATA_DIR), "data"))
-        
     stats = {}
     highest_usage = 0
 
-    for path, label in paths_to_check:
-        try:
-            usage = psutil.disk_usage(path)
-            stats[label] = {
-                "total_gb": round(usage.total / (1024**3), 1),
-                "used_gb": round(usage.used / (1024**3), 1),
-                "free_gb": round(usage.free / (1024**3), 1),
-                "percent": usage.percent
-            }
-            if usage.percent > highest_usage:
-                highest_usage = usage.percent
-        except Exception as e:
-            logger.debug(f"Failed to read disk usage for {path}: {e}")
+    try:
+        # Detect all physical partitions
+        partitions = psutil.disk_partitions(all=False)
+        for p in partitions:
+            if 'cdrom' in p.opts or p.fstype == '':
+                continue
+            
+            try:
+                usage = psutil.disk_usage(p.mountpoint)
+                # Use mountpoint as key (e.g. "C:\" on Windows, "/" on Linux)
+                label = p.mountpoint
+                stats[label] = {
+                    "device": p.device,
+                    "mountpoint": p.mountpoint,
+                    "fstype": p.fstype,
+                    "total_gb": round(usage.total / (1024**3), 1),
+                    "used_gb": round(usage.used / (1024**3), 1),
+                    "free_gb": round(usage.free / (1024**3), 1),
+                    "percent": usage.percent
+                }
+                if usage.percent > highest_usage:
+                    highest_usage = usage.percent
+            except Exception as e:
+                logger.debug(f"Failed to read disk usage for {p.mountpoint}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to list disk partitions: {e}")
 
     return stats, highest_usage
 

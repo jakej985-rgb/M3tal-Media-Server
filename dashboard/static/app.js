@@ -168,7 +168,9 @@ async function refreshHealth() {
         const verdict = data.verdict || 'Healthy';
 
         // Main Score
-        setText('health-score', score);
+        const scoreEl = document.getElementById('health-score');
+        if (scoreEl) scoreEl.textContent = score;
+        
         const ring = document.getElementById('health-ring');
         if (ring) {
             const offset = 220 - (220 * score / 100);
@@ -176,7 +178,9 @@ async function refreshHealth() {
         }
 
         // Mini Card Score
-        setText('health-score-mini', score);
+        const scoreMiniEl = document.getElementById('health-score-mini');
+        if (scoreMiniEl) scoreMiniEl.textContent = score;
+        
         const ringMini = document.getElementById('gsi-ring-mini');
         if (ringMini) {
             const offset = 220 - (220 * score / 100);
@@ -226,18 +230,23 @@ async function refreshHardware() {
             let maxUsage = 0;
             let gridHtml = '';
             
-            const driveKeys = Object.keys(sData.disks).sort(); // Sort to keep Root first usually
-            driveKeys.forEach(key => {
-                const disk = sData.disks[key];
-                if (disk.percent > maxUsage) maxUsage = disk.percent;
-                
-                gridHtml += `
-                    <div class="stat-drive-item">
-                        <div class="stat-drive-label">${key}</div>
-                        <div class="stat-val">${Math.round(disk.percent)}<span>%</span></div>
-                    </div>
-                `;
-            });
+            const driveKeys = Object.keys(sData.disks).sort(); 
+            if (driveKeys.length === 0) {
+                gridHtml = '<div class="stat-sub">No drives detected</div>';
+            } else {
+                driveKeys.forEach(key => {
+                    const disk = sData.disks[key];
+                    if (disk.percent > maxUsage) maxUsage = disk.percent;
+                    
+                    gridHtml += `
+                        <div class="stat-drive-item">
+                            <div class="stat-drive-label">${key}</div>
+                            <div class="stat-val">${Math.round(disk.percent)}<span>%</span></div>
+                            <div class="stat-drive-usage">${disk.used_gb}G / ${disk.total_gb}G</div>
+                        </div>
+                    `;
+                });
+            }
             
             storageGrid.innerHTML = gridHtml;
             
@@ -520,3 +529,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(refreshFleet,    8000);
     setInterval(refreshActivity, 12000);
 });
+
+function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
