@@ -1007,7 +1007,7 @@ body::before {
     .collapsible-stats .panel-body { padding: 0; }
 
     .stats-row { 
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: 1fr !important;
         display: grid !important;
         overflow-x: visible !important;
         gap: 0.5rem;
@@ -1020,7 +1020,7 @@ body::before {
     }
     
     .stat-card.wide {
-        grid-column: span 2;
+        grid-column: span 1;
     }
 
     .stat-icon { width: 28px; height: 28px; font-size: 0.9rem; }
@@ -1031,7 +1031,7 @@ body::before {
     .stat-drive-label { font-size: 0.55rem; }
 
     .main-grid { grid-template-columns: 1fr; gap: 1rem; }
-    .right-col { order: -1; } /* Health first on mobile */
+    .right-col { order: -1; display: flex; flex-direction: column; gap: 1rem; } /* Health first on mobile, stacked vertically */
     
     .action-bar { display: none; } /* Move to expanded row */
     
