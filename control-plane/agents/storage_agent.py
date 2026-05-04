@@ -60,11 +60,13 @@ def get_drive_temp(dev_path):
             
             import re
             patterns = [
-                # Catch the raw value at the end of the line for standard attributes (190, 194, etc)
-                r"(?:Temperature_Celsius|Airflow_Temperature_Cel|Temperature_Internal).*?\s+(\d+)(?:\s+\(.*\))?$",
+                # Catch standard SMART ID 194 or 190 (Temperature or Airflow)
+                r"(?:Temperature_Celsius|Airflow_Temperature_Cel|Temperature_Internal|Temperature_Case).*?\s+(\d+)\s*(?:\(.*\))?$",
                 # Catch NVMe or simplified outputs
                 r"(?:Composite\s+Temperature|Temperature:).*?(\d+)",
                 r"Current\s+Drive\s+Temperature:\s+(\d+)",
+                # Aggressive fallback for the ID-based rows
+                r"^(?:194|190)\s+[\w_]+\s+[\dxX]+\s+\d+\s+\d+\s+\d+\s+[\w_]+\s+[\w_]+\s+[\-\w]+\s+(\d+)"
             ]
             
             for pattern in patterns:
@@ -72,7 +74,7 @@ def get_drive_temp(dev_path):
                 match = re.search(pattern, res.stdout, re.IGNORECASE | re.MULTILINE)
                 if match:
                     val = float(match.group(1))
-                    if 5 < val < 100: return val # Sanity check for real temps
+                    if 0 < val < 110: return val # Sanity check
             
             # If SMART is disabled, try to enable it once
             if "SMART support is: Disabled" in res.stdout:
