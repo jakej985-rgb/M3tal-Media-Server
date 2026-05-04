@@ -141,7 +141,7 @@ def login():
         if user and password and verify_password(password, user['token_hash']):
             session['username'] = username
             session['role'] = user.get('role', 'viewer')
-            session.pop('csrf_token', None)
+            # Audit Fix: Don't pop CSRF token here to avoid breaking multiple tabs
             return redirect(url_for('index'))
             
         return render_template('login.html', error="Invalid credentials", csrf_token=session['csrf_token'])

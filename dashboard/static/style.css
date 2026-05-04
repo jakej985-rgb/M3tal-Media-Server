@@ -256,14 +256,27 @@ body::before {
 
 .stat-val-grid {
     display: flex;
+    align-items: center;
     justify-content: flex-start;
-    gap: 2rem;
+    gap: 1.5rem;
     margin-top: 0.25rem;
+    overflow-x: auto;
+    padding-bottom: 4px;
 }
 
 .stat-drive-item {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 60px;
+}
+
+.stat-drive-sep {
+    width: 1px;
+    height: 30px;
+    background: var(--border-dim);
+    flex-shrink: 0;
 }
 
 .stat-drive-label {

@@ -234,20 +234,24 @@ async function refreshHardware() {
             if (driveKeys.length === 0) {
                 gridHtml = '<div class="stat-sub">No drives detected</div>';
             } else {
-                driveKeys.forEach(key => {
+                driveKeys.forEach((key, index) => {
                     const disk = sData.disks[key];
                     if (disk.percent > maxUsage) maxUsage = disk.percent;
                     
                     const temp = disk.temp != null ? `${Math.round(disk.temp)}°C` : '';
+                    const total = disk.total_gb >= 1000 ? (disk.total_gb/1000).toFixed(1) + 'TB' : Math.round(disk.total_gb) + 'G';
                     
                     gridHtml += `
                         <div class="stat-drive-item">
                             <div class="stat-drive-label">${key}</div>
-                            <div class="stat-val">${Math.round(disk.percent)}<span>%</span></div>
-                            <div class="stat-drive-usage">${disk.used_gb}G / ${disk.total_gb}G</div>
-                            ${temp ? `<div class="stat-drive-temp">${temp}</div>` : ''}
+                            <div class="stat-val">${total}</div>
+                            <div class="stat-drive-temp">${temp || '--'}</div>
                         </div>
                     `;
+                    // Add separator if not last
+                    if (index < driveKeys.length - 1) {
+                        gridHtml += `<div class="stat-drive-sep"></div>`;
+                    }
                 });
             }
             

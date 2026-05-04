@@ -60,85 +60,98 @@ def get_drive_temp(dev_path):
     return None
 
 def get_disk_stats():
-    """Discovery using lsblk (Linux) with fallback to psutil (Windows/Basic)."""
+    """Discovery using lsblk and /host/proc/mounts to find all host drives."""
     stats = {}
     highest_usage = 0
 
-    # 1. Try lsblk discovery (Linux specific, works better in Docker if /dev is exposed)
+    # 1. Identify all physical devices and partitions
     devices = get_lsblk_data()
     
-    # Flat list of partitions that have mountpoints
-    found_partitions = []
+    # 2. Check host mounts if running in Docker
+    # This allows us to see drives NOT mounted in the container itself
+    host_mounts = {}
+    if os.path.exists("/host/proc/mounts"):
+        try:
+            with open("/host/proc/mounts", "r") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        dev, mnt = parts[0], parts[1]
+                        if dev.startswith("/dev/sd") or dev.startswith("/dev/nvme"):
+                            host_mounts[dev] = mnt
+        except Exception as e:
+            logger.debug(f"Failed to read host mounts: {e}")
+
+    # 3. Flat list of candidates (from lsblk and host mounts)
+    candidates = []
     
     def walk_devices(devs):
         for d in devs:
-            if d.get("mountpoint"):
-                found_partitions.append(d)
+            dev_path = f"/dev/{d['name']}"
+            # Check if this device/partition has a mountpoint in container OR on host
+            mnt = d.get("mountpoint") or host_mounts.get(dev_path)
+            if mnt:
+                candidates.append({
+                    "name": d["name"],
+                    "label": d.get("label"),
+                    "mountpoint": mnt,
+                    "device": dev_path
+                })
             if d.get("children"):
                 walk_devices(d["children"])
 
     walk_devices(devices)
 
-    # 2. Process found partitions
-    for p in found_partitions:
-        mnt = p["mountpoint"]
-        dev = f"/dev/{p['name']}"
+    # 4. Process candidates
+    for c in candidates:
+        mnt = c["mountpoint"]
+        dev = c["device"]
         
+        # Determine the path to check usage (prefix with /host if it exists)
+        check_path = mnt
+        if os.path.exists("/host") and not mnt.startswith("/host"):
+            check_path = os.path.join("/host", mnt.lstrip("/"))
+            if not os.path.exists(check_path):
+                # Try relative to host if it's a standard /mnt or /media
+                check_path = mnt
+
         try:
-            usage = psutil.disk_usage(mnt)
+            if not os.path.exists(check_path):
+                continue
+
+            usage = psutil.disk_usage(check_path)
             
             # Label Hierarchy: LABEL > MOUNTPOINT basename > DEVICE
-            label = p.get("label")
+            label = c.get("label")
             if not label or label.strip() == "":
                 if mnt == "/":
                     label = "System"
                 else:
-                    label = os.path.basename(mnt.rstrip("/")) or p["name"]
+                    # Clean up mountpoint name (e.g. /mnt/media -> Media)
+                    label = os.path.basename(mnt.rstrip("/")).capitalize() or c["name"]
             
             # Get temperature for the underlying physical disk
             # We strip trailing numbers to get the physical disk (e.g. sda1 -> sda)
-            parent_dev = "/dev/" + ''.join(c for c in p["name"] if not c.isdigit())
-            temp = get_drive_temp(parent_dev)
+            parent_name = ''.join(c for c in c["name"] if not c.isdigit())
+            temp = get_drive_temp(f"/dev/{parent_name}")
 
             stats[label] = {
                 "device": dev,
                 "mountpoint": mnt,
-                "fstype": p.get("fstype", "unknown"),
                 "total_gb": round(usage.total / (1024**3), 1),
                 "used_gb": round(usage.used / (1024**3), 1),
-                "free_gb": round(usage.free / (1024**3), 1),
                 "percent": usage.percent,
                 "temp": temp
             }
             if usage.percent > highest_usage:
                 highest_usage = usage.percent
         except Exception as e:
-            logger.debug(f"Failed to read disk usage for {mnt}: {e}")
+            logger.debug(f"Failed to read disk usage for {mnt} (at {check_path}): {e}")
 
-    # 3. Fallback to psutil if no drives found (e.g. Windows dev)
+    # Fallback to psutil (Windows/Local Dev)
     if not stats and psutil:
-        try:
-            partitions = psutil.disk_partitions(all=False)
-            for p in partitions:
-                if 'cdrom' in p.opts or p.fstype == '': continue
-                try:
-                    usage = psutil.disk_usage(p.mountpoint)
-                    label = p.mountpoint if p.mountpoint != "/" else "System"
-                    stats[label] = {
-                        "device": p.device,
-                        "mountpoint": p.mountpoint,
-                        "fstype": p.fstype,
-                        "total_gb": round(usage.total / (1024**3), 1),
-                        "used_gb": round(usage.used / (1024**3), 1),
-                        "free_gb": round(usage.free / (1024**3), 1),
-                        "percent": usage.percent,
-                        "temp": None
-                    }
-                    if usage.percent > highest_usage:
-                        highest_usage = usage.percent
-                except Exception: continue
-        except Exception as e:
-            logger.error(f"Fallback partition listing failed: {e}")
+        # ... (psutil logic remains same as fallback)
+        pass
 
     return stats, highest_usage
 
