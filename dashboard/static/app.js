@@ -229,30 +229,32 @@ async function refreshHardware() {
         if (storageGrid && sData.disks) {
             let maxUsage = 0;
             let gridHtml = '';
-            
             const driveKeys = Object.keys(sData.disks).sort(); 
+            
             if (driveKeys.length === 0) {
                 gridHtml = '<div class="stat-sub">No drives detected</div>';
             } else {
-                driveKeys.forEach((key, index) => {
+                let rows = { names: '', space: '', temp: '' };
+                
+                driveKeys.forEach(key => {
                     const disk = sData.disks[key];
                     if (disk.percent > maxUsage) maxUsage = disk.percent;
                     
-                    const temp = disk.temp != null ? `${Math.round(disk.temp)}°C` : '';
-                    const total = disk.total_gb >= 1000 ? (disk.total_gb/1000).toFixed(1) + 'TB' : Math.round(disk.total_gb) + 'G';
+                    const free = disk.free != null ? `${disk.free}G` : '--';
+                    const temp = disk.temp != null ? `${Math.round(disk.temp)}°C` : '--';
                     
-                    gridHtml += `
-                        <div class="stat-drive-item">
-                            <div class="stat-drive-label">${key}</div>
-                            <div class="stat-val">${total}</div>
-                            <div class="stat-drive-temp">${temp || '--'}</div>
-                        </div>
-                    `;
-                    // Add separator if not last
-                    if (index < driveKeys.length - 1) {
-                        gridHtml += `<div class="stat-drive-sep"></div>`;
-                    }
+                    rows.names += `<div>${key}</div>`;
+                    rows.space += `<div>${free}</div>`;
+                    rows.temp  += `<div>${temp}</div>`;
                 });
+
+                gridHtml = `
+                    <div class="storage-table">
+                        <div class="row names">${rows.names}</div>
+                        <div class="row space">${rows.space}</div>
+                        <div class="row temp">${rows.temp}</div>
+                    </div>
+                `;
             }
             
             storageGrid.innerHTML = gridHtml;

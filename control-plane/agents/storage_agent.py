@@ -59,99 +59,92 @@ def get_drive_temp(dev_path):
         pass
     return None
 
+def get_lsblk_data():
+    """Execute lsblk and return JSON data."""
+    try:
+        output = subprocess.check_output(
+            "lsblk -J -o NAME,LABEL,MOUNTPOINT,TYPE,SIZE",
+            shell=True
+        ).decode()
+        return json.loads(output).get("blockdevices", [])
+    except Exception as e:
+        logger.debug(f"lsblk failed: {e}")
+        return []
+
+def get_free_space(mount):
+    """Get free space using df -BG."""
+    try:
+        # If in Docker, we must check /host mount
+        check_path = mount
+        if os.path.exists("/host") and not mount.startswith("/host"):
+            check_path = os.path.join("/host", mount.lstrip("/"))
+        
+        output = subprocess.check_output(
+            f"df -BG {check_path} | tail -1",
+            shell=True
+        ).decode()
+        # Output format: Filesystem 1G-blocks Used Available Use% MountedOn
+        parts = output.split()
+        if len(parts) >= 4:
+            return parts[3].replace("G", "") # Return just the number
+    except:
+        pass
+    return "N/A"
+
 def get_disk_stats():
-    """Discovery using lsblk and /host/proc/mounts to find all host drives."""
+    """Enumerate physical disks and map to partitions."""
     stats = {}
     highest_usage = 0
-
-    # 1. Identify all physical devices and partitions
-    devices = get_lsblk_data()
     
-    # 2. Check host mounts if running in Docker
-    # This allows us to see drives NOT mounted in the container itself
-    host_mounts = {}
-    if os.path.exists("/host/proc/mounts"):
-        try:
-            with open("/host/proc/mounts", "r") as f:
-                for line in f:
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        dev, mnt = parts[0], parts[1]
-                        if dev.startswith("/dev/sd") or dev.startswith("/dev/nvme"):
-                            host_mounts[dev] = mnt
-        except Exception as e:
-            logger.debug(f"Failed to read host mounts: {e}")
-
-    # 3. Flat list of candidates (from lsblk and host mounts)
-    candidates = []
+    blocks = get_lsblk_data()
     
-    def walk_devices(devs):
-        for d in devs:
-            dev_path = f"/dev/{d['name']}"
-            # Check if this device/partition has a mountpoint in container OR on host
-            mnt = d.get("mountpoint") or host_mounts.get(dev_path)
-            if mnt:
-                candidates.append({
-                    "name": d["name"],
-                    "label": d.get("label"),
-                    "mountpoint": mnt,
-                    "device": dev_path
-                })
-            if d.get("children"):
-                walk_devices(d["children"])
-
-    walk_devices(devices)
-
-    # 4. Process candidates
-    for c in candidates:
-        mnt = c["mountpoint"]
-        dev = c["device"]
+    for block in blocks:
+        if block.get("type") != "disk":
+            continue
+            
+        disk_name = block["name"]
         
-        # Determine the path to check usage (prefix with /host if it exists)
-        check_path = mnt
-        if os.path.exists("/host") and not mnt.startswith("/host"):
-            check_path = os.path.join("/host", mnt.lstrip("/"))
-            if not os.path.exists(check_path):
-                # Try relative to host if it's a standard /mnt or /media
-                check_path = mnt
+        # Look for children (partitions)
+        if "children" in block:
+            for part in block["children"]:
+                mount = part.get("mountpoint")
+                
+                # If not mounted in container, check if it's mounted on host
+                # We can check /host/proc/mounts to see what the host sees
+                if not mount and os.path.exists("/host/proc/mounts"):
+                    try:
+                        with open("/host/proc/mounts", "r") as f:
+                            for line in f:
+                                if f"/dev/{part['name']}" in line:
+                                    mount = line.split()[1]
+                                    break
+                    except: pass
+                
+                if mount:
+                    label = part.get("label")
+                    if not label or label.strip() == "":
+                        label = mount.split("/")[-1].capitalize() or part["name"]
+                    
+                    if label == "" or label == "/": label = "System"
 
-        try:
-            if not os.path.exists(check_path):
-                continue
+                    free = get_free_space(mount)
+                    temp = get_drive_temp(f"/dev/{disk_name}")
+                    
+                    # Get usage % for the icon color
+                    try:
+                        check_path = mount
+                        if os.path.exists("/host") and not mount.startswith("/host"):
+                            check_path = os.path.join("/host", mount.lstrip("/"))
+                        usage = psutil.disk_usage(check_path)
+                        percent = usage.percent
+                    except: percent = 0
 
-            usage = psutil.disk_usage(check_path)
-            
-            # Label Hierarchy: LABEL > MOUNTPOINT basename > DEVICE
-            label = c.get("label")
-            if not label or label.strip() == "":
-                if mnt == "/":
-                    label = "System"
-                else:
-                    # Clean up mountpoint name (e.g. /mnt/media -> Media)
-                    label = os.path.basename(mnt.rstrip("/")).capitalize() or c["name"]
-            
-            # Get temperature for the underlying physical disk
-            # We strip trailing numbers to get the physical disk (e.g. sda1 -> sda)
-            parent_name = ''.join(c for c in c["name"] if not c.isdigit())
-            temp = get_drive_temp(f"/dev/{parent_name}")
-
-            stats[label] = {
-                "device": dev,
-                "mountpoint": mnt,
-                "total_gb": round(usage.total / (1024**3), 1),
-                "used_gb": round(usage.used / (1024**3), 1),
-                "percent": usage.percent,
-                "temp": temp
-            }
-            if usage.percent > highest_usage:
-                highest_usage = usage.percent
-        except Exception as e:
-            logger.debug(f"Failed to read disk usage for {mnt} (at {check_path}): {e}")
-
-    # Fallback to psutil (Windows/Local Dev)
-    if not stats and psutil:
-        # ... (psutil logic remains same as fallback)
-        pass
+                    stats[label] = {
+                        "free": free,
+                        "temp": temp,
+                        "percent": percent
+                    }
+                    if percent > highest_usage: highest_usage = percent
 
     return stats, highest_usage
 

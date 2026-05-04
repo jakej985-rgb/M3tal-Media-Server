@@ -254,38 +254,45 @@ body::before {
     grid-column: span 2;
 }
 
-.stat-val-grid {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 1.5rem;
-    margin-top: 0.25rem;
-    overflow-x: auto;
-    padding-bottom: 4px;
-}
-
-.stat-drive-item {
+.storage-table {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     text-align: center;
-    min-width: 60px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    padding-bottom: 2px;
 }
 
-.stat-drive-sep {
-    width: 1px;
-    height: 30px;
-    background: var(--border-dim);
-    flex-shrink: 0;
-}
-
-.stat-drive-label {
-    font-size: 0.6rem;
-    color: var(--text-3);
+.names div {
+    font-weight: bold;
+    color: var(--text-2);
     text-transform: uppercase;
-    font-weight: 700;
     letter-spacing: 0.5px;
-    margin-bottom: 2px;
+}
+
+.space div {
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.temp div {
+    color: var(--teal);
+    font-weight: 700;
+}
+
+@media (max-width: 600px) {
+    .storage-table {
+        font-size: 10px;
+    }
 }
 
 .stat-val {
