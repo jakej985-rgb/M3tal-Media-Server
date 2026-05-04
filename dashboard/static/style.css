@@ -728,23 +728,23 @@ body::before {
     margin-top: 0.25rem;
 }
 
-/* ─── BOTTOM ACTION BAR ─────────────────────────── */
+/* ─── ACTION BAR (Top Pinned) ─────────────────────────── */
 .action-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-dim);
 }
 
 .big-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    padding: 0.85rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border-dim);
+    flex: 1;
+    min-width: 120px;
+    padding: 0.75rem;
     background: var(--bg-card);
-    color: var(--text-1);
+    border: 1px solid var(--border-dim);
+    border-radius: var(--radius);
+    color: var(--text-2);
     font-family: var(--font-ui);
     font-size: 0.85rem;
     font-weight: 700;
@@ -752,14 +752,54 @@ body::before {
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s;
+    text-align: center;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
 }
 
-.big-btn:hover { transform: translateY(-1px); }
+.big-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--teal);
+    color: var(--text-1);
+    transform: translateY(-2px);
+}
 
 .big-btn.heal:hover   { background: var(--teal-dim);  border-color: rgba(0,212,170,0.4);  color: var(--teal); }
 .big-btn.scan:hover   { background: var(--blue-dim);  border-color: rgba(59,130,246,0.4); color: var(--blue); }
 .big-btn.status:hover { background: var(--green-dim); border-color: rgba(34,197,94,0.4);  color: var(--green); }
 .big-btn.reboot:hover { background: var(--red-dim);   border-color: rgba(239,68,68,0.4);  color: var(--red); }
+
+/* ─── LINKS GRID ────────────────────────────────── */
+.links-grid .big-btn {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+    min-width: unset;
+}
+
+/* ─── TIME SELECTORS ────────────────────────────── */
+.time-selectors .panel-badge {
+    cursor: pointer;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-dim);
+    opacity: 0.6;
+    transition: all 0.2s;
+}
+
+.time-selectors .panel-badge:hover {
+    opacity: 1;
+    border-color: var(--teal);
+}
+
+.time-selectors .panel-badge.active {
+    opacity: 1;
+    background: var(--teal-dim);
+    border-color: var(--teal);
+    color: var(--teal);
+    box-shadow: 0 0 6px var(--teal-dim);
+}
 
 /* ─── LOGIN PAGE ────────────────────────────────── */
 .login-wrap {

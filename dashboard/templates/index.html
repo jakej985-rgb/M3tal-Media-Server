@@ -41,7 +41,15 @@
 <!-- ── PAGE ────────────────────────────────── -->
 <main class="page">
 
-    <!-- ── SYSTEM OVERVIEW (Collapsible on Mobile) ── -->
+    <!-- ── QUICK ACTIONS (Moved to Top) ── -->
+    <div class="action-bar" style="margin-bottom: 1.25rem;">
+        <button class="big-btn heal"   onclick="doGlobalAction('heal')">  🔄 Heal All</button>
+        <button class="big-btn scan"   onclick="doGlobalAction('scan')">  🧠 AI Scan</button>
+        <button class="big-btn status" onclick="doGlobalAction('status')">📊 Status</button>
+        <button class="big-btn reboot" onclick="doGlobalAction('reboot')">⏻ Reboot</button>
+    </div>
+
+    <!-- ── 1. SYSTEM OVERVIEW ── -->
     <div class="panel collapsible-stats collapsed">
         <div class="panel-head collapsible" onclick="togglePanel(this)">
             <div class="panel-title">
@@ -51,6 +59,7 @@
         </div>
         <div class="panel-body">
             <div class="stats-row">
+                <!-- Row 1: Workloads -->
                 <div class="stat-card">
                     <div class="stat-icon teal">📦</div>
                     <div class="stat-info">
@@ -61,19 +70,17 @@
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-icon purple" style="background: rgba(0, 212, 170, 0.1);">
-                        <svg width="24" height="24" viewBox="0 0 80 80" style="transform: scale(0.3); transform-origin: center;">
-                            <circle cx="40" cy="40" r="35" fill="none" stroke="var(--border-dim)" stroke-width="8"/>
-                            <circle id="gsi-ring-mini" cx="40" cy="40" r="35" fill="none" stroke="var(--teal)" stroke-width="8" stroke-dasharray="220" stroke-dashoffset="0" style="transition: stroke-dashoffset 1s ease;"/>
-                        </svg>
-                    </div>
+                    <div class="stat-icon purple">🧠</div>
                     <div class="stat-info">
-                        <div class="stat-label">Stability</div>
-                        <div class="stat-val" id="stat-health-val">—</div>
-                        <div class="stat-sub">Global Index</div>
+                        <div class="stat-label">AI Status</div>
+                        <div class="stat-val" style="font-size:1rem; margin-top:0.15rem">
+                            <span id="system-verdict" class="badge running">ACTIVE</span>
+                        </div>
+                        <div class="stat-sub">Agent Monitoring</div>
                     </div>
                 </div>
 
+                <!-- Row 2: Compute -->
                 <div class="stat-card">
                     <div class="stat-icon green">⚙️</div>
                     <div class="stat-info">
@@ -83,6 +90,16 @@
                     </div>
                 </div>
 
+                <div class="stat-card" id="stat-gpu-card">
+                    <div class="stat-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🎮</div>
+                    <div class="stat-info">
+                        <div class="stat-label">GPU Engine</div>
+                        <div class="stat-val" id="stat-gpu-val">OFF</div>
+                        <div class="stat-sub"><span id="stat-gpu-sub">STANDBY</span></div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Environment -->
                 <div class="stat-card">
                     <div class="stat-icon amber">💾</div>
                     <div class="stat-info">
@@ -101,15 +118,7 @@
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-icon blue">🕐</div>
-                    <div class="stat-info">
-                        <div class="stat-label">Uptime</div>
-                        <div class="stat-val" id="stat-uptime" style="font-size:1rem">—</div>
-                        <div class="stat-sub">Since Boot</div>
-                    </div>
-                </div>
-
+                <!-- Row 4: Storage (Wide) -->
                 <div class="stat-card wide" id="stat-storage-card">
                     <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">💽</div>
                     <div class="stat-info" style="flex: 1;">
@@ -120,123 +129,129 @@
                     </div>
                 </div>
 
-                <div class="stat-card" id="stat-gpu-card">
-                    <div class="stat-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🎮</div>
+                <!-- Row 5: Lifecycle -->
+                <div class="stat-card">
+                    <div class="stat-icon purple" style="background: rgba(0, 212, 170, 0.1);">
+                        <svg width="24" height="24" viewBox="0 0 80 80" style="transform: scale(0.3); transform-origin: center;">
+                            <circle cx="40" cy="40" r="35" fill="none" stroke="var(--border-dim)" stroke-width="8"/>
+                            <circle id="gsi-ring-mini" cx="40" cy="40" r="35" fill="none" stroke="var(--teal)" stroke-width="8" stroke-dasharray="220" stroke-dashoffset="0" style="transition: stroke-dashoffset 1s ease;"/>
+                        </svg>
+                    </div>
                     <div class="stat-info">
-                        <div class="stat-label">GPU Engine</div>
-                        <div class="stat-val" id="stat-gpu-val">OFF</div>
-                        <div class="stat-sub"><span id="stat-gpu-sub">STANDBY</span></div>
+                        <div class="stat-label">Stability</div>
+                        <div class="stat-val" id="stat-health-val">—</div>
+                        <div class="stat-sub">Global Index</div>
                     </div>
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-icon purple">🧠</div>
+                    <div class="stat-icon blue">🕐</div>
                     <div class="stat-info">
-                        <div class="stat-label">AI Status</div>
-                        <div class="stat-val" style="font-size:1rem; margin-top:0.15rem">
-                            <span id="system-verdict" class="badge running">ACTIVE</span>
-                        </div>
-                        <div class="stat-sub">Agent Monitoring</div>
+                        <div class="stat-label">Uptime</div>
+                        <div class="stat-val" id="stat-uptime" style="font-size:1rem">—</div>
+                        <div class="stat-sub">Since Boot</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ── MAIN GRID ────────────────────────── -->
-    <div class="main-grid">
-
-        <!-- LEFT: Container Table -->
-        <div>
-            <div class="panel collapsed">
-                <div class="panel-head collapsible" onclick="togglePanel(this)">
-                    <div class="panel-title">
-                        <span class="panel-title-dot"></span>
-                        Container Status
-                    </div>
-                    <button class="panel-badge" onclick="event.stopPropagation(); refreshFleet()">↻ Refresh</button>
-                </div>
-                <div class="panel-body">
-                    <div class="table-responsive">
-                    <table class="fleet-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Status</th>
-                                <th class="right">CPU</th>
-                                <th class="right">MEM</th>
-                                <th class="right">Uptime</th>
-                                <th class="right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fleet-tbody">
-                            <tr>
-                                <td colspan="6" class="loading-text">Loading containers…</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    </div>
-                </div>
+    <!-- ── 2. CONTAINER STATUS ── -->
+    <div class="panel collapsed">
+        <div class="panel-head collapsible" onclick="togglePanel(this)">
+            <div class="panel-title">
+                <span class="panel-title-dot"></span>
+                Container Status
             </div>
-
-            <!-- Action Bar -->
-            <div class="action-bar" style="margin-top: 1rem;">
-                <button class="big-btn heal"   onclick="doGlobalAction('heal')">  🔄 Heal All</button>
-                <button class="big-btn scan"   onclick="doGlobalAction('scan')">  🧠 AI Scan</button>
-                <button class="big-btn status" onclick="doGlobalAction('status')">📊 Status</button>
-                <button class="big-btn reboot" onclick="doGlobalAction('reboot')">⏻ Reboot</button>
+            <button class="panel-badge" onclick="event.stopPropagation(); refreshFleet()">↻ Refresh</button>
+        </div>
+        <div class="panel-body">
+            <div class="table-responsive">
+            <table class="fleet-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th class="right">CPU</th>
+                        <th class="right">MEM</th>
+                        <th class="right">Uptime</th>
+                        <th class="right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fleet-tbody">
+                    <tr>
+                        <td colspan="6" class="loading-text">Loading containers…</td>
+                    </tr>
+                </tbody>
+            </table>
             </div>
         </div>
+    </div>
 
-        <!-- RIGHT: Chart + Health + Activity -->
-        <div class="right-col">
+    <!-- ── 3. LINKS PANEL (NEW) ── -->
+    <div class="panel collapsed">
+        <div class="panel-head collapsible" onclick="togglePanel(this)">
+            <div class="panel-title">
+                <span class="panel-title-dot" style="background: #3b82f6; box-shadow: 0 0 6px #3b82f6;"></span>
+                Network Links
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="links-grid" id="dynamic-links-grid" style="padding: 1.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
+                <div class="loading-text">Discovering Traefik routes…</div>
+            </div>
+        </div>
+    </div>
 
+    <!-- ── 4. AI ALERTS & ACTIVITY ── -->
+    <div class="panel collapsed">
+        <div class="panel-head collapsible" onclick="togglePanel(this)">
+            <div class="panel-title">
+                <span class="panel-title-dot" style="background: #a855f7; box-shadow: 0 0 6px #a855f7;"></span>
+                AI Alerts &amp; Activity
+            </div>
+        </div>
+        <div class="panel-body">
+            <div style="padding: 0.5rem 1.25rem;">
+                <a href="/intelligence" class="panel-badge" style="display: inline-block; margin-bottom: 0.5rem;">View Full Intelligence Logs</a>
+            </div>
+            <div id="activity-feed" class="activity-list">
+                <div class="loading-text">Scanning…</div>
+            </div>
+        </div>
+    </div>
 
-
-            <!-- Resource Usage Chart -->
-            <div class="panel collapsed">
-                <div class="panel-head collapsible" onclick="togglePanel(this)">
-                    <div class="panel-title">
-                        <span class="panel-title-dot"></span>
-                        Resource Usage
+    <!-- ── 5. RESOURCE USAGE ── -->
+    <div class="panel collapsed">
+        <div class="panel-head collapsible" onclick="togglePanel(this)">
+            <div class="panel-title">
+                <span class="panel-title-dot" style="background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
+                Resource Usage
+            </div>
+            <div class="time-selectors" style="display: flex; gap: 0.4rem;">
+                <button class="panel-badge active" onclick="event.stopPropagation(); setTimeframe('1h')">1H</button>
+                <button class="panel-badge" onclick="event.stopPropagation(); setTimeframe('6h')">6H</button>
+                <button class="panel-badge" onclick="event.stopPropagation(); setTimeframe('12h')">12H</button>
+                <button class="panel-badge" onclick="event.stopPropagation(); setTimeframe('1d')">1D</button>
+                <button class="panel-badge" onclick="event.stopPropagation(); setTimeframe('7d')">7D</button>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="chart-wrap">
+                <div class="chart-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#22c55e"></div>
+                        CPU
                     </div>
-                    <span class="panel-badge">1 HOUR</span>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#a855f7"></div>
+                        MEM
+                    </div>
                 </div>
-                <div class="panel-body">
-                    <div class="chart-wrap">
-                        <div class="chart-legend">
-                            <div class="legend-item">
-                                <div class="legend-dot" style="background:#22c55e"></div>
-                                CPU
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-dot" style="background:#a855f7"></div>
-                                MEM
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="resource-chart"></canvas>
-                        </div>
-                    </div>
+                <div class="chart-container">
+                    <canvas id="resource-chart"></canvas>
                 </div>
             </div>
-
-            <!-- AI Alerts & Activity -->
-            <div class="panel collapsed">
-                <div class="panel-head collapsible" onclick="togglePanel(this)">
-                    <div class="panel-title">
-                        <span class="panel-title-dot"></span>
-                        AI Alerts &amp; Activity
-                    </div>
-                    <a href="/intelligence" class="panel-badge" onclick="event.stopPropagation()">View Logs</a>
-                </div>
-                <div class="panel-body">
-                    <div id="activity-feed" class="activity-list">
-                        <div class="loading-text">Scanning…</div>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </div>
 

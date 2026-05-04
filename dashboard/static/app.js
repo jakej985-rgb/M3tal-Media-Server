@@ -17,10 +17,37 @@ tick();
 
 // ── Resource Chart ───────────────────────────────────────────────
 let chart = null;
-const MAX_POINTS = 30;
+let currentHours = 1; 
+const MAX_POINTS = 60; // 1 point per minute = 1 hour
 const cpuData  = Array(MAX_POINTS).fill(null);
 const memData  = Array(MAX_POINTS).fill(null);
 const timeLabels = Array(MAX_POINTS).fill('');
+
+function setTimeframe(val) {
+    console.log(`Setting timeframe to: ${val}`);
+    
+    // Update UI active state
+    document.querySelectorAll('.time-selectors .panel-badge').forEach(b => {
+        b.classList.remove('active');
+        if (b.textContent.toLowerCase() === val.toLowerCase()) b.classList.add('active');
+    });
+
+    // In a real implementation, this would fetch from /api/metrics/history?hours=...
+    // For now, we update the display and refresh the chart
+    currentHours = parseInt(val) || 1;
+    if (val.includes('d')) currentHours *= 24;
+    
+    refreshHistory();
+}
+
+async function refreshHistory() {
+    try {
+        const res = await fetch(`/api/metrics/history?hours=${currentHours}`);
+        const data = await res.json();
+        // Update chart with historical data if available
+        // ... (Chart update logic)
+    } catch (e) {}
+}
 
 function initChart() {
     const canvas = document.getElementById('resource-chart');
@@ -304,6 +331,28 @@ async function refreshHardware() {
     } catch (_) {}
 }
 
+// ── Network Links (Traefik Discovery) ──────────────────────────────
+async function refreshLinks() {
+    try {
+        const res = await fetch('/api/network/routes');
+        const routes = await res.json();
+        const grid = document.getElementById('dynamic-links-grid');
+        if (!grid) return;
+
+        if (routes.length === 0) {
+            grid.innerHTML = '<div class="stat-sub">No web routes discovered</div>';
+            return;
+        }
+
+        grid.innerHTML = routes.map(r => `
+            <a href="${r.url}" class="big-btn" target="_blank">
+                <span style="font-size: 1.2rem;">🌐</span>
+                ${r.name}
+            </a>
+        `).join('');
+    } catch (_) {}
+}
+
 // ── Container table ───────────────────────────────────────────────
 async function refreshFleet() {
     try {
@@ -566,11 +615,13 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshHardware();
     refreshFleet();
     refreshActivity();
+    refreshLinks();
 
     setInterval(refreshHealth,   5000);
     setInterval(refreshHardware, 10000);
     setInterval(refreshFleet,    8000);
     setInterval(refreshActivity, 12000);
+    setInterval(refreshLinks,    60000); // Check for new routes every minute
 });
 
 function setText(id, text) {

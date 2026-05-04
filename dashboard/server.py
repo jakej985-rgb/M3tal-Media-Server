@@ -220,6 +220,43 @@ def get_storage():
 def get_gpu():
     return jsonify(load_json_safe(GPU_JSON))
 
+@app.route('/api/network/routes')
+@login_required()
+def get_network_routes():
+    """Fetch live HTTP routes from Traefik API (internal network)"""
+    try:
+        import requests
+        # Query Traefik internal API for all HTTP routers
+        res = requests.get("http://traefik:8080/api/http/routers", timeout=3)
+        if res.status_code == 200:
+            routers = res.json()
+            routes = []
+            for r in routers:
+                rule = r.get("rule", "")
+                # Parse Host(`domain.com`) rules
+                if "Host(" in rule:
+                    match = _re.search(r"Host\(`([^`]+)`\)", rule)
+                    if match:
+                        domain = match.group(1)
+                        # Derive service name (e.g. 'plex' from 'plex.domain.com')
+                        name = domain.split('.')[0]
+                        
+                        # Filter out system routes you might not want in the main panel
+                        if name not in ["traefik", "m3tal", "dashboard", "api"]:
+                            routes.append({
+                                "name": name.upper(),
+                                "url": f"https://{domain}",
+                                "domain": domain
+                            })
+            
+            # Sort alphabetically
+            routes.sort(key=lambda x: x["name"])
+            return jsonify(routes)
+    except Exception as e:
+        logger.debug(f"Traefik API unreachable: {e}")
+    
+    return jsonify([])
+
 @app.route('/api/logs')
 @login_required()
 def get_logs():
