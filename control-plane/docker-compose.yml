@@ -51,6 +51,8 @@ services:
       - proxy
     env_file:
       - ../.env
+    mem_limit: 250m
+    cpus: 0.5
 
   # Security Hardening: Docker Socket Proxy (Audit Fix 5)
   # This prevents the m3tal-runtime from having raw RW access to the host socket.

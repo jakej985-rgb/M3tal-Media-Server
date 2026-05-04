@@ -23,6 +23,8 @@ services:
       - ../../.env
     labels:
       - "m3tal.stack=maintenance"
+    mem_limit: 150m
+    cpus: 0.25
 
   dozzle:
     image: amir20/dozzle
@@ -41,6 +43,8 @@ services:
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
       - "traefik.docker.network=proxy"
       - "m3tal.stack=maintenance"
+    mem_limit: 200m
+    cpus: 0.25
     networks:
       - proxy
     env_file:
@@ -65,6 +69,8 @@ services:
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
       - "traefik.docker.network=proxy"
       - "m3tal.stack=maintenance"
+    mem_limit: 300m
+    cpus: 0.5
     networks:
       - proxy
     env_file:

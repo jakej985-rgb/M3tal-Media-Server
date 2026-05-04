@@ -25,6 +25,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 200m
+    cpus: 0.5
 
 networks:
   proxy:

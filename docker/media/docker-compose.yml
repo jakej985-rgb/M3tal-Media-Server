@@ -23,6 +23,8 @@ services:
       - "m3tal.stack=media"
       - "m3tal.role=vpn"
     restart: unless-stopped
+    mem_limit: 1.5g
+    cpus: 2
 
   radarr:
     image: lscr.io/linuxserver/radarr
@@ -53,6 +55,8 @@ services:
       - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
       - ${DATA_DIR:?DATA_DIR not set}/media:/media
     restart: unless-stopped
+    mem_limit: 750m
+    cpus: 1.5
 
   sonarr:
     image: lscr.io/linuxserver/sonarr
@@ -83,6 +87,8 @@ services:
       - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
       - ${DATA_DIR:?DATA_DIR not set}/media:/media
     restart: unless-stopped
+    mem_limit: 750m
+    cpus: 1.5
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
@@ -113,6 +119,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 300m
+    cpus: 0.5
 
   komga:
     image: gotson/komga
@@ -141,6 +149,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 600m
+    cpus: 1
 
   jellyseerr:
     image: fallenbagel/jellyseerr
@@ -166,6 +176,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 300m
+    cpus: 0.5
 
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
@@ -186,6 +198,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 150m
+    cpus: 0.25
 
   autobrr:
     image: ghcr.io/autobrr/autobrr:v1.39
@@ -209,6 +223,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 200m
+    cpus: 0.5
 
   recyclarr:
     image: ghcr.io/recyclarr/recyclarr
@@ -227,6 +243,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 150m
+    cpus: 0.25
 
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
@@ -253,6 +271,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 2
 
   glances:
     image: nicolargo/glances:latest
@@ -281,6 +301,8 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     restart: unless-stopped
+    mem_limit: 300m
+    cpus: 0.5
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr
@@ -312,6 +334,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 400m
+    cpus: 1
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr
@@ -332,6 +356,8 @@ services:
     env_file:
       - ../../.env
     restart: unless-stopped
+    mem_limit: 400m
+    cpus: 1
 
 networks:
   proxy:
