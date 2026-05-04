@@ -55,39 +55,88 @@ def get_system_metrics():
             logger.debug(f"Fallback metrics failed: {e}")
     return metrics
 
+_limit_cache = {}
+_last_limit_refresh = 0
+
+def get_container_limits():
+    """Fetch and cache container limits to avoid hammering the API (Audit 4.8)"""
+    global _limit_cache, _last_limit_refresh
+    now = time.time()
+    if now - _last_limit_refresh < 60 and _limit_cache:
+        return _limit_cache
+
+    limits = {}
+    try:
+        # Fetch all container limits in one go
+        cmd = ["docker", "inspect", "--format", "{{.Name}} {{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}"]
+        # Filter for running containers to keep it fast
+        cmd_running = ["docker", "ps", "--format", "{{.Names}}"]
+        running = subprocess.run(cmd_running, capture_output=True, text=True).stdout.strip().split('\n')
+        
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if proc.returncode == 0:
+            for line in proc.stdout.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 3:
+                    name = parts[0].lstrip('/')
+                    if name in running or f"m3tal-{name}" in running:
+                        mem = int(parts[1])
+                        nano_cpus = int(parts[2])
+                        limits[name] = {
+                            "mem_limit": mem if mem > 0 else 0,
+                            "cpu_limit": round(nano_cpus / 1e9, 2) if nano_cpus > 0 else 0
+                        }
+        _limit_cache = limits
+        _last_limit_refresh = now
+    except Exception as e:
+        logger.debug(f"Limit discovery failed: {e}")
+    return limits
+
 def get_container_metrics():
     container_stats = []
+    limits = get_container_limits()
     docker_host = os.environ.get("DOCKER_HOST", "(not set)")
     logger.info(f"[DIAG] Running docker stats, DOCKER_HOST={docker_host}")
     try:
-        # Increased timeout to 30s for slow Windows hosts (Audit fix 4.7)
         cmd = ["docker", "stats", "--no-stream", "--format", "{{json .}}"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
-        logger.info(f"[DIAG] docker stats SUCCESS — {len(result.stdout)} bytes")
         for line in result.stdout.strip().split('\n'):
             if line:
                 try:
                     raw = json.loads(line)
-                    # Normalize percentages (sometimes they have % symbol)
+                    name = raw.get("Name")
                     cpu_str = str(raw.get("CPUPerc", "0")).replace("%", "")
                     mem_str = str(raw.get("MemPerc", "0")).replace("%", "")
+                    
+                    cpu_val = float(cpu_str) if cpu_str else 0.0
+                    mem_val = float(mem_str) if mem_str else 0.0
+                    
+                    limit = limits.get(name) or {}
+                    cpu_limit = limit.get("cpu_limit", 0)
+                    
+                    # Calculate Pressure-relative CPU %
+                    # If limit is 1.5 and usage is 75%, pressure is 50%
+                    cpu_pressure = 0
+                    if cpu_limit > 0:
+                        cpu_pressure = round((cpu_val / (cpu_limit * 100)) * 100, 1)
+                    else:
+                        cpu_pressure = cpu_val # Fallback to raw if no limit
+
                     container_stats.append({
-                        "name": raw.get("Name"),
-                        "cpu": float(cpu_str) if cpu_str else 0.0,
-                        "mem": float(mem_str) if mem_str else 0.0,
+                        "name": name,
+                        "cpu": cpu_val,
+                        "mem": mem_val,
                         "mem_usage": raw.get("MemUsage"),
+                        "cpu_limit": cpu_limit,
+                        "cpu_pressure": cpu_pressure,
+                        "mem_limit_bytes": limit.get("mem_limit", 0)
                     })
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.debug(f"Skipping malformed stats line: {e}")
                     continue
         logger.info(f"[DIAG] Parsed {len(container_stats)} container stats")
-    except subprocess.TimeoutExpired:
-        logger.error("Docker stats timed out (30s)")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"[DIAG] docker stats FAILED — exit={e.returncode}")
-        logger.error(f"[DIAG] STDERR: {(e.stderr or '(empty)')[:500]}")
     except Exception as e:
-        logger.error(f"[DIAG] docker stats EXCEPTION: {type(e).__name__}: {e}")
+        logger.error(f"[DIAG] docker stats FAILED: {e}")
     return container_stats
 
 def append_history(system, containers):

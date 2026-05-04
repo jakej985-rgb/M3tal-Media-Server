@@ -168,6 +168,18 @@ function getCpuClass(cpu) {
     return '';
 }
 
+function renderBar(percent) {
+    const total = 10;
+    const filled = Math.round((Math.min(percent, 100) / 100) * total);
+    const bar = "█".repeat(filled) + "░".repeat(total - filled);
+    
+    let color = "#22c55e"; // Green
+    if (percent >= 80) color = "#ef4444"; // Red
+    else if (percent >= 50) color = "#f59e0b"; // Yellow
+    
+    return `<span style="color: ${color}; font-family: 'JetBrains Mono', monospace; letter-spacing: -1px;">${bar}</span>`;
+}
+
 // ── UI Interactions ───────────────────────────────────────────────
 function togglePanel(header) {
     const panel = header.parentElement;
@@ -418,6 +430,12 @@ async function refreshFleet() {
             const cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
             const gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
             const storage = sData.disks?.root?.percent != null ? sData.disks.root.percent + '%' : '—';
+            
+            // Pressure Calculations
+            const cpuPress = m.cpu_pressure || 0;
+            const memPress = m.mem || 0; // docker stats MemPerc is relative to limit
+            const sysPress = Math.round((cpuPress + memPress) / 2);
+
             const rowId = `details-${name.replace(/[^a-z0-9]/gi, '-')}`;
 
             html += `
@@ -437,11 +455,15 @@ async function refreshFleet() {
                     <td colspan="6">
                         <div class="details-box">
                             <div class="details-metrics">
-                                <div><strong>CPU Usage:</strong> ${cpu}</div>
-                                <div><strong>MEM Usage:</strong> ${mem}</div>
+                                <div style="margin-bottom: 0.5rem; opacity: 0.8; font-size: 0.75rem;">RESOURCE PRESSURE (Limit-Relative)</div>
+                                <div class="pressure-line">CPU: ${renderBar(cpuPress)} ${cpuPress}%</div>
+                                <div class="pressure-line">RAM: ${renderBar(memPress)} ${memPress}%</div>
+                                <div class="pressure-line">SYS: ${renderBar(sysPress)} ${sysPress}%</div>
+                                <div style="margin-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+                                    <strong>MEM Usage:</strong> ${mem}
+                                </div>
                                 <div><strong>TEMP:</strong> ${cpuTemp}°C / ${gpuTemp}°C</div>
                                 <div><strong>STORAGE:</strong> ${storage}</div>
-                                <div><strong>UPTIME:</strong> ${uptime}</div>
                             </div>
                             <div class="details-actions">
                                 <button class="big-btn heal action-btn" onclick="event.stopPropagation(); doAction('restart','${name}')">↺ Restart</button>
