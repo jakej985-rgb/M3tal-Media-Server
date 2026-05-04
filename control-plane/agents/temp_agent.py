@@ -10,12 +10,13 @@ except ImportError:
 
 # Standardize path resolution
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from utils.paths import TEMP_JSON
-from utils.state import save_json
+from utils.paths import TEMP_JSON, STATE_DIR
+from utils.state import save_json, load_json
 from utils.guards import wrap_agent
 from utils.logger import get_logger
 
 logger = get_logger("temp_agent")
+GPU_JSON = os.path.join(STATE_DIR, "gpu.json")
 
 def get_cpu_temp():
     if not psutil:
@@ -92,7 +93,15 @@ def collect_temps():
     if cpu is None:
         cpu = read_thermal_zone()
 
-    gpu = get_gpu_temp()
+    # Priority 1: dedicated gpu_agent data
+    gpu = None
+    gpu_data = load_json(GPU_JSON)
+    if gpu_data and gpu_data.get("active") and gpu_data.get("temp") is not None:
+        gpu = gpu_data["temp"]
+    
+    # Priority 2: local probe fallback
+    if gpu is None:
+        gpu = get_gpu_temp()
 
     # Graceful degradation for local Windows dev
     if cpu is None and sys.platform == "win32":

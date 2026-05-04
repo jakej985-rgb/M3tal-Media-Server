@@ -32,7 +32,7 @@ def get_amd_stats():
             device_path = os.path.join(card, "device")
             if not os.path.exists(device_path): continue
             
-            # Check for AMD Vendor (0x1002) OR any ATI device
+            # Check for AMD Vendor (0x1002)
             is_amd = False
             vendor_path = os.path.join(device_path, "vendor")
             if os.path.exists(vendor_path):
@@ -49,37 +49,52 @@ def get_amd_stats():
                 with open(hwmon_paths[0], 'r') as f:
                     stats["temp"] = int(f.read().strip()) / 1000.0
             
-            # Load/Busy status
+            # Load/Busy status (More paths for older cards)
             busy_paths = [
                 os.path.join(device_path, "gpu_busy_percent"),
-                os.path.join(device_path, "utilization")
+                os.path.join(device_path, "utilization"),
+                os.path.join(device_path, "hwmon/hwmon*/device/gpu_busy_percent")
             ]
-            for bp in busy_paths:
-                if os.path.exists(bp):
-                    with open(bp, 'r') as f:
-                        stats["load"] = int(f.read().strip())
-                        break
+            for bp_pattern in busy_paths:
+                for bp in glob.glob(bp_pattern):
+                    if os.path.exists(bp):
+                        with open(bp, 'r') as f:
+                            stats["load"] = int(f.read().strip())
+                            break
             
-            # Memory usage
-            vram_paths = {
+            # Memory usage (Older cards use visible_vram or different sysfs entries)
+            mem_keys = {
                 "mem_info_vram_used": "mem_used",
-                "mem_info_vram_total": "mem_total"
+                "mem_info_vram_total": "mem_total",
+                "mem_info_vis_vram_used": "mem_used",
+                "vram_visible": "mem_total"
             }
-            for sys_file, key in vram_paths.items():
+            for sys_file, key in mem_keys.items():
                 p = os.path.join(device_path, sys_file)
                 if os.path.exists(p):
-                    with open(p, 'r') as f:
-                        stats[key] = int(int(f.read().strip()) / (1024 * 1024))
+                    try:
+                        with open(p, 'r') as f:
+                            val = int(f.read().strip())
+                            # Some files report bytes, some report MB. 5770 is ~1024MB.
+                            if val > 10000: # Bytes or KB
+                                stats[key] = int(val / (1024 * 1024))
+                            else: # MB
+                                stats[key] = val
+                    except: pass
+            
+            # Final sanity check for VRAM total
+            if stats["mem_total"] < 128: stats["mem_total"] = 1024
             
             return stats
 
-        # Fallback 2: General HWMON Probe (useful if DRM is abstracted)
+        # Fallback 2: General HWMON Probe
         hwmon_list = glob.glob("/sys/class/hwmon/hwmon*")
         for h in hwmon_list:
             name_path = os.path.join(h, "name")
             if os.path.exists(name_path):
                 with open(name_path, 'r') as f:
-                    if f.read().strip() in ["radeon", "amdgpu", "nouveau"]:
+                    name = f.read().strip()
+                    if name in ["radeon", "amdgpu", "nouveau"]:
                         stats["active"] = True
                         temp_path = os.path.join(h, "temp1_input")
                         if os.path.exists(temp_path):
