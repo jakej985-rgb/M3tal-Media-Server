@@ -33,8 +33,11 @@ services:
       - ../../control-plane/state/traefik-dynamic-dir:/etc/traefik/dynamic:ro
     networks:
       - proxy
-    mem_limit: 250m
-    cpus: 0.5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 250M
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:?DOMAIN not set — run from repo root with .env}`)"
@@ -58,9 +61,12 @@ services:
     labels:
       - "m3tal.stack=routing"
       - "m3tal.role=edge"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 150M
     restart: unless-stopped
-    mem_limit: 150m
-    cpus: 0.25
 
 networks:
   proxy:

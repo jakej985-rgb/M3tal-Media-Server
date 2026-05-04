@@ -51,8 +51,11 @@ services:
       - proxy
     env_file:
       - ../.env
-    mem_limit: 250m
-    cpus: 0.5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 250M
 
   # Security Hardening: Docker Socket Proxy (Audit Fix 5)
   # This prevents the m3tal-runtime from having raw RW access to the host socket.
@@ -78,6 +81,11 @@ services:
     networks:
       - proxy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 100M
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -115,6 +123,11 @@ services:
     restart: unless-stopped
     env_file:
       - ../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 400M
     networks:
       - proxy
 

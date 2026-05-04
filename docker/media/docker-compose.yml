@@ -22,9 +22,12 @@ services:
     labels:
       - "m3tal.stack=media"
       - "m3tal.role=vpn"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1500M
     restart: unless-stopped
-    mem_limit: 1.5g
-    cpus: 2
 
   radarr:
     image: lscr.io/linuxserver/radarr
@@ -54,9 +57,12 @@ services:
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
       - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
       - ${DATA_DIR:?DATA_DIR not set}/media:/media
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 750M
     restart: unless-stopped
-    mem_limit: 750m
-    cpus: 1.5
 
   sonarr:
     image: lscr.io/linuxserver/sonarr
@@ -86,9 +92,12 @@ services:
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
       - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
       - ${DATA_DIR:?DATA_DIR not set}/media:/media
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 750M
     restart: unless-stopped
-    mem_limit: 750m
-    cpus: 1.5
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
@@ -118,9 +127,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
     restart: unless-stopped
-    mem_limit: 300m
-    cpus: 0.5
 
   komga:
     image: gotson/komga
@@ -148,9 +160,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 600M
     restart: unless-stopped
-    mem_limit: 600m
-    cpus: 1
 
   jellyseerr:
     image: fallenbagel/jellyseerr
@@ -175,9 +190,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
     restart: unless-stopped
-    mem_limit: 300m
-    cpus: 0.5
 
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
@@ -197,9 +215,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 150M
     restart: unless-stopped
-    mem_limit: 150m
-    cpus: 0.25
 
   autobrr:
     image: ghcr.io/autobrr/autobrr:v1.39
@@ -222,9 +243,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
     restart: unless-stopped
-    mem_limit: 200m
-    cpus: 0.5
 
   recyclarr:
     image: ghcr.io/recyclarr/recyclarr
@@ -242,9 +266,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 150M
     restart: unless-stopped
-    mem_limit: 150m
-    cpus: 0.25
 
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
@@ -270,9 +297,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1000M
     restart: unless-stopped
-    mem_limit: 1g
-    cpus: 2
 
   glances:
     image: nicolargo/glances:latest
@@ -300,9 +330,12 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
     restart: unless-stopped
-    mem_limit: 300m
-    cpus: 0.5
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr
@@ -333,9 +366,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 400M
     restart: unless-stopped
-    mem_limit: 400m
-    cpus: 1
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr
@@ -355,9 +391,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 400M
     restart: unless-stopped
-    mem_limit: 400m
-    cpus: 1
 
 networks:
   proxy:

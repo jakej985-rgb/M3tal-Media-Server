@@ -88,6 +88,7 @@ def get_container_limits():
                         }
         _limit_cache = limits
         _last_limit_refresh = now
+        logger.info(f"[DIAG] Discovered limits for {len(limits)} containers")
     except Exception as e:
         logger.debug(f"Limit discovery failed: {e}")
     return limits
@@ -96,7 +97,6 @@ def get_container_metrics():
     container_stats = []
     limits = get_container_limits()
     docker_host = os.environ.get("DOCKER_HOST", "(not set)")
-    logger.info(f"[DIAG] Running docker stats, DOCKER_HOST={docker_host}")
     try:
         cmd = ["docker", "stats", "--no-stream", "--format", "{{json .}}"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
@@ -113,14 +113,17 @@ def get_container_metrics():
                     
                     limit = limits.get(name) or {}
                     cpu_limit = limit.get("cpu_limit", 0)
+                    mem_limit_bytes = limit.get("mem_limit", 0)
                     
+                    if mem_limit_bytes > 0:
+                        logger.debug(f"[LIMIT] {name}: CPU={cpu_limit}, MEM={mem_limit_bytes}")
+
                     # Calculate Pressure-relative CPU %
-                    # If limit is 1.5 and usage is 75%, pressure is 50%
                     cpu_pressure = 0
                     if cpu_limit > 0:
                         cpu_pressure = round((cpu_val / (cpu_limit * 100)) * 100, 1)
                     else:
-                        cpu_pressure = cpu_val # Fallback to raw if no limit
+                        cpu_pressure = cpu_val
 
                     container_stats.append({
                         "name": name,
@@ -129,12 +132,10 @@ def get_container_metrics():
                         "mem_usage": raw.get("MemUsage"),
                         "cpu_limit": cpu_limit,
                         "cpu_pressure": cpu_pressure,
-                        "mem_limit_bytes": limit.get("mem_limit", 0)
+                        "mem_limit_bytes": mem_limit_bytes
                     })
                 except (json.JSONDecodeError, ValueError) as e:
-                    logger.debug(f"Skipping malformed stats line: {e}")
                     continue
-        logger.info(f"[DIAG] Parsed {len(container_stats)} container stats")
     except Exception as e:
         logger.error(f"[DIAG] docker stats FAILED: {e}")
     return container_stats

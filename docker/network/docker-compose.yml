@@ -24,9 +24,12 @@ services:
       - proxy
     env_file:
       - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
     restart: unless-stopped
-    mem_limit: 200m
-    cpus: 0.5
 
 networks:
   proxy:
