@@ -70,6 +70,7 @@ REGISTRY_JSON = os.path.join(STATE_DIR, "registry.json")
 HEALTH_REPORT_JSON = os.path.join(STATE_DIR, "health_report.json")
 TEMP_JSON = os.path.join(STATE_DIR, "temp.json")
 STORAGE_JSON = os.path.join(STATE_DIR, "storage.json")
+GPU_JSON = os.path.join(STATE_DIR, "gpu.json")
 
 # Historical metrics (Batch 4 T8)
 METRICS_HISTORY_CSV = os.path.join(STATE_DIR, "metrics-history.csv")
@@ -213,6 +214,11 @@ def get_temperature():
 @login_required()
 def get_storage():
     return jsonify(load_json_safe(STORAGE_JSON))
+
+@app.route('/api/metrics/gpu')
+@login_required()
+def get_gpu():
+    return jsonify(load_json_safe(GPU_JSON))
 
 @app.route('/api/logs')
 @login_required()

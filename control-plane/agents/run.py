@@ -45,6 +45,7 @@ AGENTS = [
     ("docker_logs_agent", "docker_logs_agent.py"),
     ("temp_agent", "temp_agent.py"),
     ("storage_agent", "storage_agent.py"),
+    ("gpu_agent", "gpu_agent.py"),
 ]
 
 # --- Master Locking -----------------------------------------------------------

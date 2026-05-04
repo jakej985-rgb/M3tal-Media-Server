@@ -198,12 +198,31 @@ async function refreshHealth() {
 // ── Hardware Metrics ──────────────────────────────────────────────
 async function refreshHardware() {
     try {
-        const [tRes, sRes] = await Promise.all([
+        const [tRes, sRes, gRes] = await Promise.all([
             fetch('/api/metrics/temperature'),
-            fetch('/api/metrics/storage')
+            fetch('/api/metrics/storage'),
+            fetch('/api/metrics/gpu')
         ]);
         const tData = await tRes.json();
         const sData = await sRes.json();
+        const gData = await gRes.json();
+
+        // Update GPU Card
+        const gpuLoadEl = document.getElementById('stat-gpu-load');
+        if (gpuLoadEl && gData.active) {
+            setText('stat-gpu-load', gData.load);
+            setText('stat-gpu-temp', Math.round(gData.temp || 0));
+            setText('stat-gpu-vram', gData.mem_used);
+            
+            const gpuIcon = document.getElementById('stat-gpu-card').querySelector('.stat-icon');
+            if (gData.load >= 80 || gData.temp >= 80) {
+                gpuIcon.style.background = 'rgba(239, 68, 68, 0.15)'; gpuIcon.style.color = '#ef4444';
+            } else if (gData.load >= 50 || gData.temp >= 70) {
+                gpuIcon.style.background = 'rgba(245, 158, 11, 0.15)'; gpuIcon.style.color = '#f59e0b';
+            } else {
+                gpuIcon.style.background = 'rgba(249, 115, 22, 0.15)'; gpuIcon.style.color = '#f97316';
+            }
+        }
 
         // Update Temperature Card
         const tempValEl = document.getElementById('stat-temp');
