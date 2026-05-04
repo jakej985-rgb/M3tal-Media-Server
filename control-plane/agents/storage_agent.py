@@ -67,7 +67,12 @@ def get_drive_temp(dev_path):
             for pattern in patterns:
                 match = re.search(pattern, res.stdout, re.IGNORECASE)
                 if match:
-                    return float(match.groups()[-1])
+                    val = float(match.groups()[-1])
+                    if val > 0: return val
+            
+            # If we got 0.0 or None, log the raw output for one drive to debug
+            if dev_path == "/dev/sdb":
+                logger.info(f"[STORAGE] Raw SMART for {dev_path}: {res.stdout[:500]}...")
         except: pass
             
     return None
