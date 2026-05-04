@@ -97,7 +97,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /sys/class/thermal:/sys/class/thermal:ro
       - /proc:/host/proc:ro
-    user: root  # Required for Docker socket access (same fix as Traefik)
+      - /:/host:ro
+      - /dev:/dev
+    user: root  # Required for Docker socket access and smartctl hardware access
     # 🛡️ Bypass proxy to fix Docker DNS/bridge resolution bugs (same as Traefik fix)
     environment:
       - TZ=America/Denver
@@ -107,8 +109,6 @@ services:
     working_dir: /docker
     command: python3 control-plane/agents/run.py
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
     env_file:
       - ../.env
     networks:

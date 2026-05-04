@@ -161,6 +161,11 @@ def cmd_config():
     path = SCRIPTS_DIR / "config" / "configure_env.py"
     return run_script(path)
 
+def cmd_dashpass():
+    """Launches the dashboard password management tool."""
+    path = SCRIPTS_DIR / "config" / "dashpass.py"
+    return run_script(path)
+
 def cmd_traefik(args):
     """Handles Traefik-specific orchestration and auditing."""
     if args.subcommand == "audit":
@@ -236,6 +241,9 @@ def main():
     # config
     subparsers.add_parser("config", help="Launch interactive environment setup wizard")
 
+    # dashpass
+    subparsers.add_parser("dashpass", help="Manage dashboard usernames and passwords")
+
     # If no args, show help
     if len(sys.argv) == 1:
         parser.print_help()
@@ -275,6 +283,8 @@ def main():
         sys.exit(cmd_bootstrap(args))
     elif args.command == "config":
         sys.exit(cmd_config())
+    elif args.command == "dashpass":
+        sys.exit(cmd_dashpass())
     else:
         parser.print_help()
 
