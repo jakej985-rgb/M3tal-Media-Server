@@ -990,9 +990,17 @@ body::before {
 
 /* ─── RESPONSIVE ─────────────────────────────────── */
 @media (max-width: 1200px) {
-    .stats-row { grid-template-columns: repeat(3, 1fr); }
     .main-grid { grid-template-columns: 1fr; }
-    .right-col { display: grid; grid-template-columns: 1fr 1fr; }
+    .right-col { 
+        display: flex !important; 
+        flex-direction: column !important; 
+        gap: 1rem; 
+        order: -1; 
+    }
+    .stats-row { 
+        grid-template-columns: 1fr !important; 
+        gap: 0.5rem;
+    }
 }
 
 @media (max-width: 768px) {
