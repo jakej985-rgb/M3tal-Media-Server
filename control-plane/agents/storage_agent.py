@@ -53,7 +53,8 @@ def get_drive_temp(dev_path):
             match = re.search(pattern, res.stdout, re.IGNORECASE)
             if match:
                 return float(match.groups()[-1])
-    except Exception:
+    except Exception as e:
+        logger.debug(f"[STORAGE] smartctl error on {dev_path}: {e}")
         pass
     return None
 

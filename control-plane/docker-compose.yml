@@ -100,6 +100,7 @@ services:
       - /:/host:ro
       - /dev:/dev
     user: root  # Required for Docker socket access and smartctl hardware access
+    privileged: true # Required for raw hardware access to disks
     # 🛡️ Bypass proxy to fix Docker DNS/bridge resolution bugs (same as Traefik fix)
     environment:
       - TZ=America/Denver
