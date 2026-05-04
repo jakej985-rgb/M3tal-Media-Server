@@ -37,13 +37,15 @@ def get_drive_temp(dev_path):
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     try:
-        # Use -a to get all info, as some drives don't show temp in -A
         res = subprocess.run(
             ["smartctl", "-a", dev_path],
             capture_output=True, text=True, timeout=4
         )
+        if res.returncode != 0:
+            # Some drives return non-zero even on success, but let's log the error
+            logger.debug(f"[STORAGE] smartctl {dev_path} returned {res.returncode}")
+        
         import re
-        # Broad regex for Composite (NVMe), Internal, Airflow, or standard Celsius
         patterns = [
             r"(?:Temperature_Celsius|Temperature_Internal|Airflow_Temperature_Celsius|Composite\s+Temperature|Temperature:).*?(\d+)",
             r"Current\s+Drive\s+Temperature:\s+(\d+)",
@@ -53,6 +55,12 @@ def get_drive_temp(dev_path):
             match = re.search(pattern, res.stdout, re.IGNORECASE)
             if match:
                 return float(match.groups()[-1])
+        
+        # If we got here, we failed to find a temp. Log a snippet of the output.
+        if res.stdout:
+            snippet = res.stdout[:200].replace('\n', ' ')
+            logger.debug(f"[STORAGE] No temp match in {dev_path} output: {snippet}...")
+            
     except Exception as e:
         logger.debug(f"[STORAGE] smartctl error on {dev_path}: {e}")
         pass
@@ -128,6 +136,8 @@ def get_disk_stats():
 
                     free = get_free_space(mount)
                     temp = get_drive_temp(f"/dev/{disk_name}")
+                    
+                    logger.info(f"[STORAGE] Found {label} ({mount}): {free}G, {temp}°C")
                     
                     # Get usage % for the icon color
                     try:
