@@ -19,43 +19,42 @@ from utils.logger import get_logger
 logger = get_logger("storage_agent")
 
 _smartctl_path = None
+_device_types = {} # Cache for scan results
 
 def get_drive_temp(dev_path):
-    global _smartctl_path
+    global _smartctl_path, _device_types
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     
-    # Discovery logic (runs once or until found)
+    # Discovery logic
     if not _smartctl_path:
         import shutil
-        _smartctl_path = shutil.which("smartctl")
-        
-        if not _smartctl_path:
-            # Deep search in common binary locations
-            search_paths = [
-                "/usr/sbin/smartctl", "/usr/bin/smartctl", "/sbin/smartctl", 
-                "/bin/smartctl", "/usr/local/sbin/smartctl", "/usr/local/bin/smartctl"
-            ]
-            for p in search_paths:
-                if os.path.exists(p):
-                    _smartctl_path = p
-                    break
-        
-        if not _smartctl_path:
-            logger.info(f"[STORAGE] CRITICAL: smartctl not found in PATH or common dirs.")
-            logger.info(f"[STORAGE] System PATH: {os.environ.get('PATH')}")
+        _smartctl_path = shutil.which("smartctl") or "/usr/sbin/smartctl"
+        if not os.path.exists(_smartctl_path):
             return None
-        else:
-            logger.info(f"[STORAGE] Using smartctl at: {_smartctl_path}")
 
-    # Try different device types if default fails (common for USB/NVMe bridges)
-    types_to_try = [None, "sat", "nvme"]
+    # Perform a scan once to find device types (handles USB/RAID bridges)
+    if not _device_types:
+        try:
+            scan_res = subprocess.run([_smartctl_path, "--scan"], capture_output=True, text=True, timeout=5)
+            for line in scan_res.stdout.splitlines():
+                # Format: /dev/sda -d sat # ...
+                if " -d " in line:
+                    parts = line.split(" -d ")
+                    dev = parts[0].strip()
+                    d_type = parts[1].split()[0]
+                    _device_types[dev] = d_type
+        except: pass
+
+    # Try cached type first, then fallback to common types
+    dev_type = _device_types.get(dev_path)
+    types_to_try = [dev_type] if dev_type else [None, "sat", "nvme", "scsi"]
     
     for d_type in types_to_try:
         try:
-            cmd = [_smartctl_path, "-a", dev_path]
-            if d_type:
-                cmd = [_smartctl_path, "-d", d_type, "-a", dev_path]
+            cmd = [_smartctl_path, "-a"]
+            if d_type: cmd += ["-d", d_type]
+            cmd.append(dev_path)
                 
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
             
@@ -69,15 +68,7 @@ def get_drive_temp(dev_path):
                 match = re.search(pattern, res.stdout, re.IGNORECASE)
                 if match:
                     return float(match.groups()[-1])
-            
-            # If we reached here with no match, and it's our last attempt, log why
-            if d_type == types_to_try[-1] and res.stdout:
-                snippet = res.stdout[:150].replace('\n', ' ')
-                logger.info(f"[STORAGE] {dev_path} scan failed. Output snippet: {snippet}")
-        except Exception as e:
-            if d_type == types_to_try[-1]:
-                logger.info(f"[STORAGE] smartctl {dev_path} error: {e}")
-            pass
+        except: pass
             
     return None
 
