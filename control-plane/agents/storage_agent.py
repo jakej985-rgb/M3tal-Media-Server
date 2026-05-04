@@ -37,16 +37,22 @@ def get_drive_temp(dev_path):
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     try:
-        # 🛡️ SECURITY: smartctl requires root but we are running as root in runtime
+        # Use -a to get all info, as some drives don't show temp in -A
         res = subprocess.run(
-            ["smartctl", "-A", dev_path],
-            capture_output=True, text=True, timeout=3
+            ["smartctl", "-a", dev_path],
+            capture_output=True, text=True, timeout=4
         )
         import re
-        # Use the robust regex suggested for various drive types
-        match = re.search(r"(Temperature_Celsius|Temperature_Internal|Temperature:).*?(\d+)", res.stdout)
-        if match:
-            return float(match.group(2))
+        # Broad regex for Composite (NVMe), Internal, Airflow, or standard Celsius
+        patterns = [
+            r"(?:Temperature_Celsius|Temperature_Internal|Airflow_Temperature_Celsius|Composite\s+Temperature|Temperature:).*?(\d+)",
+            r"Current\s+Drive\s+Temperature:\s+(\d+)",
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, res.stdout, re.IGNORECASE)
+            if match:
+                return float(match.groups()[-1])
     except Exception:
         pass
     return None
