@@ -36,34 +36,38 @@ def get_lsblk_data():
 def get_drive_temp(dev_path):
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
-    try:
-        res = subprocess.run(
-            ["smartctl", "-a", dev_path],
-            capture_output=True, text=True, timeout=4
-        )
-        if res.returncode != 0:
-            # Some drives return non-zero even on success, but let's log the error
-            logger.debug(f"[STORAGE] smartctl {dev_path} returned {res.returncode}")
-        
-        import re
-        patterns = [
-            r"(?:Temperature_Celsius|Temperature_Internal|Airflow_Temperature_Celsius|Composite\s+Temperature|Temperature:).*?(\d+)",
-            r"Current\s+Drive\s+Temperature:\s+(\d+)",
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, res.stdout, re.IGNORECASE)
-            if match:
-                return float(match.groups()[-1])
-        
-        # If we got here, we failed to find a temp. Log a snippet of the output.
-        if res.stdout:
-            snippet = res.stdout[:200].replace('\n', ' ')
-            logger.debug(f"[STORAGE] No temp match in {dev_path} output: {snippet}...")
+    
+    # Try different device types if default fails (common for USB/NVMe bridges)
+    types_to_try = [None, "sat", "nvme"]
+    
+    for d_type in types_to_try:
+        try:
+            cmd = ["smartctl", "-a", dev_path]
+            if d_type:
+                cmd = ["smartctl", "-d", d_type, "-a", dev_path]
+                
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
             
-    except Exception as e:
-        logger.debug(f"[STORAGE] smartctl error on {dev_path}: {e}")
-        pass
+            import re
+            patterns = [
+                r"(?:Temperature_Celsius|Temperature_Internal|Airflow_Temperature_Celsius|Composite\s+Temperature|Temperature:).*?(\d+)",
+                r"Current\s+Drive\s+Temperature:\s+(\d+)",
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, res.stdout, re.IGNORECASE)
+                if match:
+                    return float(match.groups()[-1])
+            
+            # If we reached here with no match, and it's our last attempt, log why
+            if d_type == types_to_try[-1] and res.stdout:
+                snippet = res.stdout[:150].replace('\n', ' ')
+                logger.info(f"[STORAGE] {dev_path} scan failed. Output snippet: {snippet}")
+        except Exception as e:
+            if d_type == types_to_try[-1]:
+                logger.info(f"[STORAGE] smartctl {dev_path} error: {e}")
+            pass
+            
     return None
 
 def get_lsblk_data():
