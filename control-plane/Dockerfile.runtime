@@ -13,6 +13,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     ca-certificates \
     gnupg \
     procps \
+    util-linux \
+    smartmontools \
     # docker.io is the Debian-maintained engine/cli, reducing attack surface vs docker-ce-cli
     docker.io \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

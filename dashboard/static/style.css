@@ -290,6 +290,14 @@ body::before {
     margin-top: 2px;
 }
 
+.stat-drive-temp {
+    font-size: 0.6rem;
+    color: var(--teal);
+    font-weight: 700;
+    margin-top: 1px;
+    letter-spacing: 0.5px;
+}
+
 .stat-sub {
     font-size: 0.65rem;
     color: var(--text-3);

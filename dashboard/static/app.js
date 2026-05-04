@@ -238,11 +238,14 @@ async function refreshHardware() {
                     const disk = sData.disks[key];
                     if (disk.percent > maxUsage) maxUsage = disk.percent;
                     
+                    const temp = disk.temp != null ? `${Math.round(disk.temp)}°C` : '';
+                    
                     gridHtml += `
                         <div class="stat-drive-item">
                             <div class="stat-drive-label">${key}</div>
                             <div class="stat-val">${Math.round(disk.percent)}<span>%</span></div>
                             <div class="stat-drive-usage">${disk.used_gb}G / ${disk.total_gb}G</div>
+                            ${temp ? `<div class="stat-drive-temp">${temp}</div>` : ''}
                         </div>
                     `;
                 });
@@ -419,6 +422,7 @@ async function refreshActivity() {
         `).join('');
     } catch (_) {}
 }
+
 
 function formatTime() {
     const n = new Date();
