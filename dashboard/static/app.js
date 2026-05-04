@@ -178,8 +178,7 @@ async function refreshHealth() {
         }
 
         // Mini Card Score
-        const scoreMiniEl = document.getElementById('health-score-mini');
-        if (scoreMiniEl) scoreMiniEl.textContent = score;
+        setText('stat-health-val', `${score}%`);
         
         const ringMini = document.getElementById('gsi-ring-mini');
         if (ringMini) {

@@ -70,16 +70,13 @@ def get_amd_stats():
         
     return stats
 
-@wrap_agent("gpu_agent")
-def main():
-    while True:
-        stats = get_amd_stats()
-        save_json(GPU_JSON, stats)
-        
-        if stats["active"]:
-            logger.debug(f"[GPU] {stats['name']}: {stats['temp']}°C, {stats['load']}% Load")
-        
-        time.sleep(10)
+def run_tick():
+    """Single tick for the agent wrapper."""
+    stats = get_amd_stats()
+    save_json(GPU_JSON, stats)
+    
+    if stats["active"]:
+        logger.debug(f"[GPU] {stats['name']}: {stats['temp']}°C, {stats['load']}% Load")
 
 if __name__ == "__main__":
-    main()
+    wrap_agent("gpu_agent", run_tick, interval=10)
