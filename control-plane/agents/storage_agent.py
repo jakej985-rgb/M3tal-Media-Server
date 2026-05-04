@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import subprocess
+import json
 
 try:
     import psutil
@@ -16,35 +18,19 @@ from utils.logger import get_logger
 
 logger = get_logger("storage_agent")
 
-import subprocess
-import json
-
-def get_lsblk_data():
-    try:
-        # We need -b for bytes if we want exact numbers, or just rely on psutil for usage
-        # TRAN (transport) helps identify USB/SATA/NVME
-        res = subprocess.run(
-            ["lsblk", "-J", "-o", "NAME,LABEL,MOUNTPOINT,SIZE,FSTYPE,TYPE,UUID,TRAN"],
-            capture_output=True, text=True, timeout=5
-        )
-        if res.returncode == 0:
-            return json.loads(res.stdout).get("blockdevices", [])
-    except Exception as e:
-        logger.debug(f"lsblk failed: {e}")
-    return []
-
 def get_drive_temp(dev_path):
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     
     # Try different device types if default fails (common for USB/NVMe bridges)
     types_to_try = [None, "sat", "nvme"]
+    smartctl_bin = "/usr/sbin/smartctl"
     
     for d_type in types_to_try:
         try:
-            cmd = ["smartctl", "-a", dev_path]
+            cmd = [smartctl_bin, "-a", dev_path]
             if d_type:
-                cmd = ["smartctl", "-d", d_type, "-a", dev_path]
+                cmd = [smartctl_bin, "-d", d_type, "-a", dev_path]
                 
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
             
