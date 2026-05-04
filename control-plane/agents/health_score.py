@@ -175,6 +175,20 @@ def calculate_health():
 
     score = max(score, 0)
     
+    def get_uptime():
+        """Get system uptime string."""
+        try:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.readline().split()[0])
+                hours = int(uptime_seconds // 3600)
+                days = int(hours // 24)
+                hours = hours % 24
+                if days > 0:
+                    return f"{days}d {hours}h"
+                return f"{hours}h"
+        except:
+            return "—"
+
     save_json(HEALTH_REPORT_JSON, {
         "score": score,
         "mode": mode,
@@ -183,6 +197,7 @@ def calculate_health():
         "recovery": recovery_metrics,
         "agent_health": agent_health,
         "docker_available": docker_available,
+        "uptime": get_uptime(),
         "timestamp": int(now)
     }, caller="health_score")
     

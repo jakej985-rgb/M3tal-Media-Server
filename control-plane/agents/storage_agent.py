@@ -40,21 +40,13 @@ def get_drive_temp(dev_path):
         # 🛡️ SECURITY: smartctl requires root but we are running as root in runtime
         res = subprocess.run(
             ["smartctl", "-A", dev_path],
-            capture_output=True, text=True, timeout=2
+            capture_output=True, text=True, timeout=3
         )
-        # Standard SMART output parsing for SATA/SAS
-        for line in res.stdout.splitlines():
-            if "Temperature_Celsius" in line:
-                parts = line.split()
-                if len(parts) >= 10:
-                    return float(parts[9])
-            # NVMe uses a different format
-            if "Temperature:" in line:
-                parts = line.split()
-                if len(parts) >= 2:
-                    # Remove 'Celsius' or non-numeric chars
-                    temp_str = ''.join(c for c in parts[1] if c.isdigit() or c == '.')
-                    return float(temp_str)
+        import re
+        # Use the robust regex suggested for various drive types
+        match = re.search(r"(Temperature_Celsius|Temperature_Internal|Temperature:).*?(\d+)", res.stdout)
+        if match:
+            return float(match.group(2))
     except Exception:
         pass
     return None
