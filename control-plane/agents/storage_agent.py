@@ -22,9 +22,23 @@ def get_drive_temp(dev_path):
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     
+    # Auto-locate smartctl binary
+    import shutil
+    smartctl_bin = shutil.which("smartctl") or "/usr/sbin/smartctl"
+    
+    # Fallback search if not in PATH
+    if not os.path.exists(smartctl_bin):
+        for path in ["/usr/sbin/smartctl", "/usr/bin/smartctl", "/sbin/smartctl"]:
+            if os.path.exists(path):
+                smartctl_bin = path
+                break
+                
+    if not os.path.exists(smartctl_bin):
+        logger.info(f"[STORAGE] CRITICAL: smartctl binary not found in system! Ensure smartmontools is installed.")
+        return None
+
     # Try different device types if default fails (common for USB/NVMe bridges)
     types_to_try = [None, "sat", "nvme"]
-    smartctl_bin = "/usr/sbin/smartctl"
     
     for d_type in types_to_try:
         try:
