@@ -301,8 +301,8 @@ body::before {
 }
 
 .right-col {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
     gap: 1.25rem;
     order: -1; /* Health/Resource panels first on mobile */
 }
