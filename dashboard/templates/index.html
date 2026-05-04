@@ -41,74 +41,84 @@
 <!-- ── PAGE ────────────────────────────────── -->
 <main class="page">
 
-    <!-- ── STAT CARDS ──────────────────────── -->
-    <div class="stats-row">
-
-        <div class="stat-card">
-            <div class="stat-icon teal">📦</div>
-            <div class="stat-info">
-                <div class="stat-label">Containers</div>
-                <div class="stat-val" id="stat-containers-val">— / —</div>
-                <div class="stat-sub" id="stat-containers-sub">Loading…</div>
+    <!-- ── SYSTEM OVERVIEW (Collapsible on Mobile) ── -->
+    <div class="panel collapsible-stats">
+        <div class="panel-head collapsible" onclick="togglePanel(this)">
+            <div class="panel-title">
+                <span class="panel-title-dot"></span>
+                System Overview
             </div>
         </div>
-
-        <div class="stat-card">
-            <div class="stat-icon green">⚙️</div>
-            <div class="stat-info">
-                <div class="stat-label">CPU</div>
-                <div class="stat-val" id="stat-cpu">—</div>
-                <div class="stat-sub" id="stat-cpu-sub">System</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon amber">💾</div>
-            <div class="stat-info">
-                <div class="stat-label">Memory</div>
-                <div class="stat-val" id="stat-mem">—</div>
-                <div class="stat-sub">Used</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🌡️</div>
-            <div class="stat-info">
-                <div class="stat-label">Temp</div>
-                <div class="stat-val" id="stat-temp">—</div>
-                <div class="stat-sub" id="stat-temp-sub">CPU / GPU</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">💽</div>
-            <div class="stat-info">
-                <div class="stat-label">Storage</div>
-                <div class="stat-val" id="stat-storage">—</div>
-                <div class="stat-sub" id="stat-storage-sub">Used Space</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon blue">🕐</div>
-            <div class="stat-info">
-                <div class="stat-label">Uptime</div>
-                <div class="stat-val" id="stat-uptime" style="font-size:1.1rem">—</div>
-                <div class="stat-sub">Since Last Reboot</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon purple">🧠</div>
-            <div class="stat-info">
-                <div class="stat-label">AI Status</div>
-                <div class="stat-val" style="font-size:1rem; margin-top:0.15rem">
-                    <span id="system-verdict" class="badge running">ACTIVE</span>
+        <div class="panel-body">
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon teal">📦</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Containers</div>
+                        <div class="stat-val" id="stat-containers-val">— / —</div>
+                        <div class="stat-sub" id="stat-containers-sub">Loading…</div>
+                    </div>
                 </div>
-                <div class="stat-sub">Monitoring &amp; Learning</div>
+
+                <div class="stat-card">
+                    <div class="stat-icon green">⚙️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">CPU</div>
+                        <div class="stat-val" id="stat-cpu">—</div>
+                        <div class="stat-sub" id="stat-cpu-sub">System</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon amber">💾</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Memory</div>
+                        <div class="stat-val" id="stat-mem">—</div>
+                        <div class="stat-sub">Used</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🌡️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Temp</div>
+                        <div class="stat-val" id="stat-temp">—</div>
+                        <div class="stat-sub" id="stat-temp-sub">CPU / GPU</div>
+                    </div>
+                </div>
+
+                <div class="stat-card wide" id="stat-storage-card">
+                    <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">💽</div>
+                    <div class="stat-info" style="flex: 1;">
+                        <div class="stat-label">Storage Usage</div>
+                        <div class="stat-val-grid" id="stat-storage-grid">
+                            <!-- Populated by JS: Root and Data usage -->
+                            <div class="loading-text" style="font-size: 0.8rem;">Loading drives…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon blue">🕐</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Uptime</div>
+                        <div class="stat-val" id="stat-uptime" style="font-size:1.1rem">—</div>
+                        <div class="stat-sub">Since Last Reboot</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon purple">🧠</div>
+                    <div class="stat-info">
+                        <div class="stat-label">AI Status</div>
+                        <div class="stat-val" style="font-size:1rem; margin-top:0.15rem">
+                            <span id="system-verdict" class="badge running">ACTIVE</span>
+                        </div>
+                        <div class="stat-sub">Monitoring &amp; Learning</div>
+                    </div>
+                </div>
             </div>
         </div>
-
     </div>
 
     <!-- ── MAIN GRID ────────────────────────── -->

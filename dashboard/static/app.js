@@ -212,24 +212,33 @@ async function refreshHardware() {
         }
 
         // Update Storage Card
-        const storageValEl = document.getElementById('stat-storage');
-        if (storageValEl && sData.disks) {
+        const storageGrid = document.getElementById('stat-storage-grid');
+        if (storageGrid && sData.disks) {
             let maxUsage = 0;
-            for (const key in sData.disks) {
-                if (sData.disks[key].percent > maxUsage) maxUsage = sData.disks[key].percent;
-            }
-            if (maxUsage > 0) {
-                storageValEl.innerHTML = `${Math.round(maxUsage)}<span>%</span>`;
-                const storageIcon = storageValEl.parentElement.parentElement.querySelector('.stat-icon');
-                if (maxUsage >= 95) {
-                    storageIcon.style.background = 'rgba(239, 68, 68, 0.15)'; storageIcon.style.color = '#ef4444';
-                } else if (maxUsage >= 85) {
-                    storageIcon.style.background = 'rgba(245, 158, 11, 0.15)'; storageIcon.style.color = '#f59e0b';
-                } else {
-                    storageIcon.style.background = 'rgba(14, 165, 233, 0.15)'; storageIcon.style.color = '#0ea5e9';
-                }
+            let gridHtml = '';
+            
+            const driveKeys = Object.keys(sData.disks).sort(); // Sort to keep Root first usually
+            driveKeys.forEach(key => {
+                const disk = sData.disks[key];
+                if (disk.percent > maxUsage) maxUsage = disk.percent;
+                
+                gridHtml += `
+                    <div class="stat-drive-item">
+                        <div class="stat-drive-label">${key}</div>
+                        <div class="stat-val">${Math.round(disk.percent)}<span>%</span></div>
+                    </div>
+                `;
+            });
+            
+            storageGrid.innerHTML = gridHtml;
+            
+            const storageIcon = document.getElementById('stat-storage-card').querySelector('.stat-icon');
+            if (maxUsage >= 95) {
+                storageIcon.style.background = 'rgba(239, 68, 68, 0.15)'; storageIcon.style.color = '#ef4444';
+            } else if (maxUsage >= 85) {
+                storageIcon.style.background = 'rgba(245, 158, 11, 0.15)'; storageIcon.style.color = '#f59e0b';
             } else {
-                storageValEl.innerHTML = `N/A`;
+                storageIcon.style.background = 'rgba(14, 165, 233, 0.15)'; storageIcon.style.color = '#0ea5e9';
             }
         }
     } catch (_) {}
