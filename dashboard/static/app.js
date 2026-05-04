@@ -213,14 +213,19 @@ async function refreshHardware() {
         const gData = await gRes.json();
 
         // Update GPU Card
-        const gpuLoadEl = document.getElementById('stat-gpu-load');
-        if (gpuLoadEl) {
+        const gpuValEl = document.getElementById('stat-gpu-val');
+        const gpuSubEl = document.getElementById('stat-gpu-sub');
+        if (gpuValEl && gpuSubEl) {
             if (gData.active) {
-                setText('stat-gpu-load', gData.load !== undefined ? gData.load : 'OK');
-                setText('stat-gpu-temp', Math.round(gData.temp || 0));
-                setText('stat-gpu-vram', gData.mem_used || 0);
+                const load = gData.load !== undefined ? `${gData.load}%` : 'ACTIVE';
+                const temp = gData.temp != null ? `${Math.round(gData.temp)}°C` : '--°C';
+                const vram = gData.mem_used != null ? `${gData.mem_used}MB` : '--';
+                
+                gpuValEl.textContent = load;
+                gpuSubEl.textContent = `${temp} | ${vram} VRAM`;
             } else {
-                setText('stat-gpu-load', 'OFF');
+                gpuValEl.textContent = 'OFF';
+                gpuSubEl.textContent = 'STANDBY';
             }
             
             const gpuIcon = document.getElementById('stat-gpu-card').querySelector('.stat-icon');
