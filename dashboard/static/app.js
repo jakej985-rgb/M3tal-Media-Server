@@ -171,6 +171,12 @@ async function refreshHealth() {
         const scoreEl = document.getElementById('health-score');
         if (scoreEl) scoreEl.textContent = score;
         
+        // Mini Card Score (Standardized ID)
+        const healthVal = document.getElementById('stat-health-val');
+        if (healthVal) {
+            healthVal.textContent = `${score}%`;
+        }
+        
         const ring = document.getElementById('health-ring');
         if (ring) {
             const offset = 220 - (220 * score / 100);
@@ -208,10 +214,14 @@ async function refreshHardware() {
 
         // Update GPU Card
         const gpuLoadEl = document.getElementById('stat-gpu-load');
-        if (gpuLoadEl && gData.active) {
-            setText('stat-gpu-load', gData.load);
-            setText('stat-gpu-temp', Math.round(gData.temp || 0));
-            setText('stat-gpu-vram', gData.mem_used);
+        if (gpuLoadEl) {
+            if (gData.active) {
+                setText('stat-gpu-load', gData.load !== undefined ? gData.load : 'OK');
+                setText('stat-gpu-temp', Math.round(gData.temp || 0));
+                setText('stat-gpu-vram', gData.mem_used || 0);
+            } else {
+                setText('stat-gpu-load', 'OFF');
+            }
             
             const gpuIcon = document.getElementById('stat-gpu-card').querySelector('.stat-icon');
             if (gData.load >= 80 || gData.temp >= 80) {

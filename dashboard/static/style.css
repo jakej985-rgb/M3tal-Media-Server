@@ -23,8 +23,8 @@
     --text-1:      #e2e8f0;
     --text-2:      #94a3b8;
     --text-3:      #4b5e75;
-    --font-ui:     'Rajdhani', sans-serif;
-    --font-mono:   'JetBrains Mono', monospace;
+    --font-ui:     'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono:   'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --radius:      10px;
     --radius-sm:   6px;
 }

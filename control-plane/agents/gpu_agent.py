@@ -5,14 +5,14 @@ import glob
 
 # Standardize path resolution
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from utils.paths import DATA_DIR
+from utils.paths import STATE_DIR
 from utils.state import save_json
 from utils.guards import wrap_agent
 from utils.logger import get_logger
 
 logger = get_logger("gpu_agent")
 
-GPU_JSON = os.path.join(DATA_DIR, "gpu.json")
+GPU_JSON = os.path.join(STATE_DIR, "gpu.json")
 
 def get_amd_stats():
     """Probe /sys for AMD GPU statistics."""
