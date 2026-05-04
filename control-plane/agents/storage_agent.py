@@ -18,33 +18,44 @@ from utils.logger import get_logger
 
 logger = get_logger("storage_agent")
 
+_smartctl_path = None
+
 def get_drive_temp(dev_path):
+    global _smartctl_path
     if not dev_path or not dev_path.startswith('/dev/'):
         return None
     
-    # Auto-locate smartctl binary
-    import shutil
-    smartctl_bin = shutil.which("smartctl") or "/usr/sbin/smartctl"
-    
-    # Fallback search if not in PATH
-    if not os.path.exists(smartctl_bin):
-        for path in ["/usr/sbin/smartctl", "/usr/bin/smartctl", "/sbin/smartctl"]:
-            if os.path.exists(path):
-                smartctl_bin = path
-                break
-                
-    if not os.path.exists(smartctl_bin):
-        logger.info(f"[STORAGE] CRITICAL: smartctl binary not found in system! Ensure smartmontools is installed.")
-        return None
+    # Discovery logic (runs once or until found)
+    if not _smartctl_path:
+        import shutil
+        _smartctl_path = shutil.which("smartctl")
+        
+        if not _smartctl_path:
+            # Deep search in common binary locations
+            search_paths = [
+                "/usr/sbin/smartctl", "/usr/bin/smartctl", "/sbin/smartctl", 
+                "/bin/smartctl", "/usr/local/sbin/smartctl", "/usr/local/bin/smartctl"
+            ]
+            for p in search_paths:
+                if os.path.exists(p):
+                    _smartctl_path = p
+                    break
+        
+        if not _smartctl_path:
+            logger.info(f"[STORAGE] CRITICAL: smartctl not found in PATH or common dirs.")
+            logger.info(f"[STORAGE] System PATH: {os.environ.get('PATH')}")
+            return None
+        else:
+            logger.info(f"[STORAGE] Using smartctl at: {_smartctl_path}")
 
     # Try different device types if default fails (common for USB/NVMe bridges)
     types_to_try = [None, "sat", "nvme"]
     
     for d_type in types_to_try:
         try:
-            cmd = [smartctl_bin, "-a", dev_path]
+            cmd = [_smartctl_path, "-a", dev_path]
             if d_type:
-                cmd = [smartctl_bin, "-d", d_type, "-a", dev_path]
+                cmd = [_smartctl_path, "-d", d_type, "-a", dev_path]
                 
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
             
