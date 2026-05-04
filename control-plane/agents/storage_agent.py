@@ -70,10 +70,13 @@ def get_drive_temp(dev_path):
                     val = float(match.groups()[-1])
                     if val > 0: return val
             
-            # If we got 0.0 or None, log the raw output for one drive to debug
-            if dev_path == "/dev/sdb":
-                logger.info(f"[STORAGE] Raw SMART for {dev_path}: {res.stdout[:500]}...")
+            # If SMART is disabled, try to enable it once
+            if "SMART support is: Disabled" in res.stdout:
+                subprocess.run([_smartctl_path, "-s", "on", dev_path], capture_output=True, timeout=2)
+                
         except: pass
+            
+    return None
             
     return None
 
