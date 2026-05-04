@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import glob
+import re
 
 # Standardize path resolution
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -14,8 +15,27 @@ logger = get_logger("gpu_agent")
 
 GPU_JSON = os.path.join(STATE_DIR, "gpu.json")
 
+def parse_pm_info(path):
+    """Parse /sys/kernel/debug/dri/*/radeon_pm_info for load/clocks."""
+    data = {"load": 0, "temp": None}
+    try:
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                content = f.read()
+                # Look for "GPU load: X%" or similar patterns
+                load_match = re.search(r"GPU load:\s*(\d+)%", content)
+                if load_match:
+                    data["load"] = int(load_match.group(1))
+                
+                # Temperature fallback if not found in hwmon
+                temp_match = re.search(r"temperature:\s*(\d+)", content)
+                if temp_match:
+                    data["temp"] = float(temp_match.group(1))
+    except: pass
+    return data
+
 def get_amd_stats():
-    """Probe /sys for AMD GPU statistics with multiple fallbacks."""
+    """Probe /sys for AMD GPU statistics with Deep Probe fallbacks."""
     stats = {
         "name": "AMD Radeon HD 5770",
         "temp": None,
@@ -26,81 +46,70 @@ def get_amd_stats():
     }
     
     try:
-        # Fallback 1: Direct DRM Card Probe
+        # 1. Find the card and device path
         cards = glob.glob("/sys/class/drm/card*")
         for card in cards:
             device_path = os.path.join(card, "device")
             if not os.path.exists(device_path): continue
             
             # Check for AMD Vendor (0x1002)
-            is_amd = False
             vendor_path = os.path.join(device_path, "vendor")
             if os.path.exists(vendor_path):
                 with open(vendor_path, 'r') as f:
-                    if "0x1002" in f.read(): is_amd = True
-            
-            if not is_amd: continue
+                    if "0x1002" not in f.read(): continue
             
             stats["active"] = True
             
-            # Temperature extraction (Primary)
+            # 2. Temperature (HWMON)
             hwmon_paths = glob.glob(os.path.join(device_path, "hwmon/hwmon*/temp1_input"))
             if hwmon_paths:
                 with open(hwmon_paths[0], 'r') as f:
                     stats["temp"] = int(f.read().strip()) / 1000.0
             
-            # Load/Busy status (More paths for older cards)
-            busy_paths = [
-                os.path.join(device_path, "gpu_busy_percent"),
-                os.path.join(device_path, "utilization"),
-                os.path.join(device_path, "hwmon/hwmon*/device/gpu_busy_percent")
+            # 3. Memory (Standard & Visible paths)
+            vram_paths = [
+                ("mem_info_vram_used", "mem_used"),
+                ("mem_info_vram_total", "mem_total"),
+                ("mem_info_vis_vram_used", "mem_used"),
+                ("vram_visible", "mem_total")
             ]
-            for bp_pattern in busy_paths:
-                for bp in glob.glob(bp_pattern):
-                    if os.path.exists(bp):
-                        with open(bp, 'r') as f:
-                            stats["load"] = int(f.read().strip())
-                            break
-            
-            # Memory usage (Older cards use visible_vram or different sysfs entries)
-            mem_keys = {
-                "mem_info_vram_used": "mem_used",
-                "mem_info_vram_total": "mem_total",
-                "mem_info_vis_vram_used": "mem_used",
-                "vram_visible": "mem_total"
-            }
-            for sys_file, key in mem_keys.items():
+            for sys_file, key in vram_paths:
                 p = os.path.join(device_path, sys_file)
                 if os.path.exists(p):
                     try:
                         with open(p, 'r') as f:
                             val = int(f.read().strip())
-                            # Some files report bytes, some report MB. 5770 is ~1024MB.
-                            if val > 10000: # Bytes or KB
-                                stats[key] = int(val / (1024 * 1024))
-                            else: # MB
-                                stats[key] = val
+                            if val > 10000: stats[key] = int(val / (1024 * 1024))
+                            else: stats[key] = val
                     except: pass
-            
-            # Final sanity check for VRAM total
-            if stats["mem_total"] < 128: stats["mem_total"] = 1024
-            
-            return stats
 
-        # Fallback 2: General HWMON Probe
-        hwmon_list = glob.glob("/sys/class/hwmon/hwmon*")
-        for h in hwmon_list:
-            name_path = os.path.join(h, "name")
-            if os.path.exists(name_path):
-                with open(name_path, 'r') as f:
-                    name = f.read().strip()
-                    if name in ["radeon", "amdgpu", "nouveau"]:
-                        stats["active"] = True
-                        temp_path = os.path.join(h, "temp1_input")
-                        if os.path.exists(temp_path):
-                            with open(temp_path, 'r') as f:
-                                stats["temp"] = int(f.read().strip()) / 1000.0
-                        return stats
+            # 4. Deep Probe: debugfs (radeon_pm_info)
+            # This is the gold mine for older Juniper XT cards
+            card_idx = card.replace("/sys/class/drm/card", "")
+            debug_path = f"/sys/kernel/debug/dri/{card_idx}/radeon_pm_info"
+            pm_data = parse_pm_info(debug_path)
+            
+            if pm_data["load"] > 0:
+                stats["load"] = pm_data["load"]
+            if stats["temp"] is None:
+                stats["temp"] = pm_data["temp"]
+
+            # Fallback for Load: Check gpu_busy_percent
+            busy_path = os.path.join(device_path, "gpu_busy_percent")
+            if os.path.exists(busy_path) and stats["load"] == 0:
+                with open(busy_path, 'r') as f:
+                    stats["load"] = int(f.read().strip())
+
+            break 
+
+        # Final sanity check for VRAM
+        if stats["mem_total"] < 128: stats["mem_total"] = 1024
+        # If VRAM used is still 0, check the 'vram_usage' file if it exists
+        if stats["active"] and stats["mem_used"] == 0:
+            usage_path = os.path.join(device_path, "vram_usage")
+            if os.path.exists(usage_path):
+                with open(usage_path, 'r') as f:
+                    stats["mem_used"] = int(int(f.read().strip()) / (1024 * 1024))
 
     except Exception as e:
         logger.error(f"GPU probe failed: {e}")
@@ -113,7 +122,7 @@ def run_tick():
     save_json(GPU_JSON, stats)
     
     if stats["active"]:
-        logger.info(f"[GPU] {stats['name']} detected: {stats['temp']}°C")
+        logger.info(f"[GPU] {stats['name']} detected: {stats['temp']}°C | Load: {stats['load']}%")
 
 if __name__ == "__main__":
     wrap_agent("gpu_agent", run_tick, interval=10)
