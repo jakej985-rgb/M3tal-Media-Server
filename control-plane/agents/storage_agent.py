@@ -141,9 +141,10 @@ def get_disk_stats():
                     if label == "" or label == "/": label = "System"
 
                     free = get_free_space(mount)
+                    # Use the disk_name (e.g. sda) for the temperature sensor
                     temp = get_drive_temp(f"/dev/{disk_name}")
                     
-                    logger.info(f"[STORAGE] Found {label} ({mount}): {free}G, {temp}°C")
+                    logger.info(f"[STORAGE] Found {label} on {disk_name} ({mount}): {free}G, {temp}°C")
                     
                     # Get usage % for the icon color
                     try:
