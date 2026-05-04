@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 2. Hardware Tools (Forced install to avoid cache issues)
-RUN apt-get update && apt-get install -y smartmontools docker.io \
+RUN apt-get update && apt-get install -y smartmontools docker.io radeontop \
     && which smartctl || (echo "CRITICAL: smartctl failed to install!" && exit 1) \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
