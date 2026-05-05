@@ -15,11 +15,20 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 # 2. Python Toolchain Hardening (Using stable base-image pip)
 # Skipping upgrade to avoid hash-mismatch errors on unstable networks
 
-# 3. Application Dependencies (Split into layers for resilient caching)
+# 4. Pinned Dependency Installation (Micro-layered for extreme persistence)
 COPY requirements.txt /tmp/requirements.txt
-RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary Flask requests PyYAML psutil
-RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary Flask-SocketIO eventlet bcrypt
-RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary -r /tmp/requirements.txt
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 Flask
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 requests
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 PyYAML
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 psutil
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 Flask-SocketIO
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 eventlet
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 bcrypt==4.1.2
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 pygments
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 pytest
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 pytest-mock
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 flake8
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 -r /tmp/requirements.txt
 
 # 4. Non-Root Execution Enforcement
 RUN groupadd -g 1000 appuser && \
