@@ -243,7 +243,7 @@ async function refreshHealth() {
         if (scoreEl) scoreEl.textContent = score;
         
         // Mini Card Score (Standardized ID)
-        const healthVal = document.getElementById('stat-health-val');
+        const healthVal = document.getElementById('stat-ai-health-val');
         if (healthVal) {
             healthVal.textContent = `${score}%`;
         }
@@ -255,7 +255,7 @@ async function refreshHealth() {
         }
 
         // Mini Card Score
-        setText('stat-health-val', `${score}%`);
+        setText('stat-ai-health-val', `${score}%`);
         
         const ringMini = document.getElementById('gsi-ring-mini');
         if (ringMini) {
@@ -418,11 +418,10 @@ async function refreshFleet() {
         // Stat cards
         const online  = entries.filter(([,v]) => ['online','running'].includes((v.status||'').toLowerCase())).length;
         const total   = entries.length;
-        setText('stat-containers-val', `${online} / ${total}`);
-        setText('stat-containers-sub', 'Running');
+        setText('stat-fleet-count', `${online} / ${total} UP`);
 
         // Uptime (Merged into System Fleet)
-        const uptimeSubEl = document.getElementById('stat-uptime-sub');
+        const uptimeSubEl = document.getElementById('stat-fleet-uptime');
         if (uptimeSubEl && hData.uptime) uptimeSubEl.textContent = hData.uptime;
 
         // Hardware metrics for expanded view

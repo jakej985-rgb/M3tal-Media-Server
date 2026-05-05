@@ -64,9 +64,16 @@
                     <div class="stat-icon teal">📦</div>
                     <div class="stat-info centered">
                         <div class="stat-label">System Fleet</div>
-                        <div class="stat-val" id="stat-containers-val">— / —</div>
-                        <div class="stat-metrics">
-                            <span id="stat-uptime-sub">—</span>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">Containers</div>
+                                <div class="split-val" id="stat-fleet-count">0 / 0 UP</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Server Uptime</div>
+                                <div class="split-val" id="stat-fleet-uptime">0d 0h</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -75,9 +82,18 @@
                     <div class="stat-icon purple">🧠</div>
                     <div class="stat-info centered">
                         <div class="stat-label">AI Stability</div>
-                        <div class="stat-val" id="stat-health-val">100%</div>
-                        <div class="stat-val" style="font-size:0.8rem; margin-top:0.25rem">
-                            <span id="system-verdict" class="badge running">ACTIVE</span>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">Health</div>
+                                <div class="split-val" id="stat-ai-health-val">100%</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Agents</div>
+                                <div class="split-val">
+                                    <span id="system-verdict" class="badge running" style="font-size: 0.7rem; padding: 2px 8px;">ACTIVE</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
