@@ -330,6 +330,43 @@ body::before {
     font-family: var(--font-mono);
 }
 
+.stat-split-grid {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.4rem;
+}
+
+.split-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.split-label {
+    font-size: 0.55rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 2px;
+}
+
+.split-val {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-1);
+    font-family: var(--font-mono);
+}
+
+.split-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255,255,255,0.1);
+    margin: 0 10px;
+}
+
 /* ─── MAIN GRID ─────────────────────────────────── */
 .main-grid {
     display: flex;

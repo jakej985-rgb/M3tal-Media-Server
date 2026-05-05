@@ -115,8 +115,17 @@
                     <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🌡️</div>
                     <div class="stat-info centered">
                         <div class="stat-label">System Temperature</div>
-                        <div class="stat-val" id="stat-temp-split">— | —</div>
-                        <div class="stat-sub">CPU | GPU</div>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">CPU</div>
+                                <div class="split-val" id="stat-cpu-temp-val">0°C</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">GPU</div>
+                                <div class="split-val" id="stat-gpu-temp-val">0°C</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

@@ -278,15 +278,17 @@ async function refreshHardware() {
         }
 
         // Update Temperature Card
-        const tempSplitEl = document.getElementById('stat-temp-split');
+        const cpuTempEl = document.getElementById('stat-cpu-temp-val');
+        const gpuTempEl = document.getElementById('stat-gpu-temp-val');
         const cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
         const gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
         
-        if (tempSplitEl) {
-            tempSplitEl.innerHTML = `${cpuTemp}°C | ${gpuTemp}°C`;
+        if (cpuTempEl && gpuTempEl) {
+            cpuTempEl.textContent = `${cpuTemp}°C`;
+            gpuTempEl.textContent = `${gpuTemp}°C`;
             
             const maxTemp = Math.max(tData.cpu_temp || 0, tData.gpu_temp || 0);
-            const tempIcon = tempSplitEl.parentElement.parentElement.querySelector('.stat-icon');
+            const tempIcon = cpuTempEl.closest('.stat-card').querySelector('.stat-icon');
             if (maxTemp >= 85) {
                 tempIcon.style.background = 'rgba(239, 68, 68, 0.15)'; tempIcon.style.color = '#ef4444';
             } else if (maxTemp >= 75) {
