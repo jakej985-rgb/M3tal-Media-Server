@@ -28,7 +28,7 @@ def scout_routes():
         seen_hosts = set()
         
         # Blacklist of internal/system names
-        blacklist = ['dashboard', 'api', 'traefik', 'docker-proxy', 'glances', 'dozzle', 'portainer']
+        blacklist = ['dashboard', 'api', 'traefik', 'docker-proxy', 'glances', 'dozzle', 'portainer', 'm3tal']
         
         for line in lines:
             if '|' not in line: continue

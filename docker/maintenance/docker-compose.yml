@@ -29,32 +29,6 @@ services:
           cpus: '0.25'
           memory: 150M
 
-  dozzle:
-    image: amir20/dozzle
-    container_name: dozzle
-    restart: unless-stopped
-    # Security: No raw socket. Talk to proxy.
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      - DOZZLE_REMOTE_HOST=tcp://m3tal-docker-proxy:2375
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dozzle.rule=Host(`logs.${DOMAIN:?DOMAIN not set}`)"
-      - "traefik.http.routers.dozzle.entrypoints=web"
-      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
-      - "traefik.docker.network=proxy"
-      - "m3tal.stack=maintenance"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 200M
-    networks:
-      - proxy
-    env_file:
-      - ../../.env
 
   portainer:
     image: portainer/portainer-ce

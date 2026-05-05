@@ -197,30 +197,6 @@ services:
           memory: 300M
     restart: unless-stopped
 
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
-    user: "${PUID:-1000}:${PGID:-1000}"
-    volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/homepage:/app/config
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.homepage.rule=Host(`home.${DOMAIN:?DOMAIN not set}`)"
-      - "traefik.http.routers.homepage.entrypoints=web"
-      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
-      - "traefik.docker.network=proxy"
-      - "m3tal.stack=media"
-      - "m3tal.role=internal"
-    networks:
-      - proxy
-    env_file:
-      - ../../.env
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 150M
-    restart: unless-stopped
 
   autobrr:
     image: ghcr.io/autobrr/autobrr:v1.39
@@ -304,38 +280,6 @@ services:
           memory: 1000M
     restart: unless-stopped
 
-  glances:
-    image: nicolargo/glances:latest
-    container_name: glances
-    # pid: host (Audit Fix C2)
-    command: glances -w
-    # volumes:
-    #   - "/var/run/docker.sock:/var/run/docker.sock:ro" (Audit Fix C2)
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.glances.rule=Host(`stats.${DOMAIN:?DOMAIN not set}`)"
-      - "traefik.http.routers.glances.entrypoints=web"
-      - "traefik.http.services.glances.loadbalancer.server.port=61208"
-      - "traefik.docker.network=proxy"
-      - "m3tal.stack=media"
-      - "m3tal.role=edge"
-    networks:
-      - proxy
-    env_file:
-      - ../../.env
-    environment:
-      - HOMEPAGE_ALLOWED_HOST=stats.${DOMAIN}
-      - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41}
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 300M
-    restart: unless-stopped
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr
