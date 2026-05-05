@@ -62,10 +62,15 @@ def scout_routes():
                     try:
                         import requests
                         # Fast probe to see if the domain is actually responding
-                        # We use verify=False because we trust the internal network/cloudflare
-                        probe = requests.head(target_url, timeout=2, allow_redirects=True)
-                        if probe.status_code >= 400 and probe.status_code != 401: # 401 is okay (Auth required)
+                        # We use verify=False to prevent false negatives from internal-to-public SSL loops
+                        probe = requests.head(target_url, timeout=3, allow_redirects=True, verify=False)
+                        
+                        # 1033 (Tunnel Not Found) or 500+ is a failure. 
+                        # 401/403/405 are usually signs of life (Auth or Method Not Allowed)
+                        if probe.status_code == 1033 or (probe.status_code >= 500):
                             status = "disabled"
+                        else:
+                            status = "enabled"
                     except Exception:
                         status = "disabled"
                     
