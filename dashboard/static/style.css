@@ -346,11 +346,13 @@ body::before {
 }
 
 .split-label {
-    font-size: 0.55rem;
-    font-weight: 800;
+    font-size: 0.75rem;
+    font-weight: 700;
     text-transform: uppercase;
-    color: var(--text-3);
-    margin-bottom: 2px;
+    color: var(--text-1);
+    margin-bottom: 4px;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
 }
 
 .split-val {
