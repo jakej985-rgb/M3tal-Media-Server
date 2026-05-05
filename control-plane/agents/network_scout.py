@@ -15,8 +15,8 @@ NETWORK_JSON = os.path.join(STATE_DIR, 'network.json')
 def scout_routes():
     """Scan Docker containers for Traefik routing labels using raw Docker CLI."""
     try:
-        # Use docker ps -a to get names and labels without needing the 'docker' python library
-        cmd = ["docker", "ps", "-a", "--format", "{{.Names}}|{{.Labels}}"]
+        # Use docker ps -a to get names, images, and labels
+        cmd = ["docker", "ps", "-a", "--format", "{{.Names}}|{{.Image}}|{{.Labels}}"]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         
         if res.returncode != 0:
@@ -32,12 +32,12 @@ def scout_routes():
         
         for line in lines:
             if '|' not in line: continue
-            name, labels = line.split('|', 1)
+            parts = line.split('|')
+            if len(parts) < 3: continue
+            name, image, labels = parts[0], parts[1], parts[2]
             
             # Look for Traefik host rules in labels
-            # Labels format: label1=val1,label2=val2
             if 'traefik.http.routers.' in labels and '.rule=' in labels:
-                # Extract Host(...) from the labels string
                 match = re.search(r'Host\(`([^`]+)`\)', labels)
                 if match:
                     host = match.group(1)
@@ -45,16 +45,22 @@ def scout_routes():
                         continue
                         
                     # Determine a readable name
-                    readable_name = host.split('.')[0].replace('-', ' ').capitalize()
+                    service_key = host.split('.')[0].lower()
+                    readable_name = service_key.replace('-', ' ').capitalize()
                     
                     # Skip blacklisted items
                     if any(b.lower() in readable_name.lower() for b in blacklist):
                         continue
-                        
+                    
+                    # Smart Icon Discovery (using walkxcode/dashboard-icons CDN)
+                    icon_url = f"https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/{service_key}.png"
+                    
                     links.append({
                         "name": readable_name,
                         "url": f"https://{host}",
                         "status": "enabled",
+                        "image": image,
+                        "icon": icon_url,
                         "container": name
                     })
                     seen_hosts.add(host)
