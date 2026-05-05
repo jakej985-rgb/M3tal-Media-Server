@@ -1286,11 +1286,15 @@ body::before {
 .link-icon-container {
     width: 64px;
     height: 64px;
-    margin-bottom: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: transform 0.3s ease;
+}
+
+.link-info {
+    margin-bottom: 1rem;
+    z-index: 2;
 }
 
 .network-link:hover .link-icon-container {

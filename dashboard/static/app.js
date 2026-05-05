@@ -666,11 +666,11 @@ async function refreshLinks() {
 
         container.innerHTML = links.map(link => `
             <a href="${link.url}" target="_blank" class="network-link">
-                <div class="link-icon-container">
-                    <img src="${link.icon}" alt="${link.name}" class="link-icon" onerror="this.style.opacity='0.5';">
-                </div>
                 <div class="link-info">
                     <span class="link-name">${link.name}</span>
+                </div>
+                <div class="link-icon-container">
+                    <img src="${link.icon}" alt="${link.name}" class="link-icon" onerror="this.style.opacity='0.5';">
                 </div>
                 <div class="link-status ${link.status === 'enabled' ? 'up' : 'down'}"></div>
             </a>
