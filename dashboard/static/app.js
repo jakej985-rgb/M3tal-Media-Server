@@ -270,7 +270,12 @@ async function refreshHealth() {
             const online = Object.values(agents).filter(a => a.status === 'Healthy' || a.status === 'OK' || a.status === 'online').length;
             
             verdictEl.textContent = `${online} / ${total}`;
-            verdictEl.className = `badge ${score >= 90 ? 'running' : score >= 60 ? 'restarting' : 'offline'}`;
+            
+            let statusClass = 'offline';
+            if (online === total && total > 0 && score >= 90) statusClass = 'running';
+            else if (online > 0 && score >= 60) statusClass = 'restarting';
+            
+            verdictEl.className = `badge ${statusClass}`;
         }
     } catch (_) {}
 }
