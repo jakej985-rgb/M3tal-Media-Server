@@ -227,7 +227,7 @@ def get_network_routes():
     try:
         import requests
         import re
-        # Internal Traefik API endpoint
+        # Internal Traefik API endpoint (Direct Port 8080)
         url = "http://traefik:8080/api/http/routers"
         response = requests.get(url, timeout=3)
         
