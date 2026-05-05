@@ -6,10 +6,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# 1. System Hardening
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+# 1. System Hardening & Resilient Tooling
+RUN for i in {1..5}; do apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
     curl \
-    procps \
+    procps && break || sleep 5; done \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 2. Python Toolchain Hardening (Using stable base-image pip)

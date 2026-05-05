@@ -1,26 +1,27 @@
-# M3TAL Runtime - Ubuntu 22.04 Hardened
-FROM ubuntu:22.04
+# M3TAL Runtime - Resilient Hardware monitoring base
+FROM python:3.11-slim-bookworm
 
 # Prevent debris and speed up installs
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# 1. System Base
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
+# 1. System Hardening & Resilient Tooling
+# Using a retry loop for apt-get to survive connection resets
+RUN for i in {1..5}; do apt-get update && \
+    apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     gnupg \
     procps \
     util-linux \
+    smartmontools \
+    docker.io \
+    radeontop && break || sleep 5; done \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Hardware Tools (Forced install to avoid cache issues)
-RUN apt-get update && apt-get install -y smartmontools docker.io radeontop \
-    && which smartctl || (echo "CRITICAL: smartctl failed to install!" && exit 1) \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# 2. Hardware Tools Validation
+RUN which smartctl || (echo "CRITICAL: smartctl failed to install!" && exit 1)
 
 # 3. Python Toolchain (Using stable base-image pip)
 # Skipping upgrade to avoid hash-mismatch errors on unstable networks
