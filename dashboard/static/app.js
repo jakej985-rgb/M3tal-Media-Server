@@ -253,18 +253,18 @@ async function refreshHardware() {
 
         // Update GPU Card
         const gpuValEl = document.getElementById('stat-gpu-val');
-        const gpuSubEl = document.getElementById('stat-gpu-sub');
-        if (gpuValEl && gpuSubEl) {
+        const gpuMetricsEl = document.getElementById('stat-gpu-metrics');
+        if (gpuValEl && gpuMetricsEl) {
             if (gData.active) {
                 const load = gData.load !== undefined ? `${gData.load}%` : 'ACTIVE';
                 const temp = gData.temp != null ? `${Math.round(gData.temp)}°C` : '--°C';
                 const vram = gData.mem_used != null ? `${gData.mem_used}MB` : '--';
                 
                 gpuValEl.textContent = load;
-                gpuSubEl.textContent = `${temp} | ${vram} VRAM`;
+                gpuMetricsEl.innerHTML = `<span>${temp}</span> | <span>${vram} VRAM</span>`;
             } else {
                 gpuValEl.textContent = 'OFF';
-                gpuSubEl.textContent = 'STANDBY';
+                gpuMetricsEl.innerHTML = '<span>STANDBY</span>';
             }
             
             const gpuIcon = document.getElementById('stat-gpu-card').querySelector('.stat-icon');
@@ -278,15 +278,15 @@ async function refreshHardware() {
         }
 
         // Update Temperature Card
-        const tempValEl = document.getElementById('stat-temp');
-        if (tempValEl && tData.cpu_temp !== undefined) {
-            const cpu = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
-            const gpu = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
-            
-            tempValEl.innerHTML = `${cpu}<span>°C</span> <small style="font-size: 0.6em; opacity: 0.5;">/</small> ${gpu}<span>°C</span>`;
+        const tempSplitEl = document.getElementById('stat-temp-split');
+        const cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
+        const gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
+        
+        if (tempSplitEl) {
+            tempSplitEl.innerHTML = `${cpuTemp}°C | ${gpuTemp}°C`;
             
             const maxTemp = Math.max(tData.cpu_temp || 0, tData.gpu_temp || 0);
-            const tempIcon = tempValEl.parentElement.parentElement.querySelector('.stat-icon');
+            const tempIcon = tempSplitEl.parentElement.parentElement.querySelector('.stat-icon');
             if (maxTemp >= 85) {
                 tempIcon.style.background = 'rgba(239, 68, 68, 0.15)'; tempIcon.style.color = '#ef4444';
             } else if (maxTemp >= 75) {
@@ -295,6 +295,9 @@ async function refreshHardware() {
                 tempIcon.style.background = 'rgba(34, 197, 94, 0.15)'; tempIcon.style.color = '#22c55e';
             }
         }
+        
+        // Update CPU Card Temp Subtext
+        setText('stat-cpu-temp', `${cpuTemp}°C`);
 
         // Update Storage Card
         const storageGrid = document.getElementById('stat-storage-grid');

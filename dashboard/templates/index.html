@@ -83,38 +83,40 @@
                 <!-- Row 2: Compute -->
                 <div class="stat-card">
                     <div class="stat-icon green">⚙️</div>
-                    <div class="stat-info">
+                    <div class="stat-info centered">
                         <div class="stat-label">CPU</div>
                         <div class="stat-val" id="stat-cpu">—</div>
-                        <div class="stat-sub" id="stat-cpu-sub">System</div>
+                        <div class="stat-sub" id="stat-cpu-temp">—</div>
                     </div>
                 </div>
 
                 <div class="stat-card" id="stat-gpu-card">
                     <div class="stat-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🎮</div>
-                    <div class="stat-info">
+                    <div class="stat-info centered">
                         <div class="stat-label">GPU Engine</div>
                         <div class="stat-val" id="stat-gpu-val">OFF</div>
-                        <div class="stat-sub"><span id="stat-gpu-sub">STANDBY</span></div>
+                        <div class="stat-metrics" id="stat-gpu-metrics">
+                            <span id="stat-gpu-temp">0°C</span> | <span id="stat-gpu-mem">0 MB</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Row 3: Environment -->
                 <div class="stat-card">
                     <div class="stat-icon amber">💾</div>
-                    <div class="stat-info">
+                    <div class="stat-info centered">
                         <div class="stat-label">Memory</div>
                         <div class="stat-val" id="stat-mem">—</div>
-                        <div class="stat-sub">Used</div>
+                        <div class="stat-sub">Total Usage</div>
                     </div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🌡️</div>
-                    <div class="stat-info">
-                        <div class="stat-label">Temp</div>
-                        <div class="stat-val" id="stat-temp">—</div>
-                        <div class="stat-sub" id="stat-temp-sub">CPU / GPU</div>
+                    <div class="stat-info centered">
+                        <div class="stat-label">System Temperature</div>
+                        <div class="stat-val" id="stat-temp-split">— | —</div>
+                        <div class="stat-sub">CPU | GPU</div>
                     </div>
                 </div>
 

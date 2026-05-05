@@ -295,6 +295,14 @@ body::before {
     }
 }
 
+.stat-info { min-width: 0; flex: 1; }
+.stat-info.centered {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
 .stat-val {
     font-size: 1.25rem;
     font-weight: 700;
@@ -303,25 +311,7 @@ body::before {
     font-family: var(--font-mono) !important;
 }
 
-.stat-val span, .stat-val {
-    font-family: var(--font-mono) !important;
-}
-
 .stat-val span { font-size: 0.7rem; color: var(--text-2); font-weight: 500; }
-
-.stat-drive-usage {
-    font-size: 0.6rem;
-    color: var(--text-3);
-    margin-top: 2px;
-}
-
-.stat-drive-temp {
-    font-size: 0.6rem;
-    color: var(--teal);
-    font-weight: 700;
-    margin-top: 1px;
-    letter-spacing: 0.5px;
-}
 
 .stat-sub {
     font-size: 0.65rem;
@@ -330,6 +320,14 @@ body::before {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.stat-metrics {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--teal);
+    margin-top: 0.2rem;
+    font-family: var(--font-mono);
 }
 
 /* ─── MAIN GRID ─────────────────────────────────── */
