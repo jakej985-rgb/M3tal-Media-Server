@@ -69,14 +69,14 @@
                     </div>
                 </div>
 
-                <div class="stat-card">
+                <div class="stat-card" id="stat-ai-stability-card">
                     <div class="stat-icon purple">🧠</div>
-                    <div class="stat-info">
-                        <div class="stat-label">AI Status</div>
-                        <div class="stat-val" style="font-size:1rem; margin-top:0.15rem">
+                    <div class="stat-info centered">
+                        <div class="stat-label">AI Stability</div>
+                        <div class="stat-val" id="stat-health-val">100%</div>
+                        <div class="stat-val" style="font-size:0.8rem; margin-top:0.25rem">
                             <span id="system-verdict" class="badge running">ACTIVE</span>
                         </div>
-                        <div class="stat-sub">Agent Monitoring</div>
                     </div>
                 </div>
 
@@ -137,23 +137,6 @@
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🌡️</div>
-                    <div class="stat-info centered">
-                        <div class="stat-label">System Temperature</div>
-                        <div class="stat-split-grid">
-                            <div class="split-col">
-                                <div class="split-label">CPU</div>
-                                <div class="split-val" id="stat-cpu-temp-val">0°C</div>
-                            </div>
-                            <div class="split-divider"></div>
-                            <div class="split-col">
-                                <div class="split-label">GPU</div>
-                                <div class="split-val" id="stat-gpu-temp-val">0°C</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Row 4: Storage (Wide) -->
                 <div class="stat-card wide" id="stat-storage-card">
@@ -167,19 +150,6 @@
                 </div>
 
                 <!-- Row 5: Lifecycle -->
-                <div class="stat-card">
-                    <div class="stat-icon purple" style="background: rgba(0, 212, 170, 0.1);">
-                        <svg width="24" height="24" viewBox="0 0 80 80" style="transform: scale(0.3); transform-origin: center;">
-                            <circle cx="40" cy="40" r="35" fill="none" stroke="var(--border-dim)" stroke-width="8"/>
-                            <circle id="gsi-ring-mini" cx="40" cy="40" r="35" fill="none" stroke="var(--teal)" stroke-width="8" stroke-dasharray="220" stroke-dashoffset="0" style="transition: stroke-dashoffset 1s ease;"/>
-                        </svg>
-                    </div>
-                    <div class="stat-info">
-                        <div class="stat-label">Stability</div>
-                        <div class="stat-val" id="stat-health-val">—</div>
-                        <div class="stat-sub">Global Index</div>
-                    </div>
-                </div>
 
                 <div class="stat-card">
                     <div class="stat-icon blue">🕐</div>
