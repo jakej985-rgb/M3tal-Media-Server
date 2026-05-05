@@ -42,10 +42,16 @@ services:
           memory: 250M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:?DOMAIN not set — run from repo root with .env}`)"
+      # Public Secure Router (Requires Auth)
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:?DOMAIN not set}`)"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.entrypoints=web"
       - "traefik.http.routers.traefik.middlewares=m3tal-auth"
+      # Stealth Internal Router (No Auth, Internal Only)
+      - "traefik.http.routers.traefik-internal.rule=Host(`traefik-api.internal`)"
+      - "traefik.http.routers.traefik-internal.service=api@internal"
+      - "traefik.http.routers.traefik-internal.entrypoints=web"
+      
       - "traefik.http.middlewares.m3tal-auth.basicauth.usersfile=/etc/traefik/dynamic/users"
       - "m3tal.stack=routing"
       - "m3tal.role=gateway"

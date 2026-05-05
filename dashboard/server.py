@@ -227,9 +227,10 @@ def get_network_routes():
     try:
         import requests
         import re
-        # Internal Traefik API endpoint (Direct Port 8080)
-        url = "http://traefik:8080/api/http/routers"
-        response = requests.get(url, timeout=3)
+        # Stealth Internal Discovery (Bypasses external Auth/Cloudflare)
+        url = "http://traefik/api/http/routers"
+        headers = {"Host": "traefik-api.internal"}
+        response = requests.get(url, headers=headers, timeout=3)
         
         if response.status_code != 200:
             app.logger.error(f"[NETWORK] Traefik API returned status {response.status_code}")
