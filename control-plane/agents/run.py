@@ -46,6 +46,7 @@ AGENTS = [
     ("temp_agent", "temp_agent.py"),
     ("storage_agent", "storage_agent.py"),
     ("gpu_agent", "gpu_agent.py"),
+    ("scout",     "network_scout.py"),
 ]
 
 # --- Master Locking -----------------------------------------------------------

@@ -223,58 +223,15 @@ def get_gpu():
 @app.route('/api/network/routes')
 @login_required()
 def get_network_routes():
-    """Fetch active HTTP routes from Traefik API."""
+    """Read discovered network routes from the local state file."""
+    network_json = os.path.join(STATE_DIR, 'network.json')
     try:
-        import requests
-        import re
-        # Stealth Internal Discovery (Bypasses external Auth/Cloudflare)
-        url = "http://traefik/api/http/routers"
-        headers = {"Host": "traefik-api.internal"}
-        response = requests.get(url, headers=headers, timeout=3)
-        
-        if response.status_code != 200:
-            app.logger.error(f"[NETWORK] Traefik API returned status {response.status_code}")
-            return jsonify([])
-        
-        routers = response.json()
-        links = []
-        seen_hosts = set()
-        
-        # Filter out internal/system routes we don't want on the dashboard
-        blacklist = ['dashboard@internal', 'api@internal', 'glances', 'dozzle', 'portainer']
-        
-        for r in routers:
-            name_raw = r.get('name', '')
-            if any(b in name_raw for b in blacklist):
-                continue
-                
-            rule = r.get('rule', '')
-            if 'Host(' in rule:
-                # Robust extraction of domains from Host(`domain`) rules
-                matches = re.findall(r'Host\(`([^`]+)`\)', rule)
-                for host in matches:
-                    if host not in seen_hosts:
-                        # Create a readable name (e.g., 'sonarr.domain.com' -> 'Sonarr')
-                        readable_name = host.split('.')[0].replace('-', ' ').capitalize()
-                        
-                        links.append({
-                            "name": readable_name,
-                            "url": f"https://{host}",
-                            "status": r.get('status', 'enabled'),
-                            "service": r.get('service', 'unknown')
-                        })
-                        seen_hosts.add(host)
-        
-        # Sort alphabetically by name
-        links.sort(key=lambda x: x['name'])
-        app.logger.info(f"[NETWORK] Discovered {len(links)} active web routes")
-        return jsonify(links)
-        
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"[NETWORK] Failed to connect to Traefik API: {e}")
+        if os.path.exists(network_json):
+            with open(network_json, 'r') as f:
+                return jsonify(json.load(f))
         return jsonify([])
     except Exception as e:
-        app.logger.error(f"[NETWORK] Unexpected error in route discovery: {e}")
+        app.logger.error(f"[NETWORK] Failed to read network.json: {e}")
         return jsonify([])
 
 @app.route('/api/logs')
