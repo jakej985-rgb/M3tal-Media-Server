@@ -133,18 +133,50 @@ function pushChartPoint(cpu, mem) {
     chart.update('none');
 }
 
+// Global state for single-line metric synchronization
+const liveStats = {
+    cpu: 0,
+    mem: 0,
+    cpuTemp: '--',
+    gpuLoad: 0,
+    gpuTemp: '--',
+    gpuMem: '--',
+    gpuActive: false
+};
+
+function updateCpuFull() {
+    const el = document.getElementById('stat-cpu-full');
+    if (el) {
+        el.textContent = `${liveStats.cpu.toFixed(1)}% | ${liveStats.cpuTemp}°C | ${liveStats.mem.toFixed(1)} GB`;
+    }
+}
+
+function updateGpuFull() {
+    const el = document.getElementById('stat-gpu-full');
+    if (el) {
+        if (liveStats.gpuActive) {
+            el.textContent = `${liveStats.gpuLoad}% | ${liveStats.gpuTemp}°C | ${liveStats.gpuMem}MB`;
+        } else {
+            el.textContent = 'OFF | STANDBY';
+        }
+    }
+}
+
 // ── Socket – real-time metrics ────────────────────────────────────
 socket.on('metrics_update', (data) => {
     const sys = data.system || {};
-    const cpu = sys.cpu || 0;
-    const mem = sys.mem || 0;
+    liveStats.cpu = sys.cpu || 0;
+    liveStats.mem = sys.mem_gb || 0;
 
-    // Stat cards
-    setText('stat-cpu', `${cpu.toFixed(1)}%`);
-    setText('stat-mem', `${(sys.mem_gb || 0).toFixed(1)} GB`);
+    // Update the single-line display
+    updateCpuFull();
+
+    // Legacy stat cards (if still in HTML)
+    setText('stat-cpu', `${liveStats.cpu.toFixed(1)}%`);
+    setText('stat-mem', `${liveStats.mem.toFixed(1)} GB`);
 
     // Push to chart
-    pushChartPoint(cpu, mem);
+    pushChartPoint(liveStats.cpu, sys.mem || 0);
 });
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -251,23 +283,17 @@ async function refreshHardware() {
         const sData = await sRes.json();
         const gData = await gRes.json();
 
-        // Update GPU Card
-        const gpuValEl = document.getElementById('stat-gpu-val');
-        const gpuMetricsEl = document.getElementById('stat-gpu-metrics');
-        if (gpuValEl && gpuMetricsEl) {
-            if (gData.active) {
-                const load = gData.load !== undefined ? `${gData.load}%` : 'ACTIVE';
-                const temp = gData.temp != null ? `${Math.round(gData.temp)}°C` : '--°C';
-                const vram = gData.mem_used != null ? `${gData.mem_used}MB` : '--';
-                
-                gpuValEl.textContent = load;
-                gpuMetricsEl.innerHTML = `<span>${temp}</span> | <span>${vram} VRAM</span>`;
-            } else {
-                gpuValEl.textContent = 'OFF';
-                gpuMetricsEl.innerHTML = '<span>STANDBY</span>';
-            }
-            
-            const gpuIcon = document.getElementById('stat-gpu-card').querySelector('.stat-icon');
+        // Update GPU Card (Single Line)
+        liveStats.gpuActive = gData.active;
+        if (gData.active) {
+            liveStats.gpuLoad = gData.load !== undefined ? gData.load : 0;
+            liveStats.gpuTemp = gData.temp != null ? Math.round(gData.temp) : '--';
+            liveStats.gpuMem  = gData.mem_used != null ? gData.mem_used : '--';
+        }
+        updateGpuFull();
+
+        const gpuIcon = document.getElementById('stat-gpu-card')?.querySelector('.stat-icon');
+        if (gpuIcon) {
             if (gData.load >= 80 || gData.temp >= 80) {
                 gpuIcon.style.background = 'rgba(239, 68, 68, 0.15)'; gpuIcon.style.color = '#ef4444';
             } else if (gData.load >= 50 || gData.temp >= 70) {
@@ -277,15 +303,17 @@ async function refreshHardware() {
             }
         }
 
-        // Update Temperature Card
+        // Update Temperature Card & CPU Split
+        liveStats.cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
+        liveStats.gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
+        updateCpuFull();
+
         const cpuTempEl = document.getElementById('stat-cpu-temp-val');
         const gpuTempEl = document.getElementById('stat-gpu-temp-val');
-        const cpuTemp = tData.cpu_temp != null ? Math.round(tData.cpu_temp) : '--';
-        const gpuTemp = tData.gpu_temp != null ? Math.round(tData.gpu_temp) : '--';
         
         if (cpuTempEl && gpuTempEl) {
-            cpuTempEl.textContent = `${cpuTemp}°C`;
-            gpuTempEl.textContent = `${gpuTemp}°C`;
+            cpuTempEl.textContent = `${liveStats.cpuTemp}°C`;
+            gpuTempEl.textContent = `${liveStats.gpuTemp}°C`;
             
             const maxTemp = Math.max(tData.cpu_temp || 0, tData.gpu_temp || 0);
             const tempIcon = cpuTempEl.closest('.stat-card').querySelector('.stat-icon');
@@ -297,9 +325,6 @@ async function refreshHardware() {
                 tempIcon.style.background = 'rgba(34, 197, 94, 0.15)'; tempIcon.style.color = '#22c55e';
             }
         }
-        
-        // Update CPU Card Temp Subtext
-        setText('stat-cpu-temp', `${cpuTemp}°C`);
 
         // Update Storage Card
         const storageGrid = document.getElementById('stat-storage-grid');
