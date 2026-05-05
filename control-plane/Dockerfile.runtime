@@ -27,18 +27,22 @@ RUN for i in {1..5}; do apt-get update && \
 # 2. Hardware Tools Validation
 RUN which smartctl || (echo "CRITICAL: smartctl failed to install!" && exit 1)
 
-# 3. User Configuration
+# 3. Application Setup
+WORKDIR /docker
+# Copy monitoring agents
+COPY . .
+
+# 4. User Configuration
 RUN groupadd -g 1000 appuser && \
     (getent group docker || groupadd -g 999 docker) && \
-    useradd -m -u 1000 -g 1000 -G 0,docker appuser
-
-WORKDIR /docker
+    useradd -m -u 1000 -g 1000 -G 0,docker appuser && \
+    chown -R appuser:appuser /docker
 
 # Standardize path for smartctl
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Runtime metrics usually need root for hardware access
+# Runtime metrics usually need root for hardware access (smartctl, docker socket)
 USER root
 
-# Startup command (handled by runtime entrypoint)
+# Startup command
 CMD ["python3", "-u", "agents/metrics.py"]
