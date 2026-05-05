@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y smartmontools docker.io radeontop \
     && which smartctl || (echo "CRITICAL: smartctl failed to install!" && exit 1) \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 3. Python Toolchain
-RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+# 3. Python Toolchain (Bootstrap with clean cache)
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir --upgrade setuptools wheel
 
 # 4. Pinned Dependency Installation
 RUN pip3 install --no-cache-dir \

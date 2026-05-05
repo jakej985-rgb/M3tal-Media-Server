@@ -12,8 +12,9 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     procps \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Python Toolchain Hardening
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# 2. Python Toolchain Hardening (Bootstrap with clean cache)
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir --upgrade setuptools wheel
 
 # 3. Application Dependencies
 # Pre-installing requirements to ensure immutability and fast startup
