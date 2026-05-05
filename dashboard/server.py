@@ -228,7 +228,7 @@ def get_network_routes():
         import requests
         import re
         # Internal Traefik API endpoint
-        url = "http://traefik.m3tal-media-server.xyz:8080/api/http/routers"
+        url = "http://traefik:8080/api/http/routers"
         response = requests.get(url, timeout=3)
         
         if response.status_code != 200:
@@ -258,7 +258,7 @@ def get_network_routes():
                         
                         links.append({
                             "name": readable_name,
-                            "url": f"http://{host}",
+                            "url": f"https://{host}",
                             "status": r.get('status', 'enabled'),
                             "service": r.get('service', 'unknown')
                         })

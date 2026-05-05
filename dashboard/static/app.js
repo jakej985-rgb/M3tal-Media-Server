@@ -663,7 +663,7 @@ async function refreshLinks() {
             <a href="${link.url}" target="_blank" class="network-link">
                 <div class="link-info">
                     <span class="link-name">${link.name}</span>
-                    <span class="link-url">${link.url.replace('http://', '')}</span>
+                    <span class="link-url">${link.url.replace('https://', '').replace('http://', '')}</span>
                 </div>
                 <div class="link-status ${link.status === 'enabled' ? 'up' : 'down'}"></div>
             </a>
