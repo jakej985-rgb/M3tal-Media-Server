@@ -646,6 +646,33 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(refreshLinks,    60000); // Check for new routes every minute
 });
 
+async function refreshLinks() {
+    const container = document.getElementById('dynamic-links-grid');
+    if (!container) return;
+
+    try {
+        const res = await fetch('/api/network/routes');
+        const links = await res.json();
+
+        if (!links || links.length === 0) {
+            container.innerHTML = '<div class="loading-text">No web routes discovered</div>';
+            return;
+        }
+
+        container.innerHTML = links.map(link => `
+            <a href="${link.url}" target="_blank" class="network-link">
+                <div class="link-info">
+                    <span class="link-name">${link.name}</span>
+                    <span class="link-url">${link.url.replace('http://', '')}</span>
+                </div>
+                <div class="link-status ${link.status === 'enabled' ? 'up' : 'down'}"></div>
+            </a>
+        `).join('');
+    } catch (e) {
+        console.error("Failed to refresh links:", e);
+    }
+}
+
 function setText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;

@@ -223,39 +223,58 @@ def get_gpu():
 @app.route('/api/network/routes')
 @login_required()
 def get_network_routes():
-    """Fetch live HTTP routes from Traefik API (internal network)"""
+    """Fetch active HTTP routes from Traefik API."""
     try:
         import requests
-        # Query Traefik internal API for all HTTP routers
-        res = requests.get("http://traefik:8080/api/http/routers", timeout=3)
-        if res.status_code == 200:
-            routers = res.json()
-            routes = []
-            for r in routers:
-                rule = r.get("rule", "")
-                # Parse Host(`domain.com`) rules
-                if "Host(" in rule:
-                    match = _re.search(r"Host\(`([^`]+)`\)", rule)
-                    if match:
-                        domain = match.group(1)
-                        # Derive service name (e.g. 'plex' from 'plex.domain.com')
-                        name = domain.split('.')[0]
+        import re
+        # Internal Traefik API endpoint
+        url = "http://traefik:8080/api/http/routers"
+        response = requests.get(url, timeout=3)
+        
+        if response.status_code != 200:
+            app.logger.error(f"[NETWORK] Traefik API returned status {response.status_code}")
+            return jsonify([])
+        
+        routers = response.json()
+        links = []
+        seen_hosts = set()
+        
+        # Filter out internal/system routes we don't want on the dashboard
+        blacklist = ['dashboard@internal', 'api@internal', 'glances', 'dozzle', 'portainer']
+        
+        for r in routers:
+            name_raw = r.get('name', '')
+            if any(b in name_raw for b in blacklist):
+                continue
+                
+            rule = r.get('rule', '')
+            if 'Host(' in rule:
+                # Robust extraction of domains from Host(`domain`) rules
+                matches = re.findall(r'Host\(`([^`]+)`\)', rule)
+                for host in matches:
+                    if host not in seen_hosts:
+                        # Create a readable name (e.g., 'sonarr.domain.com' -> 'Sonarr')
+                        readable_name = host.split('.')[0].replace('-', ' ').capitalize()
                         
-                        # Filter out system routes you might not want in the main panel
-                        if name not in ["traefik", "m3tal", "dashboard", "api"]:
-                            routes.append({
-                                "name": name.upper(),
-                                "url": f"https://{domain}",
-                                "domain": domain
-                            })
-            
-            # Sort alphabetically
-            routes.sort(key=lambda x: x["name"])
-            return jsonify(routes)
+                        links.append({
+                            "name": readable_name,
+                            "url": f"http://{host}",
+                            "status": r.get('status', 'enabled'),
+                            "service": r.get('service', 'unknown')
+                        })
+                        seen_hosts.add(host)
+        
+        # Sort alphabetically by name
+        links.sort(key=lambda x: x['name'])
+        app.logger.info(f"[NETWORK] Discovered {len(links)} active web routes")
+        return jsonify(links)
+        
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"[NETWORK] Failed to connect to Traefik API: {e}")
+        return jsonify([])
     except Exception as e:
-        logger.debug(f"Traefik API unreachable: {e}")
-    
-    return jsonify([])
+        app.logger.error(f"[NETWORK] Unexpected error in route discovery: {e}")
+        return jsonify([])
 
 @app.route('/api/logs')
 @login_required()

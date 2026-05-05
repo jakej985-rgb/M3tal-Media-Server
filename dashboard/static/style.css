@@ -1216,3 +1216,69 @@ body::before {
 .mobile-nav-link.active:hover {
     color: var(--teal);
 }
+/* --- Network Links Section --- */
+#dynamic-links-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    padding-top: 0.5rem;
+}
+
+.network-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.network-link:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--blue-dim);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.link-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.link-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: 0.5px;
+}
+
+.link-url {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    opacity: 0.7;
+}
+
+.link-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-3);
+    box-shadow: 0 0 8px rgba(255,255,255,0.1);
+}
+
+.link-status.up {
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green-dim);
+}
+
+.link-status.down {
+    background: var(--red);
+    box-shadow: 0 0 10px var(--red-dim);
+}
