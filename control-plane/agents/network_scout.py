@@ -55,10 +55,24 @@ def scout_routes():
                     # Smart Icon Discovery (using walkxcode/dashboard-icons CDN)
                     icon_url = f"https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/{service_key}.png"
                     
+                    # --- Active Health Check (V2.5) ---
+                    target_url = f"https://{host}"
+                    status = "enabled" # Default to green if we can't check
+                    
+                    try:
+                        import requests
+                        # Fast probe to see if the domain is actually responding
+                        # We use verify=False because we trust the internal network/cloudflare
+                        probe = requests.head(target_url, timeout=2, allow_redirects=True)
+                        if probe.status_code >= 400 and probe.status_code != 401: # 401 is okay (Auth required)
+                            status = "disabled"
+                    except Exception:
+                        status = "disabled"
+                    
                     links.append({
                         "name": readable_name,
-                        "url": f"https://{host}",
-                        "status": "enabled",
+                        "url": target_url,
+                        "status": status,
                         "image": image,
                         "icon": icon_url,
                         "container": name
