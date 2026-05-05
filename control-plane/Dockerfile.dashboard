@@ -40,8 +40,8 @@ RUN groupadd -g 1000 appuser && \
     useradd -m -u 1000 -g 1000 appuser && \
     chown -R appuser:appuser /docker/dashboard
 
-# Switch to non-privileged user
-USER appuser
+# Running as root temporarily to fix permission issues with logging
+USER root
 
 # Startup command
 CMD ["python3", "server.py"]
