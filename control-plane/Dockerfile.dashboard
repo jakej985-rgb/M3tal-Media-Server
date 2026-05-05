@@ -16,10 +16,11 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --upgrade pip && \
     python3 -m pip install --no-cache-dir --default-timeout=1000 --upgrade setuptools wheel
 
-# 3. Application Dependencies (With retry logic for unstable connections)
+# 3. Application Dependencies (Split into layers for resilient caching)
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --default-timeout=1000 -r /tmp/requirements.txt || \
-    (sleep 5 && pip install --no-cache-dir --default-timeout=1000 -r /tmp/requirements.txt)
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary Flask requests PyYAML psutil
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary Flask-SocketIO eventlet bcrypt
+RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --retries 10 --prefer-binary -r /tmp/requirements.txt
 
 # 4. Non-Root Execution Enforcement
 RUN groupadd -g 1000 appuser && \
