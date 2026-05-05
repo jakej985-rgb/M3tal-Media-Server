@@ -12,9 +12,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     procps \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Python Toolchain Hardening (Bootstrap with clean cache and high timeout)
-RUN python3 -m pip install --no-cache-dir --default-timeout=1000 --upgrade pip && \
-    python3 -m pip install --no-cache-dir --default-timeout=1000 --upgrade setuptools wheel
+# 2. Python Toolchain Hardening (Using stable base-image pip)
+# Skipping upgrade to avoid hash-mismatch errors on unstable networks
 
 # 3. Application Dependencies (Split into layers for resilient caching)
 COPY requirements.txt /tmp/requirements.txt
