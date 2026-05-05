@@ -265,8 +265,12 @@ async function refreshHealth() {
 
         const verdictEl = document.getElementById('system-verdict');
         if (verdictEl) {
-            verdictEl.textContent = verdict.toUpperCase();
-            verdictEl.className = `badge ${score >= 80 ? 'running' : score >= 50 ? 'restarting' : 'offline'}`;
+            const agents = data.agent_health || {};
+            const total = Object.keys(agents).length;
+            const online = Object.values(agents).filter(a => a.status === 'Healthy' || a.status === 'OK' || a.status === 'online').length;
+            
+            verdictEl.textContent = `${online} / ${total}`;
+            verdictEl.className = `badge ${score >= 90 ? 'running' : score >= 60 ? 'restarting' : 'offline'}`;
         }
     } catch (_) {}
 }
