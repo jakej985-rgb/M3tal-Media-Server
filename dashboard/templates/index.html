@@ -85,7 +85,22 @@
                     <div class="stat-icon green">⚙️</div>
                     <div class="stat-info centered">
                         <div class="stat-label">CPU Engine</div>
-                        <div class="stat-val" id="stat-cpu-full">— | — | —</div>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">Usage</div>
+                                <div class="split-val" id="stat-cpu-usage-val">0%</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Temp</div>
+                                <div class="split-val" id="stat-cpu-temp-val-split">0°C</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">RAM</div>
+                                <div class="split-val" id="stat-cpu-mem-val-split">0GB</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -93,7 +108,22 @@
                     <div class="stat-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🎮</div>
                     <div class="stat-info centered">
                         <div class="stat-label">GPU Engine</div>
-                        <div class="stat-val" id="stat-gpu-full">OFF</div>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">Usage</div>
+                                <div class="split-val" id="stat-gpu-usage-val">0%</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Temp</div>
+                                <div class="split-val" id="stat-gpu-temp-val-split">0°C</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">VRAM</div>
+                                <div class="split-val" id="stat-gpu-mem-val-split">0MB</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

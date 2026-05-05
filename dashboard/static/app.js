@@ -145,20 +145,20 @@ const liveStats = {
 };
 
 function updateCpuFull() {
-    const el = document.getElementById('stat-cpu-full');
-    if (el) {
-        el.textContent = `${liveStats.cpu.toFixed(1)}% | ${liveStats.cpuTemp}°C | ${liveStats.mem.toFixed(1)} GB`;
-    }
+    setText('stat-cpu-usage-val', `${liveStats.cpu.toFixed(1)}%`);
+    setText('stat-cpu-temp-val-split', `${liveStats.cpuTemp}°C`);
+    setText('stat-cpu-mem-val-split', `${liveStats.mem.toFixed(1)} GB`);
 }
 
 function updateGpuFull() {
-    const el = document.getElementById('stat-gpu-full');
-    if (el) {
-        if (liveStats.gpuActive) {
-            el.textContent = `${liveStats.gpuLoad}% | ${liveStats.gpuTemp}°C | ${liveStats.gpuMem}MB`;
-        } else {
-            el.textContent = 'OFF | STANDBY';
-        }
+    if (liveStats.gpuActive) {
+        setText('stat-gpu-usage-val', `${liveStats.gpuLoad}%`);
+        setText('stat-gpu-temp-val-split', `${liveStats.gpuTemp}°C`);
+        setText('stat-gpu-mem-val-split', `${liveStats.gpuMem}MB`);
+    } else {
+        setText('stat-gpu-usage-val', 'OFF');
+        setText('stat-gpu-temp-val-split', '--°C');
+        setText('stat-gpu-mem-val-split', 'SB');
     }
 }
 
