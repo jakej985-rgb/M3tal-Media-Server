@@ -158,8 +158,7 @@ def stream_logs(stack_name, compose_file, secrets, alerts_enabled=False):
         print(f"⚠️ [LOGGER] Skipping {stack_name} — no compose command available.")
         return
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    log_file = CORE_LOGS_DIR / f"{stack_name}_logs_{timestamp}.txt"
+    log_file = CORE_LOGS_DIR / f"docker-{stack_name}.log"
     CORE_LOGS_DIR.mkdir(parents=True, exist_ok=True)
     
     # Build command using detected compose variant

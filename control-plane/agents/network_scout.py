@@ -5,11 +5,11 @@ import re
 import time
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
-logger = logging.getLogger("network-scout")
+from utils.paths import STATE_DIR
+from utils.logger import get_logger
 
-STATE_DIR = os.getenv('STATE_DIR', '/docker/control-plane/state')
+# Configure logging
+logger = get_logger("scout")
 NETWORK_JSON = os.path.join(STATE_DIR, 'network.json')
 
 def scout_routes():
