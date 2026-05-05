@@ -62,10 +62,12 @@
                 <!-- Row 1: Workloads -->
                 <div class="stat-card">
                     <div class="stat-icon teal">📦</div>
-                    <div class="stat-info">
-                        <div class="stat-label">Containers</div>
+                    <div class="stat-info centered">
+                        <div class="stat-label">System Fleet</div>
                         <div class="stat-val" id="stat-containers-val">— / —</div>
-                        <div class="stat-sub" id="stat-containers-sub">Loading…</div>
+                        <div class="stat-metrics">
+                            <span id="stat-uptime-sub">—</span>
+                        </div>
                     </div>
                 </div>
 
@@ -128,14 +130,6 @@
                 </div>
 
                 <!-- Row 3: Environment -->
-                <div class="stat-card">
-                    <div class="stat-icon amber">💾</div>
-                    <div class="stat-info centered">
-                        <div class="stat-label">Memory</div>
-                        <div class="stat-val" id="stat-mem">—</div>
-                        <div class="stat-sub">Total Usage</div>
-                    </div>
-                </div>
 
 
                 <!-- Row 4: Storage (Wide) -->
@@ -151,14 +145,6 @@
 
                 <!-- Row 5: Lifecycle -->
 
-                <div class="stat-card">
-                    <div class="stat-icon blue">🕐</div>
-                    <div class="stat-info">
-                        <div class="stat-label">Uptime</div>
-                        <div class="stat-val" id="stat-uptime" style="font-size:1rem">—</div>
-                        <div class="stat-sub">Since Boot</div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

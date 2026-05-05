@@ -421,9 +421,9 @@ async function refreshFleet() {
         setText('stat-containers-val', `${online} / ${total}`);
         setText('stat-containers-sub', 'Running');
 
-        // Uptime
-        const uptimeEl = document.getElementById('stat-uptime');
-        if (uptimeEl && hData.uptime) uptimeEl.textContent = hData.uptime;
+        // Uptime (Merged into System Fleet)
+        const uptimeSubEl = document.getElementById('stat-uptime-sub');
+        if (uptimeSubEl && hData.uptime) uptimeSubEl.textContent = hData.uptime;
 
         // Hardware metrics for expanded view
         const [tRes, sRes] = await Promise.all([
