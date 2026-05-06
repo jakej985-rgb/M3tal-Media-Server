@@ -11,7 +11,8 @@ services:
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      - WEBUI_PORT=8080
+      - WEBUI_PORT=8090
+      - WEBUI_IP_ADDRESS=0.0.0.0
       - TORRENTING_PORT=6881
     volumes:
       - ${DATA_DIR:?DATA_DIR not set}/config/qbittorrent:/config

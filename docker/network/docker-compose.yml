@@ -10,18 +10,19 @@ services:
       - OPENVPN_USER=${VPN_USER}
       - OPENVPN_PASSWORD=${VPN_PASSWORD}
       - SERVER_REGIONS=US East
-      - FIREWALL_VPN_INPUT_PORTS=8080,6881
+      - FIREWALL_VPN_INPUT_PORTS=8090,6881
+      - FIREWALL_OUTBOUND_SUBNETS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     labels:
       - "traefik.enable=true"
       # qBittorrent labels are here because it will share gluetun's network stack
       - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${DOMAIN}`)"
       - "traefik.http.routers.qbittorrent.entrypoints=web"
-      - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
+      - "traefik.http.services.qbittorrent.loadbalancer.server.port=8090"
       - "traefik.docker.network=proxy"
       - "m3tal.stack=network"
       - "m3tal.role=edge"
     ports:
-      - "8080:8080" # qBittorrent WebUI
+      - "8090:8090" # qBittorrent WebUI
       - "6881:6881" # qBittorrent Bittorrent
       - "6881:6881/udp"
     networks:
