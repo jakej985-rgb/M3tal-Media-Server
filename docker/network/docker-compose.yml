@@ -20,6 +20,10 @@ services:
       - "traefik.docker.network=proxy"
       - "m3tal.stack=network"
       - "m3tal.role=edge"
+    ports:
+      - "8080:8080" # qBittorrent WebUI
+      - "6881:6881" # qBittorrent Bittorrent
+      - "6881:6881/udp"
     networks:
       - proxy
     env_file:
