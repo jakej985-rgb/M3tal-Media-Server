@@ -267,7 +267,10 @@ async function refreshHealth() {
         if (verdictEl) {
             const agents = data.agent_health || {};
             const total = Object.keys(agents).length;
-            const online = Object.values(agents).filter(a => a.status === 'Healthy' || a.status === 'OK' || a.status === 'online').length;
+            const online = Object.values(agents).filter(a => {
+                const s = (a.status || '').toLowerCase();
+                return s === 'healthy' || s === 'ok' || s === 'online' || s === 'up' || s === 'running';
+            }).length;
             
             verdictEl.textContent = `${online} / ${total}`;
             
