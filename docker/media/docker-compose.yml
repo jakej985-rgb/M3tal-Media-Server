@@ -17,8 +17,6 @@ services:
     volumes:
       - ${DATA_DIR:?DATA_DIR not set}/config/qbittorrent:/config
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
     env_file:
       - ../../.env
     labels:
@@ -57,8 +55,6 @@ services:
     volumes:
       - ${DATA_DIR:?DATA_DIR not set}/config/radarr:/config
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
     deploy:
       resources:
         limits:
@@ -92,8 +88,6 @@ services:
     volumes:
       - ${DATA_DIR:?DATA_DIR not set}/config/sonarr:/config
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
     deploy:
       resources:
         limits:
