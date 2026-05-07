@@ -49,13 +49,14 @@ def fix_qbittorrent_config():
     modified = content
     for pattern, replacement in updates.items():
         if re.search(pattern, modified):
-            modified = re.sub(pattern, replacement, modified)
+            # Use lambda to ensure replacement is treated as a literal string
+            modified = re.sub(pattern, lambda m, r=replacement: r, modified)
         else:
-            # If the setting isn't there, add it to the [WebUI] section
-            if "[WebUI]" in modified:
-                modified = modified.replace("[WebUI]", f"[WebUI]\n{replacement}")
+            # If the setting isn't there, add it to the [Preferences] section
+            if "[Preferences]" in modified:
+                modified = modified.replace("[Preferences]", f"[Preferences]\n{replacement}")
             else:
-                modified += f"\n[WebUI]\n{replacement}\n"
+                modified += f"\n[Preferences]\n{replacement}\n"
 
     if modified != content:
         with open(config_file, "w") as f:
