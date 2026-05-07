@@ -113,7 +113,6 @@ services:
     user: root  # Required for Docker socket access and smartctl hardware access
     privileged: true # Required for raw hardware access to disks
     # 🛡️ Bypass proxy to fix Docker DNS/bridge resolution bugs (same as Traefik fix)
-    network_mode: host
     environment:
       - TZ=America/Denver
       - DOCKER_API_VERSION=${DOCKER_API_VERSION}
@@ -133,6 +132,8 @@ services:
         limits:
           cpus: '1.0'
           memory: 400M
+    networks:
+      - proxy
 
 networks:
   proxy:

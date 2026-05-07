@@ -34,29 +34,46 @@ def get_network_metrics():
     now = time.time()
     
     metrics = {"down": 0.0, "up": 0.0, "load": 0.0}
-    if not psutil:
-        return metrics
-
+    
+    # 🕵️ Host-Aware Network Monitoring (V6.7)
+    # If we are in a container, psutil.net_io_counters() only sees container traffic.
+    # We must read /host/proc/net/dev directly for host-level stats.
+    host_net_dev = Path("/host/proc/net/dev")
+    
     try:
-        current_io = psutil.net_io_counters()
+        current_recv = 0
+        current_sent = 0
         
+        if host_net_dev.exists():
+            with open(host_net_dev, "r") as f:
+                lines = f.readlines()
+                for line in lines[2:]: # Skip header lines
+                    parts = line.split()
+                    if len(parts) > 9:
+                        # Index 1: Receive Bytes, Index 9: Transmit Bytes
+                        current_recv += int(parts[1])
+                        current_sent += int(parts[9])
+        elif psutil:
+            io = psutil.net_io_counters()
+            current_recv = io.bytes_recv
+            current_sent = io.bytes_sent
+        else:
+            return metrics
+
         if _last_net_io is not None:
             dt = now - _last_net_time
-            if dt > 0.1: # Avoid division by zero or jitter
-                bytes_recv = current_io.bytes_recv - _last_net_io.bytes_recv
-                bytes_sent = current_io.bytes_sent - _last_net_io.bytes_sent
+            if dt > 0.1:
+                bytes_recv = current_recv - _last_net_io["recv"]
+                bytes_sent = current_sent - _last_net_io["sent"]
                 
-                # Convert to MB/s
-                metrics["down"] = round((bytes_recv / dt) / (1024*1024), 2)
-                metrics["up"] = round((bytes_sent / dt) / (1024*1024), 2)
+                metrics["down"] = round((max(0, bytes_recv) / dt) / (1024*1024), 2)
+                metrics["up"] = round((max(0, bytes_sent) / dt) / (1024*1024), 2)
                 
-                # Assume 1Gbps capacity (125 MB/s) for Load %
-                # Adjust capacity_mbs if you have a 10G or 100M card.
                 capacity_mbs = 125.0
                 total_mbs = metrics["down"] + metrics["up"]
                 metrics["load"] = round(min(100.0, (total_mbs / capacity_mbs) * 100), 1)
 
-        _last_net_io = current_io
+        _last_net_io = {"recv": current_recv, "sent": current_sent}
         _last_net_time = now
     except Exception as e:
         logger.error(f"Failed to get network metrics: {e}")
