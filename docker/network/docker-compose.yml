@@ -10,20 +10,31 @@ services:
       - OPENVPN_USER=${VPN_USER}
       - OPENVPN_PASSWORD=${VPN_PASSWORD}
       - SERVER_REGIONS=US East
-      - FIREWALL_VPN_INPUT_PORTS=8090,6881
-      - FIREWALL_INPUT_PORTS=8090
+      - FIREWALL_VPN_INPUT_PORTS=8090,6881,9696,8191
+      - FIREWALL_INPUT_PORTS=8090,9696,8191
       - FIREWALL_OUTBOUND_SUBNETS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     labels:
       - "traefik.enable=true"
-      # qBittorrent labels are here because it will share gluetun's network stack
+      # qBittorrent
       - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${DOMAIN}`)"
       - "traefik.http.routers.qbittorrent.entrypoints=web"
       - "traefik.http.services.qbittorrent.loadbalancer.server.port=8090"
+      # Prowlarr
+      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
+      - "traefik.http.routers.prowlarr.entrypoints=web"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+      # FlareSolverr
+      - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)"
+      - "traefik.http.routers.flaresolverr.entrypoints=web"
+      - "traefik.http.services.flaresolverr.loadbalancer.server.port=8191"
+      
       - "traefik.docker.network=proxy"
       - "m3tal.stack=network"
       - "m3tal.role=edge"
     ports:
       - "8090:8090" # qBittorrent WebUI
+      - "9696:9696" # Prowlarr
+      - "8191:8191" # FlareSolverr
       - "6881:6881" # qBittorrent Bittorrent
       - "6881:6881/udp"
     networks:

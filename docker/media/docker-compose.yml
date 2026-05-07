@@ -286,6 +286,7 @@ services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr
     container_name: prowlarr
+    network_mode: "container:gluetun"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -300,16 +301,6 @@ services:
       - ${DATA_DIR:?DATA_DIR not set}:/mnt
       - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
       - ${DATA_DIR:?DATA_DIR not set}/media:/media
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN:?DOMAIN not set}`)"
-      - "traefik.http.routers.prowlarr.entrypoints=web"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-      - "traefik.docker.network=proxy"
-      - "m3tal.stack=media"
-      - "m3tal.role=internal"
-    networks:
-      - proxy
     env_file:
       - ../../.env
     deploy:
@@ -322,21 +313,12 @@ services:
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr
     container_name: flaresolverr
+    network_mode: "container:gluetun"
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - LOG_LEVEL=info
       - TZ=America/New_York
       - BROWSER_TIMEOUT=120000
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN:?DOMAIN not set}`)"
-      - "traefik.http.routers.flaresolverr.entrypoints=web"
-      - "traefik.http.services.flaresolverr.loadbalancer.server.port=8191"
-      - "traefik.docker.network=proxy"
-      - "m3tal.stack=media"
-      - "m3tal.role=internal"
-    networks:
-      - proxy
     env_file:
       - ../../.env
     deploy:
