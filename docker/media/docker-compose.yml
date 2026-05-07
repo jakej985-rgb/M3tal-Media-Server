@@ -316,7 +316,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 400M
+          memory: 600M
     restart: unless-stopped
 
   flaresolverr:
@@ -341,7 +341,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 400M
+          memory: 1000M
     restart: unless-stopped
 
 networks:
