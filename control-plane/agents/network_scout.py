@@ -98,8 +98,8 @@ def scout_routes():
     except Exception as e:
         logger.error(f"Network Scout failure: {e}")
 
+from utils.guards import wrap_agent
+
 if __name__ == "__main__":
     logger.info("M3TAL Network Scout starting...")
-    while True:
-        scout_routes()
-        time.sleep(60)  # Scan every minute
+    wrap_agent("scout", scout_routes)
