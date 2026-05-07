@@ -103,6 +103,7 @@ TIERS = {
     "storage_agent": 2,
     "gpu_agent": 2,
     "scout": 2,
+    "monitor_containers": 2,
 }
 
 # The absolute minimum files/dirs required for each agent to start
