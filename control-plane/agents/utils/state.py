@@ -109,6 +109,17 @@ def save_json(path: str, data: Any, caller: str = "unknown") -> bool:
             os.fsync(f.fileno())
             
         safe_replace(tmp_path, path)
+        
+        # Audit Fix: Restore ownership if running as root in container
+        if os.getuid() == 0:
+            try:
+                puid = int(os.environ.get("PUID", 1000))
+                pgid = int(os.environ.get("PGID", 1000))
+                os.chown(path, puid, pgid)
+                os.chmod(path, 0o664) # -rw-rw-r--
+            except Exception:
+                pass
+                
         return True
     except Exception as e:
         from .logger import get_logger
