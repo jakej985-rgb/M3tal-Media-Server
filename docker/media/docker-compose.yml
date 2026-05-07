@@ -325,7 +325,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 1000M
+          memory: 1500M
     restart: unless-stopped
 
 networks:
