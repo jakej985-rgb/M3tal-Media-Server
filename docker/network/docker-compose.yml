@@ -11,6 +11,7 @@ services:
       - OPENVPN_PASSWORD=${VPN_PASSWORD}
       - SERVER_REGIONS=US East
       - FIREWALL_VPN_INPUT_PORTS=8090,6881
+      - FIREWALL_INPUT_PORTS=8090
       - FIREWALL_OUTBOUND_SUBNETS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     labels:
       - "traefik.enable=true"
