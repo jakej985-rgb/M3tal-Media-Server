@@ -118,6 +118,8 @@ services:
       - DOCKER_API_VERSION=${DOCKER_API_VERSION}
       - REPO_ROOT=/docker
       - IN_CONTAINER=true
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
     working_dir: /docker
     command: python3 control-plane/agents/run.py
     restart: unless-stopped
