@@ -141,7 +141,10 @@ const liveStats = {
     gpuLoad: 0,
     gpuTemp: '--',
     gpuMem: '--',
-    gpuActive: false
+    gpuActive: false,
+    netDown: '0.0',
+    netUp: '0.0',
+    netLoad: '0'
 };
 
 function updateCpuFull() {
@@ -162,6 +165,12 @@ function updateGpuFull() {
     }
 }
 
+function updateNetworkFull() {
+    setText('stat-net-down-val', `${liveStats.netDown} MB/s`);
+    setText('stat-net-up-val', `${liveStats.netUp} MB/s`);
+    setText('stat-net-load-val', `${liveStats.netLoad}%`);
+}
+
 // ── Socket – real-time metrics ────────────────────────────────────
 socket.on('metrics_update', (data) => {
     const sys = data.system || {};
@@ -170,6 +179,13 @@ socket.on('metrics_update', (data) => {
 
     // Update the single-line display
     updateCpuFull();
+
+    // Update Network display
+    const net = data.network || {};
+    liveStats.netDown = net.down != null ? net.down : '0.0';
+    liveStats.netUp   = net.up   != null ? net.up   : '0.0';
+    liveStats.netLoad = net.load != null ? Math.round(net.load) : '0';
+    updateNetworkFull();
 
     // Legacy stat cards (if still in HTML)
     setText('stat-cpu', `${liveStats.cpu.toFixed(1)}%`);

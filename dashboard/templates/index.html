@@ -60,7 +60,7 @@
         <div class="panel-body">
             <div class="stats-row">
                 <!-- Row 1: Workloads -->
-                <div class="stat-card">
+                <div class="stat-card wide">
                     <div class="stat-icon teal">📦</div>
                     <div class="stat-info centered">
                         <div class="stat-label">System Fleet</div>
@@ -78,7 +78,7 @@
                     </div>
                 </div>
 
-                <div class="stat-card" id="stat-ai-stability-card">
+                <div class="stat-card wide" id="stat-ai-stability-card">
                     <div class="stat-icon purple">🧠</div>
                     <div class="stat-info centered">
                         <div class="stat-label">AI Stability</div>
@@ -93,6 +93,29 @@
                                 <div class="split-val">
                                     <span id="system-verdict" class="badge running" style="font-size: 0.7rem; padding: 2px 8px;">ACTIVE</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card wide" id="stat-network-card">
+                    <div class="stat-icon blue">🌐</div>
+                    <div class="stat-info centered">
+                        <div class="stat-label">Network Card</div>
+                        <div class="stat-split-grid">
+                            <div class="split-col">
+                                <div class="split-label">Down</div>
+                                <div class="split-val" id="stat-net-down-val">0.0 MB/s</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Up</div>
+                                <div class="split-val" id="stat-net-up-val">0.0 MB/s</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-col">
+                                <div class="split-label">Load</div>
+                                <div class="split-val" id="stat-net-load-val">0%</div>
                             </div>
                         </div>
                     </div>

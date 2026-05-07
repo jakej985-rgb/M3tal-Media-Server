@@ -25,6 +25,44 @@ logger = get_logger("metrics")
 HISTORY_CSV = os.path.join(STATE_DIR, "metrics-history.csv")
 MAX_HISTORY_ENTRIES = 5000 
 _last_docker_error_log = 0
+_last_net_io = None
+_last_net_time = None
+
+def get_network_metrics():
+    """Calculate host network throughput (MB/s) and load % (Audit fix 11.2)"""
+    global _last_net_io, _last_net_time
+    now = time.time()
+    
+    metrics = {"down": 0.0, "up": 0.0, "load": 0.0}
+    if not psutil:
+        return metrics
+
+    try:
+        current_io = psutil.net_io_counters()
+        
+        if _last_net_io is not None:
+            dt = now - _last_net_time
+            if dt > 0.1: # Avoid division by zero or jitter
+                bytes_recv = current_io.bytes_recv - _last_net_io.bytes_recv
+                bytes_sent = current_io.bytes_sent - _last_net_io.bytes_sent
+                
+                # Convert to MB/s
+                metrics["down"] = round((bytes_recv / dt) / (1024*1024), 2)
+                metrics["up"] = round((bytes_sent / dt) / (1024*1024), 2)
+                
+                # Assume 1Gbps capacity (125 MB/s) for Load %
+                # Adjust capacity_mbs if you have a 10G or 100M card.
+                capacity_mbs = 125.0
+                total_mbs = metrics["down"] + metrics["up"]
+                metrics["load"] = round(min(100.0, (total_mbs / capacity_mbs) * 100), 1)
+
+        _last_net_io = current_io
+        _last_net_time = now
+    except Exception as e:
+        logger.error(f"Failed to get network metrics: {e}")
+        
+    return metrics
+
 def get_system_metrics():
     metrics = {"cpu": 0.0, "mem": 0.0, "timestamp": int(time.time())}
     if psutil:
@@ -205,10 +243,12 @@ def append_history(system, containers):
 def collect_all_metrics():
     system = get_system_metrics()
     containers = get_container_metrics()
+    network = get_network_metrics()
     
     data = {
         "system": system,
         "containers": containers,
+        "network": network,
         "timestamp": system["timestamp"],
         "cpu": system["cpu"]
     }
