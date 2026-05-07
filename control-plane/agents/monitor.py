@@ -17,7 +17,7 @@ from utils.identity import match_container_safe
 logger = get_logger("monitor")
 
 # Batch 5 T3: Per-agent status file
-STATUS_FILE = Path(STATE_DIR) / "health" / "monitor_containers.json"
+STATUS_FILE = Path(STATE_DIR) / "health" / "monitor.json"
 
 def collect_health():
     registry = load_json(str(REGISTRY_JSON), default={"containers": []})
