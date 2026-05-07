@@ -325,6 +325,8 @@ services:
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - LOG_LEVEL=info
+      - TZ=America/New_York
+      - BROWSER_TIMEOUT=120000
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN:?DOMAIN not set}`)"
