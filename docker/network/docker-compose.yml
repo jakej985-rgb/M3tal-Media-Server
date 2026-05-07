@@ -18,14 +18,17 @@ services:
       # qBittorrent
       - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${DOMAIN}`)"
       - "traefik.http.routers.qbittorrent.entrypoints=web"
+      - "traefik.http.routers.qbittorrent.service=qbittorrent"
       - "traefik.http.services.qbittorrent.loadbalancer.server.port=8090"
       # Prowlarr
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
       - "traefik.http.routers.prowlarr.entrypoints=web"
+      - "traefik.http.routers.prowlarr.service=prowlarr"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
       # FlareSolverr
       - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)"
       - "traefik.http.routers.flaresolverr.entrypoints=web"
+      - "traefik.http.routers.flaresolverr.service=flaresolverr"
       - "traefik.http.services.flaresolverr.loadbalancer.server.port=8191"
       
       - "traefik.docker.network=proxy"
