@@ -88,6 +88,17 @@ def atomic_write_json(path: Path, data: Any) -> bool:
             os.fsync(tmp.fileno())
             temp_name = tmp.name
         os.replace(temp_name, str(path))
+        
+        # Audit Fix: Restore ownership if running as root in container
+        if os.getuid() == 0:
+            try:
+                puid = int(os.environ.get("PUID", 1000))
+                pgid = int(os.environ.get("PGID", 1000))
+                os.chown(str(path), puid, pgid)
+                os.chmod(str(path), 0o664) # -rw-rw-r--
+            except Exception:
+                pass
+                
         return True
     except Exception as e:
         print(f"[HEALER] Atomic write failed for {path}: {e}")

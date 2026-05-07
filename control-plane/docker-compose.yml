@@ -120,6 +120,8 @@ services:
       - IN_CONTAINER=true
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
+      - PSUTIL_PROCS_DIR=/host/proc
+      - PROCFS_PATH=/host/proc
     working_dir: /docker
     command: python3 control-plane/agents/run.py
     restart: unless-stopped
