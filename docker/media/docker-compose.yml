@@ -318,7 +318,9 @@ services:
     environment:
       - LOG_LEVEL=info
       - TZ=America/New_York
-      - BROWSER_TIMEOUT=120000
+      - BROWSER_TIMEOUT=180000
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
     env_file:
       - ../../.env
     deploy:
