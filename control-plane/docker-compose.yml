@@ -76,6 +76,8 @@ services:
       - ALLOW_START=1
       - ALLOW_STOP=0
       - ALLOW_RESTARTS=1
+    ports:
+      - "127.0.0.1:2375:2375"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -112,16 +114,15 @@ services:
       - /dev/dri:/dev/dri
     user: root  # Required for Docker socket access and smartctl hardware access
     privileged: true # Required for raw hardware access to disks
-    # 🛡️ Bypass proxy to fix Docker DNS/bridge resolution bugs (same as Traefik fix)
+    network_mode: host
     environment:
       - TZ=America/Denver
+      - DOCKER_HOST=tcp://127.0.0.1:2375
       - DOCKER_API_VERSION=${DOCKER_API_VERSION}
       - REPO_ROOT=/docker
       - IN_CONTAINER=true
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      - PSUTIL_PROCS_DIR=/host/proc
-      - PROCFS_PATH=/host/proc
     working_dir: /docker
     command: python3 control-plane/agents/run.py
     restart: unless-stopped
@@ -132,8 +133,6 @@ services:
         limits:
           cpus: '1.0'
           memory: 400M
-    networks:
-      - proxy
 
 networks:
   proxy:

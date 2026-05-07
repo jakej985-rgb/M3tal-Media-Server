@@ -4,6 +4,7 @@ import sys
 import os
 import time
 import collections
+from pathlib import Path
 try:
     import psutil
 except ImportError:
@@ -36,21 +37,20 @@ def get_network_metrics():
     metrics = {"down": 0.0, "up": 0.0, "load": 0.0}
     
     # 🕵️ Host-Aware Network Monitoring (V6.7)
-    # If we are in a container, psutil.net_io_counters() only sees container traffic.
-    # We must read /host/proc/net/dev directly for host-level stats.
+    # We prioritize /host/proc/net/dev if we are in a container, 
+    # but since we are now in network_mode: host, psutil will be perfect.
     host_net_dev = Path("/host/proc/net/dev")
     
     try:
         current_recv = 0
         current_sent = 0
         
-        if host_net_dev.exists():
+        if host_net_dev.exists() and not os.environ.get("NETWORK_MODE") == "host":
             with open(host_net_dev, "r") as f:
                 lines = f.readlines()
-                for line in lines[2:]: # Skip header lines
+                for line in lines[2:]: 
                     parts = line.split()
                     if len(parts) > 9:
-                        # Index 1: Receive Bytes, Index 9: Transmit Bytes
                         current_recv += int(parts[1])
                         current_sent += int(parts[9])
         elif psutil:
@@ -66,6 +66,7 @@ def get_network_metrics():
                 bytes_recv = current_recv - _last_net_io["recv"]
                 bytes_sent = current_sent - _last_net_io["sent"]
                 
+                # Use max(0, ...) to prevent negative spikes on interface resets
                 metrics["down"] = round((max(0, bytes_recv) / dt) / (1024*1024), 2)
                 metrics["up"] = round((max(0, bytes_sent) / dt) / (1024*1024), 2)
                 
