@@ -129,8 +129,8 @@ type ContainerMetric struct {
 }
 
 type NetworkMetrics struct {
-	Down float64 `json:"down"`
-	Up   float64 `json:"up"`
+	Down string  `json:"down"`
+	Up   string  `json:"up"`
 	Load float64 `json:"load"`
 }
 
@@ -236,14 +236,25 @@ func metricsAgent(s *M3talState) {
 			Timestamp: now.Unix(),
 		}
 		s.Network = NetworkMetrics{
-			Down: down,
-			Up:   up,
+			Down: formatSpeed(down * 1024 * 1024), // down is in MB/s currently, convert back to bytes for formatter
+			Up:   formatSpeed(up * 1024 * 1024),
 			Load: load,
 		}
 		s.CPU = cpuVal
 		s.Timestamp = now.Unix()
 		s.mu.Unlock()
 	}
+}
+
+func formatSpeed(bytesPerSec float64) string {
+	if bytesPerSec < 1024 {
+		return fmt.Sprintf("%.0f B/s", bytesPerSec)
+	} else if bytesPerSec < 1024*1024 {
+		return fmt.Sprintf("%.1f KB/s", bytesPerSec/1024)
+	} else if bytesPerSec < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB/s", bytesPerSec/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB/s", bytesPerSec/(1024*1024*1024))
 }
 
 func dockerAgent(ctx context.Context, s *M3talState) {
@@ -366,21 +377,31 @@ func hardwareAgent(s *M3talState) {
 		var cpuT, gpuT float64
 		var gpuStats GpuStats
 
-		// 1. CPU Temp (Linux Fallback)
-		if data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
-			if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				cpuT = float64(val) / 1000.0
+		// 1. CPU Temp (Multi-zone Scan)
+		for i := 0; i < 6; i++ {
+			path := fmt.Sprintf("/sys/class/thermal/thermal_zone%d/temp", i)
+			if data, err := os.ReadFile(path); err == nil {
+				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+					cpuT = float64(val) / 1000.0
+					if cpuT > 20 && cpuT < 110 { // Basic sanity check for CPU temp
+						break
+					}
+				}
 			}
 		}
 
 		// 2. AMD GPU Temp (Linux Fallback)
-		if data, err := os.ReadFile("/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input"); err == nil {
-			if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				gpuT = float64(val) / 1000.0
-			}
-		} else if data, err := os.ReadFile("/sys/class/drm/card0/device/hwmon/hwmon1/temp1_input"); err == nil {
-			if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				gpuT = float64(val) / 1000.0
+		paths := []string{
+			"/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input",
+			"/sys/class/drm/card0/device/hwmon/hwmon1/temp1_input",
+			"/sys/class/drm/card0/device/hwmon/hwmon2/temp1_input",
+		}
+		for _, p := range paths {
+			if data, err := os.ReadFile(p); err == nil {
+				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+					gpuT = float64(val) / 1000.0
+					break
+				}
 			}
 		}
 
@@ -723,7 +744,7 @@ func listenerAgent(ctx context.Context, s *M3talState) {
 				sys := s.System
 				net := s.Network
 				s.mu.RUnlock()
-				msg := fmt.Sprintf("🏥 <b>M3TAL Status</b>\nCPU: <b>%.1f%%</b>\nRAM: <b>%.1f%%</b>\nNet: <b>%.1f MB/s</b>", sys.CPU, sys.Mem, net.Down)
+				msg := fmt.Sprintf("🏥 <b>M3TAL Status</b>\nCPU: <b>%.1f%%</b>\nRAM: <b>%.1f%%</b>\nNet: <b>%s</b>", sys.CPU, sys.Mem, net.Down)
 				sendTelegram(token, chatStr, msg)
 
 			case "/restart":
