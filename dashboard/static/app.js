@@ -166,8 +166,8 @@ function updateGpuFull() {
 }
 
 function updateNetworkFull() {
-    setText('stat-net-down-val', `${liveStats.netDown} MB/s`);
-    setText('stat-net-up-val', `${liveStats.netUp} MB/s`);
+    setText('stat-net-down-val', liveStats.netDown);
+    setText('stat-net-up-val', liveStats.netUp);
     setText('stat-net-load-val', `${liveStats.netLoad}%`);
 }
 

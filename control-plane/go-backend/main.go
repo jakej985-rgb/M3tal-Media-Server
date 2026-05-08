@@ -207,26 +207,30 @@ func metricsAgent(s *M3talState) {
 			cpuVal = cpuPerc[0]
 		}
 
+		var totalRecv, totalSent uint64
+		for _, io := range netIO {
+			totalRecv += io.BytesRecv
+			totalSent += io.BytesSent
+		}
+
 		var down, up, load float64
-		if len(netIO) > 0 {
-			if !lastTime.IsZero() {
-				dt := now.Sub(lastTime).Seconds()
-				if dt > 0 {
-					down = float64(netIO[0].BytesRecv-lastRecv) / (1024 * 1024) / dt
-					up = float64(netIO[0].BytesSent-lastSent) / (1024 * 1024) / dt
-					
-					// Assuming 1Gbps (125MB/s) capacity for load calculation
-					capacity := 125.0 
-					load = ((down + up) / capacity) * 100
-					if load > 100 {
-						load = 100
-					}
+		if !lastTime.IsZero() {
+			dt := now.Sub(lastTime).Seconds()
+			if dt > 0 {
+				down = float64(totalRecv-lastRecv) / (1024 * 1024) / dt
+				up = float64(totalSent-lastSent) / (1024 * 1024) / dt
+
+				// Assuming 1Gbps (125MB/s) capacity for load calculation
+				capacity := 125.0
+				load = ((down + up) / capacity) * 100
+				if load > 100 {
+					load = 100
 				}
 			}
-			lastRecv = netIO[0].BytesRecv
-			lastSent = netIO[0].BytesSent
-			lastTime = now
 		}
+		lastRecv = totalRecv
+		lastSent = totalSent
+		lastTime = now
 
 		s.mu.Lock()
 		s.System = SystemMetrics{
