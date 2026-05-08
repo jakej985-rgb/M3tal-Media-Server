@@ -11,8 +11,12 @@ COPY . .
 # -mod=vendor tells Go to use the local vendor directory instead of the network
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o m3tal-backend .
 
-# Use alpine for the final small image
-FROM alpine:latest
+# Use a stable alpine version and enable community repo for hardware tools
+FROM alpine:3.20
+
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.20/community" >> /etc/apk/repositories && \
+    apk update && \
+    apk add --no-cache ca-certificates radeontop smartmontools pciutils || true
 
 WORKDIR /app
 

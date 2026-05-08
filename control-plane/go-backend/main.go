@@ -416,49 +416,50 @@ func hardwareAgent(s *M3talState) {
 			}
 		}
 
-		// 3. Native AMD GPU Probes (No tools required!)
+		// 3. GPU Stats (Prioritize Radeontop)
 		gpuStats.Name = "AMD Radeon HD 5770"
 		gpuStats.Temp = gpuT
-		gpuStats.MemTotal = 1024 // Default for HD 5770
+		gpuStats.MemTotal = 1024
 
-		// Load from kernel
-		if data, err := os.ReadFile("/sys/class/drm/card0/device/gpu_busy_percent"); err == nil {
-			if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				gpuStats.Load = val
+		radeontopFound := false
+		if _, err := exec.LookPath("radeontop"); err == nil {
+			cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
+			if output, err := cmd.CombinedOutput(); err == nil {
+				line := string(output)
+				radeontopFound = true
 				gpuStats.Active = true
+				if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
+					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+						gpuStats.Load = int(f)
+					}
+				}
+				if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
+					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+						gpuStats.MemUsed = int(f)
+					}
+				}
 			}
 		}
 
-		// VRAM from kernel
-		if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_used"); err == nil {
-			if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
-				gpuStats.MemUsed = int(val / (1024 * 1024))
-				gpuStats.Active = true
-			}
-		}
-		if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_total"); err == nil {
-			if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
-				gpuStats.MemTotal = int(val / (1024 * 1024))
-			}
-		}
-
-		// 4. Fallback to Radeontop if sysfs fails and tool exists
-		if !gpuStats.Active {
-			if _, err := exec.LookPath("radeontop"); err == nil {
-				cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
-				if output, err := cmd.CombinedOutput(); err == nil {
-					line := string(output)
+		// 4. Native Fallback (If radeontop is missing or failed)
+		if !radeontopFound {
+			// Load from kernel
+			if data, err := os.ReadFile("/sys/class/drm/card0/device/gpu_busy_percent"); err == nil {
+				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+					gpuStats.Load = val
 					gpuStats.Active = true
-					if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
-						if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-							gpuStats.Load = int(f)
-						}
-					}
-					if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
-						if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-							gpuStats.MemUsed = int(f)
-						}
-					}
+				}
+			}
+			// VRAM from kernel
+			if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_used"); err == nil {
+				if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
+					gpuStats.MemUsed = int(val / (1024 * 1024))
+					gpuStats.Active = true
+				}
+			}
+			if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_total"); err == nil {
+				if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
+					gpuStats.MemTotal = int(val / (1024 * 1024))
 				}
 			}
 		}
