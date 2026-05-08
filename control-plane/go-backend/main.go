@@ -24,21 +24,49 @@ import (
 	"github.com/shirou/gopsutil/v3/net"
 )
 
-// M3talState holds the unified state of the control plane in memory
+type Anomaly struct {
+	Type   string `json:"type"`
+	Target string `json:"target"`
+	Reason string `json:"reason"`
+}
+
+type Decision struct {
+	Type   string `json:"type"`
+	Target string `json:"target"`
+	Reason string `json:"reason"`
+	Time   int64  `json:"timestamp"`
+}
+
+type HealthReport struct {
+	Score     int              `json:"score"`
+	Mode      string           `json:"mode"`
+	Verdict   string           `json:"verdict"`
+	Issues    []string         `json:"issues"`
+	Uptime    string           `json:"uptime"`
+	Timestamp int64            `json:"timestamp"`
+	Agents    map[string]Agent `json:"agent_health"`
+}
+
+type Agent struct {
+	Status    string `json:"status"`
+	Timestamp int64  `json:"timestamp"`
+}
+
 type M3talState struct {
-	mu         sync.RWMutex
-	System     SystemMetrics     `json:"system"`
-	Containers []ContainerMetric `json:"containers"`
-	Network    NetworkMetrics    `json:"network"`
-	Anomalies  []Anomaly         `json:"issues"`    // For anomalies.json
-	Decisions  []Decision        `json:"actions"`   // For decisions.json
-	MutedUntil int64             `json:"muted_until"` // For mute_state.json
-	GPU        GpuStats          `json:"gpu"`        // For gpu.json
-	Temp       TempStats         `json:"temp"`       // For temp.json
-	Storage    StorageStats      `json:"storage"`    // For storage.json
-	NetworkL   []NetworkRoute    `json:"links"`      // For network.json
-	Timestamp  int64             `json:"timestamp"`
-	CPU        float64           `json:"cpu"`
+	System    SystemMetrics
+	Network   NetworkMetrics
+	CPU       float64
+	Timestamp int64
+	Storage   []StorageMetrics
+	Gpu       GpuStats
+	Temps     TemperatureMetrics
+	Anomalies []Anomaly
+	Decisions []Decision
+	Health    HealthReport
+	Cooldowns map[string]time.Time
+	Containers []ContainerMetric
+
+	mu sync.RWMutex
 }
 
 type NetworkRoute struct {
@@ -86,20 +114,6 @@ type TempStats struct {
 	Status    string  `json:"status"`
 }
 
-type Decision struct {
-	Type   string `json:"type"`
-	Target string `json:"target"`
-	Reason string `json:"reason"`
-	Time   int64  `json:"timestamp"`
-}
-
-type Anomaly struct {
-// ... existing structs ...
-	Type   string `json:"type"`
-	Target string `json:"target"`
-	Reason string `json:"reason"`
-}
-
 type SystemMetrics struct {
 	CPU       float64 `json:"cpu"`
 	Mem       float64 `json:"mem"`
@@ -135,37 +149,45 @@ type NetworkMetrics struct {
 	Load float64 `json:"load"`
 }
 
+func (s *M3talState) Save(stateDir string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	saveAtomic(filepath.Join(stateDir, "metrics.json"), s.System)
+	saveAtomic(filepath.Join(stateDir, "storage.json"), map[string]interface{}{"disks": s.Storage})
+	saveAtomic(filepath.Join(stateDir, "gpu.json"), s.Gpu)
+	saveAtomic(filepath.Join(stateDir, "temp.json"), s.Temps)
+	saveAtomic(filepath.Join(stateDir, "network.json"), s.Network)
+	saveAtomic(filepath.Join(stateDir, "anomalies.json"), map[string]interface{}{"issues": s.Anomalies})
+	saveAtomic(filepath.Join(stateDir, "decisions.json"), map[string]interface{}{"actions": s.Decisions})
+	saveAtomic(filepath.Join(stateDir, "health_report.json"), s.Health)
+}
+
 func main() {
 	state := &M3talState{
+		Cooldowns: make(map[string]time.Time),
 		Containers: []ContainerMetric{},
 	}
 
-	// Resolve state path
 	stateDir := os.Getenv("STATE_DIR")
 	if stateDir == "" {
 		stateDir = filepath.Join("..", "state")
 	}
-	metricsPath := filepath.Join(stateDir, "metrics.json")
-	anomalyPath := filepath.Join(stateDir, "anomalies.json")
-	decisionPath := filepath.Join(stateDir, "decisions.json")
-	gpuPath := filepath.Join(stateDir, "gpu.json")
-	tempPath := filepath.Join(stateDir, "temp.json")
-	storagePath := filepath.Join(stateDir, "storage.json")
-	networkPath := filepath.Join(stateDir, "network.json")
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	fmt.Println("🚀 M3TAL Go Backend (Linux-Ready) starting...")
-	fmt.Printf("📂 Target State: %s\n", metricsPath)
 
-	ctx := context.Background()
-
-	// 1. Metrics Agent (System)
+	// Launch Agents
 	go metricsAgent(state)
-
-	// 2. Docker Agent (Containers)
 	go dockerAgent(ctx, state)
-
-	// 3. Anomaly Agent (Detection)
-	go anomalyAgent(state)
+	go hardwareAgent(state)
+	go storageAgent(state)
+	go scoutAgent(ctx, state)
+	go listenerAgent(ctx, state)
+	go orchestratorAgent(ctx, state)
+	go logObserverAgent(ctx, state)
 
 	// 4. Healer Agent (Auto-Recovery)
 	go healerAgent(ctx, state)
@@ -620,7 +642,68 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 				
 				skip := false
 				for _, b := range blacklist {
-					if strings.Contains(strings.ToLower(readableName), b) {
+					if strings.Contains(strings.ToLower(readableName), b) {func logObserverAgent(ctx context.Context, s *M3talState) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+
+	// Simple sensitivity scrub for Telegram alerts
+	secrets := []string{"TOKEN", "SECRET", "KEY", "PASSWORD"}
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			containers, err := cli.ContainerList(ctx, container.ListOptions{})
+			if err != nil {
+				time.Sleep(10 * time.Second)
+				continue
+			}
+
+			var wg sync.WaitGroup
+			for _, c := range containers {
+				wg.Add(1)
+				go func(containerID string, name string) {
+					defer wg.Done()
+					options := container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true, Tail: "0"}
+					out, err := cli.ContainerLogs(ctx, containerID, options)
+					if err != nil {
+						return
+					}
+					defer out.Close()
+
+					scanner := bufio.NewScanner(out)
+					for scanner.Scan() {
+						line := scanner.Text()
+						lLine := strings.ToLower(line)
+						if strings.Contains(lLine, "error") || strings.Contains(lLine, "panic") || strings.Contains(lLine, "fatal") || strings.Contains(lLine, "fail") {
+							// Redact potential secrets before sending to Telegram
+							for _, s := range secrets {
+								if strings.Contains(strings.ToUpper(line), s) {
+									line = "[REDACTED LOG ENTRY]"
+									break
+								}
+							}
+							
+							token := os.Getenv("TELEGRAM_BOT_TOKEN")
+							chat := os.Getenv("TG_ALERT_CHAT_ID")
+							if token != "" && chat != "" {
+								msg := fmt.Sprintf("⚠️ <b>Log Alert [%s]</b>\n<code>%s</code>", name, line)
+								sendTelegram(token, chat, msg)
+							}
+							// Add a small sleep to prevent alert flooding
+							time.Sleep(5 * time.Second)
+						}
+					}
+				}(c.ID, c.Names[0][1:])
+			}
+			wg.Wait()
+			time.Sleep(10 * time.Second)
+		}
+	}
+}
 						skip = true
 						break
 					}
@@ -641,7 +724,104 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 					Status:    status,
 					Image:     c.Image,
 					Icon:      fmt.Sprintf("https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/%s.png", serviceKey),
-					Container: c.Names[0][1:],
+					Container: c.Names[0][1:],func orchestratorAgent(ctx context.Context, s *M3talState) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			analyzeSystem(s)
+		}
+	}
+}
+
+func analyzeSystem(s *M3talState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	score := 100
+	var issues []string
+	var anomalies []Anomaly
+	var decisions []Decision
+
+	// 1. Hardware Anomaly Detection
+	if s.Temps.CPU > 85 {
+		score -= 20
+		msg := fmt.Sprintf("CPU Thermal Critical: %.1f°C", s.Temps.CPU)
+		issues = append(issues, msg)
+		anomalies = append(anomalies, Anomaly{Type: "critical", Target: "host", Reason: msg})
+	}
+	if s.System.CPU > 95 {
+		score -= 10
+		msg := fmt.Sprintf("CPU Saturation: %.1f%%", s.System.CPU)
+		issues = append(issues, msg)
+		anomalies = append(anomalies, Anomaly{Type: "transient", Target: "host", Reason: msg})
+	}
+
+	// 2. Storage Anomaly Detection
+	for _, disk := range s.Storage {
+		if disk.Percent > 95 {
+			score -= 15
+			msg := fmt.Sprintf("Disk Pressure (%s): %.1f%%", disk.Device, disk.Percent)
+			issues = append(issues, msg)
+			anomalies = append(anomalies, Anomaly{Type: "critical", Target: disk.Device, Reason: msg})
+		}
+	}
+
+	// 3. Decision Logic (Self-Healing)
+	// We rely on the healerAgent's internal state for container status, 
+	// but here we can identify logic-based decisions.
+	// For example, if CPU is pinned for 10 minutes, we might kill a worker.
+	// (Keeping it simple for now to match parity)
+
+	// 4. Mode Determination
+	mode := "FULL"
+	if score < 50 {
+		mode = "CRITICAL"
+	} else if score < 85 {
+		mode = "DEGRADED"
+	}
+
+	// 5. Build Health Report
+	s.Health = HealthReport{
+		Score:     score,
+		Mode:      mode,
+		Verdict:   mode,
+		Issues:    issues,
+		Uptime:    getUptime(),
+		Timestamp: now.Unix(),
+		Agents: map[string]Agent{
+			"orchestrator": {Status: "healthy", Timestamp: now.Unix()},
+			"healer":       {Status: "healthy", Timestamp: now.Unix()},
+			"metrics":      {Status: "healthy", Timestamp: now.Unix()},
+			"hardware":     {Status: "healthy", Timestamp: now.Unix()},
+		},
+	}
+	s.Anomalies = anomalies
+	s.Decisions = decisions // Healer fills this, or we can pre-fill
+}
+
+func getUptime() string {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return "—"
+	}
+	parts := strings.Fields(string(data))
+	if len(parts) == 0 {
+		return "—"
+	}
+	sec, _ := strconv.ParseFloat(parts[0], 64)
+	days := int(sec / 86400)
+	hours := int(sec) / 3600 % 24
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh", days, hours)
+	}
+	return fmt.Sprintf("%dh", hours)
+}
 				})
 				seen[host] = true
 			}
