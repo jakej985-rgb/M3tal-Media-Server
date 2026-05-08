@@ -118,7 +118,10 @@ class TestDashboardServer:
         server = self._make_server(tmp_path, monkeypatch)
         client = server.app.test_client()
 
-        response = client.post("/login", data={"username": "admin", "password": "secret-pass"})
+        with client.session_transaction() as sess:
+            sess['csrf_token'] = 'test-token'
+
+        response = client.post("/login", data={"username": "admin", "password": "secret-pass", "csrf_token": "test-token"})
 
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/")
@@ -133,9 +136,12 @@ class TestDashboardServer:
     def test_authenticated_socket_receives_metrics_updates(self, tmp_path, monkeypatch):
         server = self._make_server(tmp_path, monkeypatch)
         flask_client = server.app.test_client()
+        with flask_client.session_transaction() as sess:
+            sess['csrf_token'] = 'test-token'
+
         login_response = flask_client.post(
             "/login",
-            data={"username": "admin", "password": "secret-pass"},
+            data={"username": "admin", "password": "secret-pass", "csrf_token": "test-token"},
         )
 
         assert login_response.status_code == 302
