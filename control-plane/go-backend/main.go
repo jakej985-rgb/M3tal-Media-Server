@@ -104,6 +104,7 @@ type SystemMetrics struct {
 	CPU       float64 `json:"cpu"`
 	Mem       float64 `json:"mem"`
 	MemGB     float64 `json:"mem_gb"`
+	MemTotal  float64 `json:"mem_total"`
 	Timestamp int64   `json:"timestamp"`
 }
 
@@ -237,6 +238,7 @@ func metricsAgent(s *M3talState) {
 			CPU:       cpuVal,
 			Mem:       vm.UsedPercent,
 			MemGB:     float64(vm.Used) / (1024 * 1024 * 1024),
+			MemTotal:  float64(vm.Total) / (1024 * 1024 * 1024),
 			Timestamp: now.Unix(),
 		}
 		s.Network = NetworkMetrics{

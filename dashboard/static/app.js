@@ -150,7 +150,8 @@ const liveStats = {
 function updateCpuFull() {
     setText('stat-cpu-usage-val', `${liveStats.cpu.toFixed(1)}%`);
     setText('stat-cpu-temp-val-split', `${liveStats.cpuTemp}°C`);
-    setText('stat-cpu-mem-val-split', `${liveStats.mem.toFixed(1)} GB`);
+    const total = liveStats.memTotal || 16.0;
+    setText('stat-cpu-mem-val-split', `${liveStats.mem.toFixed(1)} / ${total.toFixed(1)} GB`);
 }
 
 function updateGpuFull() {
@@ -176,6 +177,7 @@ socket.on('metrics_update', (data) => {
     const sys = data.system || {};
     liveStats.cpu = sys.cpu || 0;
     liveStats.mem = sys.mem_gb || 0;
+    liveStats.memTotal = sys.mem_total || 0;
 
     // Update the single-line display
     updateCpuFull();

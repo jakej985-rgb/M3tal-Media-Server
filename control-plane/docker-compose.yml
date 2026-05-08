@@ -140,23 +140,20 @@ services:
       context: ./go-backend
       dockerfile: Dockerfile
     container_name: m3tal-backend-go
-    depends_on:
-      permission-fixer:
-        condition: service_completed_successfully
-      docker-proxy:
-        condition: service_healthy
+    network_mode: host
+    extra_hosts:
+      - "m3tal-docker-proxy:127.0.0.1"
     volumes:
       - ./state:/docker/control-plane/state
       - /sys:/sys:ro
-      - /proc:/host/proc:ro
+      - /proc:/proc:ro
+      - /usr/bin/radeontop:/usr/bin/radeontop:ro
+      - /usr/sbin/smartctl:/usr/sbin/smartctl:ro
       - /:/host:ro
     environment:
       - TZ=America/Denver
       - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
       - STATE_DIR=/docker/control-plane/state
-      - HOST_PROC=/host/proc # Hint for gopsutil
-    networks:
-      - proxy
     restart: unless-stopped
     deploy:
       resources:
