@@ -1,6 +1,6 @@
 module m3tal/control-plane
 
-go 1.21
+go 1.23
 
 require github.com/shirou/gopsutil/v3 v3.24.5
 
