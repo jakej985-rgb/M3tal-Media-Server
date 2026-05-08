@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moby/moby/api/types"
-	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
