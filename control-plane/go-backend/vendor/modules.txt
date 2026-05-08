@@ -82,6 +82,7 @@ github.com/power-devops/perfstat
 ## explicit; go 1.18
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/cpu
+github.com/shirou/gopsutil/v3/disk
 github.com/shirou/gopsutil/v3/internal/common
 github.com/shirou/gopsutil/v3/mem
 github.com/shirou/gopsutil/v3/net
@@ -135,3 +136,4 @@ go.opentelemetry.io/otel/trace/noop
 ## explicit; go 1.23.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
+golang.org/x/sys/windows/registry
