@@ -134,6 +134,36 @@ services:
           cpus: '1.0'
           memory: 400M
 
+  # New High-Performance Go Backend (Alpha)
+  m3tal-backend-go:
+    build:
+      context: .
+      dockerfile: go-backend/Dockerfile
+    container_name: m3tal-backend-go
+    depends_on:
+      permission-fixer:
+        condition: service_completed_successfully
+      docker-proxy:
+        condition: service_healthy
+    volumes:
+      - ./state:/docker/control-plane/state
+      - /sys/class/thermal:/sys/class/thermal:ro
+      - /proc:/host/proc:ro
+      - /:/host:ro
+    environment:
+      - TZ=America/Denver
+      - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
+      - STATE_DIR=/docker/control-plane/state
+      - HOST_PROC=/host/proc # Hint for gopsutil
+    networks:
+      - proxy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 50M
+
 networks:
   proxy:
     external: true
