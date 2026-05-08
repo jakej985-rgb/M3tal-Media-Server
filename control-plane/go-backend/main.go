@@ -381,15 +381,22 @@ func hardwareAgent(s *M3talState) {
 		var cpuT, gpuT float64
 		var gpuStats GpuStats
 
-		// 1. CPU Temp (Multi-zone Scan)
-		for i := 0; i < 6; i++ {
+		// 1. CPU Temp (Multi-zone + HWMON Scan)
+		for i := 0; i < 8; i++ {
+			// Try thermal zones
 			path := fmt.Sprintf("/sys/class/thermal/thermal_zone%d/temp", i)
 			if data, err := os.ReadFile(path); err == nil {
 				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
 					cpuT = float64(val) / 1000.0
-					if cpuT > 20 && cpuT < 110 { // Basic sanity check for CPU temp
-						break
-					}
+					if cpuT > 20 && cpuT < 110 { break }
+				}
+			}
+			// Try hwmon (Standard for most motherboards)
+			hwPath := fmt.Sprintf("/sys/class/hwmon/hwmon%d/temp1_input", i)
+			if data, err := os.ReadFile(hwPath); err == nil {
+				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+					cpuT = float64(val) / 1000.0
+					if cpuT > 20 && cpuT < 110 { break }
 				}
 			}
 		}
@@ -409,30 +416,51 @@ func hardwareAgent(s *M3talState) {
 			}
 		}
 
-		// 3. Radeontop Stats (Check if exists first)
-		if _, err := exec.LookPath("radeontop"); err == nil {
-			cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
-			if output, err := cmd.CombinedOutput(); err == nil {
-				line := string(output)
-				gpuStats.Active = true
-				gpuStats.Name = "AMD Radeon HD 5770"
-				gpuStats.Temp = gpuT
-				gpuStats.MemTotal = 1024
+		// 3. Native AMD GPU Probes (No tools required!)
+		gpuStats.Name = "AMD Radeon HD 5770"
+		gpuStats.Temp = gpuT
+		gpuStats.MemTotal = 1024 // Default for HD 5770
 
-				if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
-					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-						gpuStats.Load = int(f)
+		// Load from kernel
+		if data, err := os.ReadFile("/sys/class/drm/card0/device/gpu_busy_percent"); err == nil {
+			if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				gpuStats.Load = val
+				gpuStats.Active = true
+			}
+		}
+
+		// VRAM from kernel
+		if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_used"); err == nil {
+			if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
+				gpuStats.MemUsed = int(val / (1024 * 1024))
+				gpuStats.Active = true
+			}
+		}
+		if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_total"); err == nil {
+			if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
+				gpuStats.MemTotal = int(val / (1024 * 1024))
+			}
+		}
+
+		// 4. Fallback to Radeontop if sysfs fails and tool exists
+		if !gpuStats.Active {
+			if _, err := exec.LookPath("radeontop"); err == nil {
+				cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
+				if output, err := cmd.CombinedOutput(); err == nil {
+					line := string(output)
+					gpuStats.Active = true
+					if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
+						if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+							gpuStats.Load = int(f)
+						}
 					}
-				}
-				if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
-					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-						gpuStats.MemUsed = int(f)
+					if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
+						if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+							gpuStats.MemUsed = int(f)
+						}
 					}
 				}
 			}
-		} else {
-			gpuStats.Name = "Radeon HD 5770 (Tool Missing)"
-			gpuStats.Temp = gpuT
 		}
 
 		status := "healthy"

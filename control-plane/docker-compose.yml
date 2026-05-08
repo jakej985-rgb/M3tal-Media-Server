@@ -147,7 +147,7 @@ services:
         condition: service_healthy
     volumes:
       - ./state:/docker/control-plane/state
-      - /sys/class/thermal:/sys/class/thermal:ro
+      - /sys:/sys:ro
       - /proc:/host/proc:ro
       - /:/host:ro
     environment:
