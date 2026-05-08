@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moby/moby/api/types"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -80,7 +81,6 @@ func main() {
 	go anomalyAgent(state)
 
 	// 4. Persistence Agent (JSON Sync)
-	metricsPath := filepath.Join(stateDir, "metrics.json")
 	anomalyPath := filepath.Join(stateDir, "anomalies.json")
 	go saveAgent(state, metricsPath, anomalyPath)
 
@@ -152,21 +152,23 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 
 	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
-		containers, err := cli.ContainerList(ctx, container.ListOptions{})
+		// Latest Moby uses client-specific options and returns a Result struct
+		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
 		if err != nil {
 			log.Printf("⚠️ Failed to list containers: %v", err)
 			continue
 		}
 
 		newStats := []ContainerMetric{}
-		for _, c := range containers {
+		// Range over the Items slice in the ContainerListResult
+		for _, c := range res.Items {
 			name := "unknown"
 			if len(c.Names) > 0 {
 				name = c.Names[0][1:] // Remove leading slash
 			}
 			newStats = append(newStats, ContainerMetric{
 				Name: name,
-				CPU:  0.0, // Stats require a separate call, keeping it simple for now
+				CPU:  0.0,
 				Mem:  0.0,
 			})
 		}
