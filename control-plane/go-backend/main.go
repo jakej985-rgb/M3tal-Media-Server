@@ -14,6 +14,7 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
 )
 
 // M3talState holds the unified state of the control plane in memory
@@ -22,8 +23,15 @@ type M3talState struct {
 	System     SystemMetrics     `json:"system"`
 	Containers []ContainerMetric `json:"containers"`
 	Network    NetworkMetrics    `json:"network"`
+	Anomalies  []Anomaly         `json:"issues"` // For anomalies.json
 	Timestamp  int64             `json:"timestamp"`
 	CPU        float64           `json:"cpu"`
+}
+
+type Anomaly struct {
+	Type   string `json:"type"`
+	Target string `json:"target"`
+	Reason string `json:"reason"`
 }
 
 type SystemMetrics struct {
@@ -68,8 +76,13 @@ func main() {
 	// 2. Docker Agent (Containers)
 	go dockerAgent(ctx, state)
 
-	// 3. Persistence Agent (JSON Sync)
-	go saveAgent(state, metricsPath)
+	// 3. Anomaly Agent (Detection)
+	go anomalyAgent(state)
+
+	// 4. Persistence Agent (JSON Sync)
+	metricsPath := filepath.Join(stateDir, "metrics.json")
+	anomalyPath := filepath.Join(stateDir, "anomalies.json")
+	go saveAgent(state, metricsPath, anomalyPath)
 
 	// Keep alive
 	select {}
@@ -77,14 +90,39 @@ func main() {
 
 func metricsAgent(s *M3talState) {
 	ticker := time.NewTicker(2 * time.Second)
+	var lastRecv, lastSent uint64
+	var lastTime time.Time
+
 	for range ticker.C {
-		now := time.Now().Unix()
+		now := time.Now()
 		cpuPerc, _ := cpu.Percent(0, false)
 		vm, _ := mem.VirtualMemory()
+		netIO, _ := net.IOCounters(false)
 		
 		cpuVal := 0.0
 		if len(cpuPerc) > 0 {
 			cpuVal = cpuPerc[0]
+		}
+
+		var down, up, load float64
+		if len(netIO) > 0 {
+			if !lastTime.IsZero() {
+				dt := now.Sub(lastTime).Seconds()
+				if dt > 0 {
+					down = float64(netIO[0].BytesRecv-lastRecv) / (1024 * 1024) / dt
+					up = float64(netIO[0].BytesSent-lastSent) / (1024 * 1024) / dt
+					
+					// Assuming 1Gbps (125MB/s) capacity for load calculation
+					capacity := 125.0 
+					load = ((down + up) / capacity) * 100
+					if load > 100 {
+						load = 100
+					}
+				}
+			}
+			lastRecv = netIO[0].BytesRecv
+			lastSent = netIO[0].BytesSent
+			lastTime = now
 		}
 
 		s.mu.Lock()
@@ -92,10 +130,15 @@ func metricsAgent(s *M3talState) {
 			CPU:       cpuVal,
 			Mem:       vm.UsedPercent,
 			MemGB:     float64(vm.Used) / (1024 * 1024 * 1024),
-			Timestamp: now,
+			Timestamp: now.Unix(),
+		}
+		s.Network = NetworkMetrics{
+			Down: down,
+			Up:   up,
+			Load: load,
 		}
 		s.CPU = cpuVal
-		s.Timestamp = now
+		s.Timestamp = now.Unix()
 		s.mu.Unlock()
 	}
 }
@@ -134,20 +177,62 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 	}
 }
 
-func saveAgent(s *M3talState, path string) {
-	ticker := time.NewTicker(2 * time.Second)
+func anomalyAgent(s *M3talState) {
+	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
+		issues := []Anomaly{}
+
 		s.mu.RLock()
-		data, err := json.MarshalIndent(s, "", "  ")
+		cpu := s.System.CPU
+		mem := s.System.Mem
+		containers := s.Containers
 		s.mu.RUnlock()
 
-		if err != nil {
-			continue
+		// 1. Host Resource Checks
+		if cpu > 90 {
+			issues = append(issues, Anomaly{Type: "transient", Target: "host", Reason: fmt.Sprintf("CPU saturation: %.1f%%", cpu)})
+		}
+		if mem > 95 {
+			issues = append(issues, Anomaly{Type: "critical", Target: "host", Reason: fmt.Sprintf("Memory saturation: %.1f%%", mem)})
 		}
 
-		tmpPath := path + ".tmp"
-		if err := os.WriteFile(tmpPath, data, 0644); err == nil {
-			_ = os.Rename(tmpPath, path)
+		// 2. Container Resource Checks
+		for _, c := range containers {
+			if c.CPU > 90 {
+				issues = append(issues, Anomaly{Type: "resource_spike", Target: c.Name, Reason: fmt.Sprintf("High Container CPU: %.1f%%", c.CPU)})
+			}
+		}
+
+		s.mu.Lock()
+		s.Anomalies = issues
+		s.mu.Unlock()
+	}
+}
+
+func saveAgent(s *M3talState, mPath, aPath string) {
+	ticker := time.NewTicker(2 * time.Second)
+	for range ticker.C {
+		// Save Metrics
+		s.mu.RLock()
+		mBytes, _ := json.MarshalIndent(s, "", "  ")
+		
+		// Save Anomalies (Subset)
+		aData := struct {
+			Issues []Anomaly `json:"issues"`
+		}{Issues: s.Anomalies}
+		aBytes, _ := json.MarshalIndent(aData, "", "  ")
+		s.mu.RUnlock()
+
+		// Atomic write for metrics
+		tmpM := mPath + ".tmp"
+		if err := os.WriteFile(tmpM, mBytes, 0644); err == nil {
+			_ = os.Rename(tmpM, mPath)
+		}
+
+		// Atomic write for anomalies
+		tmpA := aPath + ".tmp"
+		if err := os.WriteFile(tmpA, aBytes, 0644); err == nil {
+			_ = os.Rename(tmpA, aPath)
 		}
 	}
 }

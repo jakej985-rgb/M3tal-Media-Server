@@ -137,8 +137,8 @@ services:
   # New High-Performance Go Backend (Alpha)
   m3tal-backend-go:
     build:
-      context: .
-      dockerfile: go-backend/Dockerfile
+      context: ./go-backend
+      dockerfile: Dockerfile
     container_name: m3tal-backend-go
     depends_on:
       permission-fixer:
