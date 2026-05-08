@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -214,7 +213,7 @@ func main() {
 	go scoutAgent(ctx, state)
 	go listenerAgent(ctx, state)
 	go orchestratorAgent(ctx, state)
-	go logObserverAgent(ctx, state)
+	go logObserverAgent(ctx)
 	go healerAgent(ctx, state)
 	go notifyAgent(state)
 	go saveAgent(ctx, state, stateDir)
@@ -312,12 +311,12 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 	}
 	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
-		containers, err := cli.ContainerList(ctx, container.ListOptions{})
+		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
 		if err != nil {
 			continue
 		}
 		newStats := []ContainerMetric{}
-		for _, c := range containers {
+		for _, c := range res.Items {
 			name := "unknown"
 			if len(c.Names) > 0 {
 				name = c.Names[0][1:]
@@ -327,7 +326,7 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 				CPU:    0.0,
 				Mem:    0.0,
 				Status: c.Status,
-				State:  c.State,
+				State:  string(c.State),
 			})
 		}
 		s.mu.Lock()
@@ -544,7 +543,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 	}
 
 	for range ticker.C {
-		containers, err := cli.ContainerList(ctx, container.ListOptions{})
+		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
 		if err != nil {
 			continue
 		}
@@ -553,7 +552,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 		seen := make(map[string]bool)
 		blacklist := []string{"dashboard", "api", "traefik", "m3tal"}
 
-		for _, c := range containers {
+		for _, c := range res.Items {
 			labels := ""
 			for k, v := range c.Labels {
 				labels += k + "=" + v + ","
@@ -608,7 +607,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 	}
 }
 
-func logObserverAgent(ctx context.Context, s *M3talState) {
+func logObserverAgent(ctx context.Context) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return
@@ -621,18 +620,18 @@ func logObserverAgent(ctx context.Context, s *M3talState) {
 		case <-ctx.Done():
 			return
 		default:
-			containers, err := cli.ContainerList(ctx, container.ListOptions{})
+			res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
 			if err != nil {
 				time.Sleep(10 * time.Second)
 				continue
 			}
 
 			var wg sync.WaitGroup
-			for _, c := range containers {
+			for _, c := range res.Items {
 				wg.Add(1)
 				go func(containerID string, name string) {
 					defer wg.Done()
-					options := container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true, Tail: "0"}
+					options := client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true, Tail: "0"}
 					out, err := cli.ContainerLogs(ctx, containerID, options)
 					if err != nil {
 						return
@@ -773,7 +772,7 @@ func healerAgent(ctx context.Context, s *M3talState) {
 			if c.State == "exited" || c.State == "dead" {
 				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
 				
-				_, err := cli.ContainerRestart(ctx, c.Name, container.RestartOptions{})
+				_, err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
 				if err != nil {
 					log.Printf("❌ HEALER: Failed to restart %s: %v", c.Name, err)
 					continue
@@ -887,7 +886,7 @@ func listenerAgent(ctx context.Context, s *M3talState) {
 					}
 					target := parts[1]
 					sendTelegram(token, chatStr, fmt.Sprintf("⏳ Restarting <code>%s</code>...", target))
-					_, err := cli.ContainerRestart(ctx, target, container.RestartOptions{})
+					_, err := cli.ContainerRestart(ctx, target, client.ContainerRestartOptions{})
 					if err != nil {
 						sendTelegram(token, chatStr, fmt.Sprintf("❌ Error: %v", err))
 					} else {
