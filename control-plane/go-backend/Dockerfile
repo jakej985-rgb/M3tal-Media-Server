@@ -1,21 +1,15 @@
 # --- Build Stage ---
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git
-
+# NO NETWORK REQUIRED: Using local vendor folder
 WORKDIR /app
 
-# Copy dependency files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
+# Copy all source and dependencies
 COPY . .
 
-# Build for Linux (Targeting the container environment)
-# CGO_ENABLED=0 ensures a static binary with no external dependencies
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o m3tal-backend .
+# Build for Linux using the vendor folder
+# -mod=vendor tells Go to use the local vendor directory instead of the network
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o m3tal-backend .
 
 # --- Final Stage ---
 FROM alpine:latest
