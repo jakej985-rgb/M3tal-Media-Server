@@ -22,12 +22,21 @@ type M3talState struct {
 	System     SystemMetrics     `json:"system"`
 	Containers []ContainerMetric `json:"containers"`
 	Network    NetworkMetrics    `json:"network"`
-	Anomalies  []Anomaly         `json:"issues"` // For anomalies.json
+	Anomalies  []Anomaly         `json:"issues"`    // For anomalies.json
+	Decisions  []Decision        `json:"actions"`   // For decisions.json
 	Timestamp  int64             `json:"timestamp"`
 	CPU        float64           `json:"cpu"`
 }
 
+type Decision struct {
+	Type   string `json:"type"`
+	Target string `json:"target"`
+	Reason string `json:"reason"`
+	Time   int64  `json:"timestamp"`
+}
+
 type Anomaly struct {
+// ... existing structs ...
 	Type   string `json:"type"`
 	Target string `json:"target"`
 	Reason string `json:"reason"`
@@ -41,9 +50,11 @@ type SystemMetrics struct {
 }
 
 type ContainerMetric struct {
-	Name string  `json:"name"`
-	CPU  float64 `json:"cpu"`
-	Mem  float64 `json:"mem"`
+	Name   string  `json:"name"`
+	CPU    float64 `json:"cpu"`
+	Mem    float64 `json:"mem"`
+	Status string  `json:"status"` // e.g. "running"
+	State  string  `json:"state"`  // e.g. "exited"
 }
 
 type NetworkMetrics struct {
@@ -78,9 +89,13 @@ func main() {
 	// 3. Anomaly Agent (Detection)
 	go anomalyAgent(state)
 
-	// 4. Persistence Agent (JSON Sync)
+	// 4. Healer Agent (Auto-Recovery)
+	go healerAgent(ctx, state)
+
+	// 5. Persistence Agent (JSON Sync)
 	anomalyPath := filepath.Join(stateDir, "anomalies.json")
-	go saveAgent(state, metricsPath, anomalyPath)
+	decisionPath := filepath.Join(stateDir, "decisions.json")
+	go saveAgent(state, metricsPath, anomalyPath, decisionPath)
 
 	// Keep alive
 	select {}
@@ -165,9 +180,11 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 				name = c.Names[0][1:] // Remove leading slash
 			}
 			newStats = append(newStats, ContainerMetric{
-				Name: name,
-				CPU:  0.0,
-				Mem:  0.0,
+				Name:   name,
+				CPU:    0.0,
+				Mem:    0.0,
+				Status: c.Status,
+				State:  string(c.State),
 			})
 		}
 
@@ -209,7 +226,48 @@ func anomalyAgent(s *M3talState) {
 	}
 }
 
-func saveAgent(s *M3talState, mPath, aPath string) {
+func healerAgent(ctx context.Context, s *M3talState) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+
+	ticker := time.NewTicker(10 * time.Second)
+	for range ticker.C {
+		s.mu.RLock()
+		containers := s.Containers
+		s.mu.RUnlock()
+
+		for _, c := range containers {
+			// If container is exited or dead, try to restart it
+			if c.State == "exited" || c.State == "dead" {
+				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
+				
+				_, err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
+				if err != nil {
+					log.Printf("❌ HEALER: Failed to restart %s: %v", c.Name, err)
+					continue
+				}
+
+				// Log the decision
+				s.mu.Lock()
+				s.Decisions = append(s.Decisions, Decision{
+					Type:   "restart",
+					Target: c.Name,
+					Reason: fmt.Sprintf("State was '%s'", c.State),
+					Time:   time.Now().Unix(),
+				})
+				// Limit log size to last 50 actions
+				if len(s.Decisions) > 50 {
+					s.Decisions = s.Decisions[1:]
+				}
+				s.mu.Unlock()
+			}
+		}
+	}
+}
+
+func saveAgent(s *M3talState, mPath, aPath, dPath string) {
 	ticker := time.NewTicker(2 * time.Second)
 	for range ticker.C {
 		// Save Metrics
@@ -221,18 +279,24 @@ func saveAgent(s *M3talState, mPath, aPath string) {
 			Issues []Anomaly `json:"issues"`
 		}{Issues: s.Anomalies}
 		aBytes, _ := json.MarshalIndent(aData, "", "  ")
+
+		// Save Decisions (Subset)
+		dData := struct {
+			Actions []Decision `json:"actions"`
+		}{Actions: s.Decisions}
+		dBytes, _ := json.MarshalIndent(dData, "", "  ")
 		s.mu.RUnlock()
 
-		// Atomic write for metrics
-		tmpM := mPath + ".tmp"
-		if err := os.WriteFile(tmpM, mBytes, 0644); err == nil {
-			_ = os.Rename(tmpM, mPath)
-		}
+		// Atomic writes
+		writeAtomically(mPath, mBytes)
+		writeAtomically(aPath, aBytes)
+		writeAtomically(dPath, dBytes)
+	}
+}
 
-		// Atomic write for anomalies
-		tmpA := aPath + ".tmp"
-		if err := os.WriteFile(tmpA, aBytes, 0644); err == nil {
-			_ = os.Rename(tmpA, aPath)
-		}
+func writeAtomically(path string, data []byte) {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err == nil {
+		_ = os.Rename(tmpPath, path)
 	}
 }
