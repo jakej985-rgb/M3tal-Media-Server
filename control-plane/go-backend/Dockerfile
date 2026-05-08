@@ -11,10 +11,8 @@ COPY . .
 # -mod=vendor tells Go to use the local vendor directory instead of the network
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o m3tal-backend .
 
-# --- Final Stage ---
+# Use alpine for the final small image
 FROM alpine:latest
-
-RUN apk add --no-cache ca-certificates radeontop smartmontools pciutils
 
 WORKDIR /app
 

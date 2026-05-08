@@ -405,25 +405,30 @@ func hardwareAgent(s *M3talState) {
 			}
 		}
 
-		// 3. Radeontop Stats
-		cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
-		if output, err := cmd.CombinedOutput(); err == nil {
-			line := string(output)
-			gpuStats.Active = true
-			gpuStats.Name = "AMD Radeon HD 5770"
-			gpuStats.Temp = gpuT
-			gpuStats.MemTotal = 1024
+		// 3. Radeontop Stats (Check if exists first)
+		if _, err := exec.LookPath("radeontop"); err == nil {
+			cmd := exec.Command("radeontop", "-d", "-", "-l", "1")
+			if output, err := cmd.CombinedOutput(); err == nil {
+				line := string(output)
+				gpuStats.Active = true
+				gpuStats.Name = "AMD Radeon HD 5770"
+				gpuStats.Temp = gpuT
+				gpuStats.MemTotal = 1024
 
-			if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
-				if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-					gpuStats.Load = int(f)
+				if m := gpuRe.FindStringSubmatch(line); len(m) > 1 {
+					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+						gpuStats.Load = int(f)
+					}
+				}
+				if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
+					if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+						gpuStats.MemUsed = int(f)
+					}
 				}
 			}
-			if m := vramRe.FindStringSubmatch(line); len(m) > 1 {
-				if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-					gpuStats.MemUsed = int(f)
-				}
-			}
+		} else {
+			gpuStats.Name = "Radeon HD 5770 (Tool Missing)"
+			gpuStats.Temp = gpuT
 		}
 
 		status := "healthy"
@@ -473,20 +478,22 @@ func storageAgent(s *M3talState) {
 				label = filepath.Base(label)
 			}
 
-			// 2. Drive Temperature (smartctl)
+			// 2. Drive Temperature (smartctl - check if exists)
 			var driveT float64
 			dev := p.Device
 			if strings.HasPrefix(dev, "/dev/") {
-				// Try to get physical device (e.g. /dev/sda1 -> /dev/sda)
-				phys := dev
-				if len(dev) > 8 && (dev[7] >= '0' && dev[7] <= '9') {
-					phys = dev[:7]
-				}
-				cmd := exec.Command("smartctl", "-a", phys)
-				if output, err := cmd.CombinedOutput(); err == nil {
-					if m := smartRe.FindStringSubmatch(string(output)); len(m) > 1 {
-						if f, err := strconv.ParseFloat(m[1], 64); err == nil {
-							driveT = f
+				if _, err := exec.LookPath("smartctl"); err == nil {
+					// Try to get physical device (e.g. /dev/sda1 -> /dev/sda)
+					phys := dev
+					if len(dev) > 8 && (dev[7] >= '0' && dev[7] <= '9') {
+						phys = dev[:7]
+					}
+					cmd := exec.Command("smartctl", "-a", phys)
+					if output, err := cmd.CombinedOutput(); err == nil {
+						if m := smartRe.FindStringSubmatch(string(output)); len(m) > 1 {
+							if f, err := strconv.ParseFloat(m[1], 64); err == nil {
+								driveT = f
+							}
 						}
 					}
 				}
