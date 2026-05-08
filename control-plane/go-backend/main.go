@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -17,12 +18,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
 )
+
+// --- Types ---
 
 type Anomaly struct {
 	Type   string `json:"type"`
@@ -53,18 +57,20 @@ type Agent struct {
 }
 
 type M3talState struct {
-	System    SystemMetrics
-	Network   NetworkMetrics
-	CPU       float64
-	Timestamp int64
-	Storage   []StorageMetrics
-	Gpu       GpuStats
-	Temps     TemperatureMetrics
-	Anomalies []Anomaly
-	Decisions []Decision
-	Health    HealthReport
-	Cooldowns map[string]time.Time
+	System     SystemMetrics
+	Network    NetworkMetrics
+	CPU        float64
+	Timestamp  int64
+	Storage    StorageStats
+	GPU        GpuStats
+	Temp       TempStats
+	Anomalies  []Anomaly
+	Decisions  []Decision
+	Health     HealthReport
+	Cooldowns  map[string]time.Time
 	Containers []ContainerMetric
+	MutedUntil int64
+	NetworkL   []NetworkRoute
 
 	mu sync.RWMutex
 }
@@ -139,8 +145,8 @@ type ContainerMetric struct {
 	Name   string  `json:"name"`
 	CPU    float64 `json:"cpu"`
 	Mem    float64 `json:"mem"`
-	Status string  `json:"status"` // e.g. "running"
-	State  string  `json:"state"`  // e.g. "exited"
+	Status string  `json:"status"`
+	State  string  `json:"state"`
 }
 
 type NetworkMetrics struct {
@@ -149,23 +155,44 @@ type NetworkMetrics struct {
 	Load float64 `json:"load"`
 }
 
+// --- Persistence ---
+
 func (s *M3talState) Save(stateDir string) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	saveAtomic(filepath.Join(stateDir, "metrics.json"), s.System)
-	saveAtomic(filepath.Join(stateDir, "storage.json"), map[string]interface{}{"disks": s.Storage})
-	saveAtomic(filepath.Join(stateDir, "gpu.json"), s.Gpu)
-	saveAtomic(filepath.Join(stateDir, "temp.json"), s.Temps)
-	saveAtomic(filepath.Join(stateDir, "network.json"), s.Network)
+	saveAtomic(filepath.Join(stateDir, "storage.json"), s.Storage)
+	saveAtomic(filepath.Join(stateDir, "gpu.json"), s.GPU)
+	saveAtomic(filepath.Join(stateDir, "temp.json"), s.Temp)
+	saveAtomic(filepath.Join(stateDir, "network.json"), map[string]interface{}{"metrics": s.Network, "links": s.NetworkL})
 	saveAtomic(filepath.Join(stateDir, "anomalies.json"), map[string]interface{}{"issues": s.Anomalies})
 	saveAtomic(filepath.Join(stateDir, "decisions.json"), map[string]interface{}{"actions": s.Decisions})
 	saveAtomic(filepath.Join(stateDir, "health_report.json"), s.Health)
 }
 
+func saveAtomic(path string, data interface{}) {
+	tmp := path + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(data); err != nil {
+		return
+	}
+	f.Close()
+	os.Rename(tmp, path)
+}
+
+// --- Main ---
+
 func main() {
 	state := &M3talState{
-		Cooldowns: make(map[string]time.Time),
+		Cooldowns:  make(map[string]time.Time),
 		Containers: []ContainerMetric{},
 	}
 
@@ -173,7 +200,7 @@ func main() {
 	if stateDir == "" {
 		stateDir = filepath.Join("..", "state")
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -188,30 +215,25 @@ func main() {
 	go listenerAgent(ctx, state)
 	go orchestratorAgent(ctx, state)
 	go logObserverAgent(ctx, state)
-
-	// 4. Healer Agent (Auto-Recovery)
 	go healerAgent(ctx, state)
-
-	// 5. Notify Agent (Telegram)
 	go notifyAgent(state)
+	go saveAgent(ctx, state, stateDir)
 
-	// 6. Listener Agent (Interactive)
-	go listenerAgent(ctx, state)
-
-	// 7. Hardware Agent (GPU/Temp)
-	go hardwareAgent(state)
-
-	// 8. Storage Agent (Disk/IO)
-	go storageAgent(state)
-
-	// 9. Scout Agent (Network Routes)
-	go scoutAgent(ctx, state)
-
-	// 10. Persistence Agent (JSON Sync)
-	go saveAgent(state, metricsPath, anomalyPath, decisionPath, gpuPath, tempPath, storagePath, networkPath)
-
-	// Keep alive
 	select {}
+}
+
+// --- Agents ---
+
+func saveAgent(ctx context.Context, s *M3talState, stateDir string) {
+	ticker := time.NewTicker(2 * time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.Save(stateDir)
+		}
+	}
 }
 
 func metricsAgent(s *M3talState) {
@@ -224,7 +246,7 @@ func metricsAgent(s *M3talState) {
 		cpuPerc, _ := cpu.Percent(0, false)
 		vm, _ := mem.VirtualMemory()
 		netIO, _ := net.IOCounters(false)
-		
+
 		cpuVal := 0.0
 		if len(cpuPerc) > 0 {
 			cpuVal = cpuPerc[0]
@@ -242,8 +264,6 @@ func metricsAgent(s *M3talState) {
 			if dt > 0 {
 				down = float64(totalRecv-lastRecv) / (1024 * 1024) / dt
 				up = float64(totalSent-lastSent) / (1024 * 1024) / dt
-
-				// Assuming 1Gbps (125MB/s) capacity for load calculation
 				capacity := 125.0
 				load = ((down + up) / capacity) * 100
 				if load > 100 {
@@ -264,7 +284,7 @@ func metricsAgent(s *M3talState) {
 			Timestamp: now.Unix(),
 		}
 		s.Network = NetworkMetrics{
-			Down: formatSpeed(down * 1024 * 1024), // down is in MB/s currently, convert back to bytes for formatter
+			Down: formatSpeed(down * 1024 * 1024),
 			Up:   formatSpeed(up * 1024 * 1024),
 			Load: load,
 		}
@@ -288,111 +308,31 @@ func formatSpeed(bytesPerSec float64) string {
 func dockerAgent(ctx context.Context, s *M3talState) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Printf("⚠️ Docker SDK Error: %v", err)
 		return
 	}
-
 	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
-		// Latest Moby uses client-specific options and returns a Result struct
-		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
+		containers, err := cli.ContainerList(ctx, container.ListOptions{})
 		if err != nil {
-			log.Printf("⚠️ Failed to list containers: %v", err)
 			continue
 		}
-
 		newStats := []ContainerMetric{}
-		// Range over the Items slice in the ContainerListResult
-		for _, c := range res.Items {
+		for _, c := range containers {
 			name := "unknown"
 			if len(c.Names) > 0 {
-				name = c.Names[0][1:] // Remove leading slash
+				name = c.Names[0][1:]
 			}
 			newStats = append(newStats, ContainerMetric{
 				Name:   name,
 				CPU:    0.0,
 				Mem:    0.0,
 				Status: c.Status,
-				State:  string(c.State),
+				State:  c.State,
 			})
 		}
-
 		s.mu.Lock()
 		s.Containers = newStats
 		s.mu.Unlock()
-	}
-}
-
-func anomalyAgent(s *M3talState) {
-	ticker := time.NewTicker(5 * time.Second)
-	for range ticker.C {
-		issues := []Anomaly{}
-
-		s.mu.RLock()
-		cpu := s.System.CPU
-		mem := s.System.Mem
-		containers := s.Containers
-		s.mu.RUnlock()
-
-		// 1. Host Resource Checks
-		if cpu > 90 {
-			issues = append(issues, Anomaly{Type: "transient", Target: "host", Reason: fmt.Sprintf("CPU saturation: %.1f%%", cpu)})
-		}
-		if mem > 95 {
-			issues = append(issues, Anomaly{Type: "critical", Target: "host", Reason: fmt.Sprintf("Memory saturation: %.1f%%", mem)})
-		}
-
-		// 2. Container Resource Checks
-		for _, c := range containers {
-			if c.CPU > 90 {
-				issues = append(issues, Anomaly{Type: "resource_spike", Target: c.Name, Reason: fmt.Sprintf("High Container CPU: %.1f%%", c.CPU)})
-			}
-		}
-
-		s.mu.Lock()
-		s.Anomalies = issues
-		s.mu.Unlock()
-	}
-}
-
-func healerAgent(ctx context.Context, s *M3talState) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return
-	}
-
-	ticker := time.NewTicker(10 * time.Second)
-	for range ticker.C {
-		s.mu.RLock()
-		containers := s.Containers
-		s.mu.RUnlock()
-
-		for _, c := range containers {
-			// If container is exited or dead, try to restart it
-			if c.State == "exited" || c.State == "dead" {
-				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
-				
-				_, err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
-				if err != nil {
-					log.Printf("❌ HEALER: Failed to restart %s: %v", c.Name, err)
-					continue
-				}
-
-				// Log the decision
-				s.mu.Lock()
-				s.Decisions = append(s.Decisions, Decision{
-					Type:   "restart",
-					Target: c.Name,
-					Reason: fmt.Sprintf("State was '%s'", c.State),
-					Time:   time.Now().Unix(),
-				})
-				// Limit log size to last 50 actions
-				if len(s.Decisions) > 50 {
-					s.Decisions = s.Decisions[1:]
-				}
-				s.mu.Unlock()
-			}
-		}
 	}
 }
 
@@ -405,27 +345,27 @@ func hardwareAgent(s *M3talState) {
 		var cpuT, gpuT float64
 		var gpuStats GpuStats
 
-		// 1. CPU Temp (Multi-zone + HWMON Scan)
 		for i := 0; i < 8; i++ {
-			// Try thermal zones
 			path := fmt.Sprintf("/sys/class/thermal/thermal_zone%d/temp", i)
 			if data, err := os.ReadFile(path); err == nil {
 				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
 					cpuT = float64(val) / 1000.0
-					if cpuT > 20 && cpuT < 110 { break }
+					if cpuT > 20 && cpuT < 110 {
+						break
+					}
 				}
 			}
-			// Try hwmon (Standard for most motherboards)
 			hwPath := fmt.Sprintf("/sys/class/hwmon/hwmon%d/temp1_input", i)
 			if data, err := os.ReadFile(hwPath); err == nil {
 				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
 					cpuT = float64(val) / 1000.0
-					if cpuT > 20 && cpuT < 110 { break }
+					if cpuT > 20 && cpuT < 110 {
+						break
+					}
 				}
 			}
 		}
 
-		// 2. AMD GPU Temp (Linux Fallback)
 		paths := []string{
 			"/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input",
 			"/sys/class/drm/card0/device/hwmon/hwmon1/temp1_input",
@@ -440,7 +380,6 @@ func hardwareAgent(s *M3talState) {
 			}
 		}
 
-		// 3. GPU Stats (Prioritize Radeontop)
 		gpuStats.Name = "AMD Radeon HD 5770"
 		gpuStats.Temp = gpuT
 		gpuStats.MemTotal = 1024
@@ -465,16 +404,13 @@ func hardwareAgent(s *M3talState) {
 			}
 		}
 
-		// 4. Native Fallback (If radeontop is missing or failed)
 		if !radeontopFound {
-			// Load from kernel
 			if data, err := os.ReadFile("/sys/class/drm/card0/device/gpu_busy_percent"); err == nil {
 				if val, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
 					gpuStats.Load = val
 					gpuStats.Active = true
 				}
 			}
-			// VRAM from kernel
 			if data, err := os.ReadFile("/sys/class/drm/card0/device/mem_info_vram_used"); err == nil {
 				if val, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err == nil {
 					gpuStats.MemUsed = int(val / (1024 * 1024))
@@ -515,19 +451,15 @@ func storageAgent(s *M3talState) {
 		disks := make(map[string]DiskInfo)
 		highestUsage := 0.0
 
-		// 1. Get partitions and usage
 		parts, _ := disk.Partitions(false)
 		for _, p := range parts {
-			// Skip special filesystems
 			if strings.HasPrefix(p.Mountpoint, "/proc") || strings.HasPrefix(p.Mountpoint, "/dev") || strings.HasPrefix(p.Mountpoint, "/sys") {
 				continue
 			}
-
 			usage, err := disk.Usage(p.Mountpoint)
 			if err != nil {
 				continue
 			}
-
 			label := p.Mountpoint
 			if label == "/" {
 				label = "System"
@@ -535,12 +467,10 @@ func storageAgent(s *M3talState) {
 				label = filepath.Base(label)
 			}
 
-			// 2. Drive Temperature (smartctl - check if exists)
 			var driveT float64
 			dev := p.Device
 			if strings.HasPrefix(dev, "/dev/") {
 				if _, err := exec.LookPath("smartctl"); err == nil {
-					// Try to get physical device (e.g. /dev/sda1 -> /dev/sda)
 					phys := dev
 					if len(dev) > 8 && (dev[7] >= '0' && dev[7] <= '9') {
 						phys = dev[:7]
@@ -566,10 +496,8 @@ func storageAgent(s *M3talState) {
 			}
 		}
 
-		// 3. IO Counters
 		var ioStats *DiskIO
 		if io, err := disk.IOCounters(); err == nil {
-			// Sum all disks for global IO
 			var rC, wC, rB, wB uint64
 			for _, stats := range io {
 				rC += stats.ReadCount
@@ -616,7 +544,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 	}
 
 	for range ticker.C {
-		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
+		containers, err := cli.ContainerList(ctx, container.ListOptions{})
 		if err != nil {
 			continue
 		}
@@ -625,7 +553,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 		seen := make(map[string]bool)
 		blacklist := []string{"dashboard", "api", "traefik", "m3tal"}
 
-		for _, c := range res.Items {
+		for _, c := range containers {
 			labels := ""
 			for k, v := range c.Labels {
 				labels += k + "=" + v + ","
@@ -638,17 +566,54 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 				}
 
 				serviceKey := strings.ToLower(strings.Split(host, ".")[0])
-				readableName := strings.Title(strings.ReplaceAll(serviceKey, "-", " "))
+				readableName := strings.ReplaceAll(serviceKey, "-", " ")
 				
 				skip := false
 				for _, b := range blacklist {
-					if strings.Contains(strings.ToLower(readableName), b) {func logObserverAgent(ctx context.Context, s *M3talState) {
+					if strings.Contains(strings.ToLower(readableName), b) {
+						skip = true
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+
+				targetURL := "https://" + host
+				status := "enabled"
+				if resp, err := hc.Head(targetURL); err == nil {
+					if resp.StatusCode >= 500 {
+						status = "disabled"
+					}
+					resp.Body.Close()
+				} else {
+					status = "disabled"
+				}
+
+				links = append(links, NetworkRoute{
+					Name:      readableName,
+					URL:       targetURL,
+					Status:    status,
+					Image:     c.Image,
+					Icon:      fmt.Sprintf("https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/%s.png", serviceKey),
+					Container: c.Names[0][1:],
+				})
+				seen[host] = true
+			}
+		}
+
+		s.mu.Lock()
+		s.NetworkL = links
+		s.mu.Unlock()
+	}
+}
+
+func logObserverAgent(ctx context.Context, s *M3talState) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return
 	}
 
-	// Simple sensitivity scrub for Telegram alerts
 	secrets := []string{"TOKEN", "SECRET", "KEY", "PASSWORD"}
 	
 	for {
@@ -679,7 +644,6 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 						line := scanner.Text()
 						lLine := strings.ToLower(line)
 						if strings.Contains(lLine, "error") || strings.Contains(lLine, "panic") || strings.Contains(lLine, "fatal") || strings.Contains(lLine, "fail") {
-							// Redact potential secrets before sending to Telegram
 							for _, s := range secrets {
 								if strings.Contains(strings.ToUpper(line), s) {
 									line = "[REDACTED LOG ENTRY]"
@@ -693,7 +657,6 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 								msg := fmt.Sprintf("⚠️ <b>Log Alert [%s]</b>\n<code>%s</code>", name, line)
 								sendTelegram(token, chat, msg)
 							}
-							// Add a small sleep to prevent alert flooding
 							time.Sleep(5 * time.Second)
 						}
 					}
@@ -704,27 +667,8 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 		}
 	}
 }
-						skip = true
-						break
-					}
-				}
-				if skip {
-					continue
-				}
 
-				targetURL := "https://" + host
-				status := "enabled"
-				if resp, err := hc.Head(targetURL); err != nil || resp.StatusCode >= 500 {
-					status = "disabled"
-				}
-
-				links = append(links, NetworkRoute{
-					Name:      readableName,
-					URL:       targetURL,
-					Status:    status,
-					Image:     c.Image,
-					Icon:      fmt.Sprintf("https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/%s.png", serviceKey),
-					Container: c.Names[0][1:],func orchestratorAgent(ctx context.Context, s *M3talState) {
+func orchestratorAgent(ctx context.Context, s *M3talState) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -748,10 +692,9 @@ func analyzeSystem(s *M3talState) {
 	var anomalies []Anomaly
 	var decisions []Decision
 
-	// 1. Hardware Anomaly Detection
-	if s.Temps.CPU > 85 {
+	if s.Temp.CPUTemp > 85 {
 		score -= 20
-		msg := fmt.Sprintf("CPU Thermal Critical: %.1f°C", s.Temps.CPU)
+		msg := fmt.Sprintf("CPU Thermal Critical: %.1f°C", s.Temp.CPUTemp)
 		issues = append(issues, msg)
 		anomalies = append(anomalies, Anomaly{Type: "critical", Target: "host", Reason: msg})
 	}
@@ -762,23 +705,15 @@ func analyzeSystem(s *M3talState) {
 		anomalies = append(anomalies, Anomaly{Type: "transient", Target: "host", Reason: msg})
 	}
 
-	// 2. Storage Anomaly Detection
-	for _, disk := range s.Storage {
+	for _, disk := range s.Storage.Disks {
 		if disk.Percent > 95 {
 			score -= 15
-			msg := fmt.Sprintf("Disk Pressure (%s): %.1f%%", disk.Device, disk.Percent)
+			msg := fmt.Sprintf("Disk Pressure: %.1f%%", disk.Percent)
 			issues = append(issues, msg)
-			anomalies = append(anomalies, Anomaly{Type: "critical", Target: disk.Device, Reason: msg})
+			anomalies = append(anomalies, Anomaly{Type: "critical", Target: "disk", Reason: msg})
 		}
 	}
 
-	// 3. Decision Logic (Self-Healing)
-	// We rely on the healerAgent's internal state for container status, 
-	// but here we can identify logic-based decisions.
-	// For example, if CPU is pinned for 10 minutes, we might kill a worker.
-	// (Keeping it simple for now to match parity)
-
-	// 4. Mode Determination
 	mode := "FULL"
 	if score < 50 {
 		mode = "CRITICAL"
@@ -786,7 +721,6 @@ func analyzeSystem(s *M3talState) {
 		mode = "DEGRADED"
 	}
 
-	// 5. Build Health Report
 	s.Health = HealthReport{
 		Score:     score,
 		Mode:      mode,
@@ -802,7 +736,7 @@ func analyzeSystem(s *M3talState) {
 		},
 	}
 	s.Anomalies = anomalies
-	s.Decisions = decisions // Healer fills this, or we can pre-fill
+	s.Decisions = decisions
 }
 
 func getUptime() string {
@@ -822,210 +756,155 @@ func getUptime() string {
 	}
 	return fmt.Sprintf("%dh", hours)
 }
-				})
-				seen[host] = true
-			}
-		}
 
-		s.mu.Lock()
-		s.NetworkL = links
-		s.mu.Unlock()
+func healerAgent(ctx context.Context, s *M3talState) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return
 	}
-}
 
-func saveAgent(s *M3talState, mPath, aPath, dPath, gPath, tPath, sPath, nPath string) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	for range ticker.C {
 		s.mu.RLock()
-		mBytes, _ := json.MarshalIndent(s, "", "  ")
-		
-		aData := struct {Issues []Anomaly `json:"issues"`}{Issues: s.Anomalies}
-		aBytes, _ := json.MarshalIndent(aData, "", "  ")
-
-		dData := struct {Actions []Decision `json:"actions"`}{Actions: s.Decisions}
-		dBytes, _ := json.MarshalIndent(dData, "", "  ")
-
-		gBytes, _ := json.MarshalIndent(s.GPU, "", "  ")
-		tBytes, _ := json.MarshalIndent(s.Temp, "", "  ")
-		sBytes, _ := json.MarshalIndent(s.Storage, "", "  ")
-		nBytes, _ := json.MarshalIndent(s.NetworkL, "", "  ")
+		containers := s.Containers
 		s.mu.RUnlock()
 
-		writeAtomically(mPath, mBytes)
-		writeAtomically(aPath, aBytes)
-		writeAtomically(dPath, dBytes)
-		writeAtomically(gPath, gBytes)
-		writeAtomically(tPath, tBytes)
-		writeAtomically(sPath, sBytes)
-		writeAtomically(nPath, nBytes)
+		for _, c := range containers {
+			if c.State == "exited" || c.State == "dead" {
+				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
+				
+				_, err := cli.ContainerRestart(ctx, c.Name, container.RestartOptions{})
+				if err != nil {
+					log.Printf("❌ HEALER: Failed to restart %s: %v", c.Name, err)
+					continue
+				}
+
+				s.mu.Lock()
+				s.Decisions = append(s.Decisions, Decision{
+					Type:   "restart",
+					Target: c.Name,
+					Reason: fmt.Sprintf("State was '%s'", c.State),
+					Time:   time.Now().Unix(),
+				})
+				if len(s.Decisions) > 50 {
+					s.Decisions = s.Decisions[1:]
+				}
+				s.mu.Unlock()
+			}
+		}
 	}
 }
 
 func notifyAgent(s *M3talState) {
+	ticker := time.NewTicker(30 * time.Second)
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	alertChat := os.Getenv("TG_ALERT_CHAT_ID")
-	actionChat := os.Getenv("TG_ACTION_CHAT_ID")
-
-	if token == "" || alertChat == "" {
-		log.Println("⚠️ Telegram Notify: Missing credentials, agent disabled.")
+	chat := os.Getenv("TG_ALERT_CHAT_ID")
+	if token == "" || chat == "" {
 		return
 	}
 
-	ticker := time.NewTicker(30 * time.Second)
-	alertedAnomalies := make(map[string]time.Time)
-	lastDecisionIndex := 0
-
+	lastScore := 100
 	for range ticker.C {
 		s.mu.RLock()
-		muted := time.Now().Unix() < s.MutedUntil
-		anomalies := s.Anomalies
-		decisions := s.Decisions
+		currentScore := s.Health.Score
+		issues := s.Health.Issues
 		s.mu.RUnlock()
 
-		if muted {
-			continue
+		if currentScore < lastScore && currentScore < 90 {
+			msg := fmt.Sprintf("⚠️ <b>M3TAL Health Drop: %d%%</b>\n%s", currentScore, strings.Join(issues, "\n"))
+			sendTelegram(token, chat, msg)
 		}
-
-		// 1. Process Anomalies (Cooldown 1 hour)
-		for _, a := range anomalies {
-			key := a.Target + ":" + a.Reason
-			if last, exists := alertedAnomalies[key]; !exists || time.Since(last) > time.Hour {
-				emoji := "🚨"
-				if a.Type == "transient" {
-					emoji = "🟡"
-				}
-				msg := fmt.Sprintf("%s <b>M3TAL Anomaly</b>\n<b>Target:</b> <code>%s</code>\n<b>Reason:</b> %s", emoji, a.Target, a.Reason)
-				sendTelegram(token, alertChat, msg)
-				alertedAnomalies[key] = time.Now()
-			}
-		}
-
-		// 2. Process New Decisions (Healer Actions)
-		if len(decisions) > lastDecisionIndex {
-			for i := lastDecisionIndex; i < len(decisions); i++ {
-				d := decisions[i]
-				msg := fmt.Sprintf("🛡️ <b>M3TAL Healer</b>\n<b>Action:</b> <code>%s</code>\n<b>Target:</b> %s\n<b>Reason:</b> %s", d.Type, d.Target, d.Reason)
-				sendTelegram(token, actionChat, msg)
-			}
-			lastDecisionIndex = len(decisions)
-		}
+		lastScore = currentScore
 	}
 }
 
 func listenerAgent(ctx context.Context, s *M3talState) {
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	allowedUsers := os.Getenv("ALLOWED_USERS")
-	
 	if token == "" {
 		return
 	}
 
 	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	offset := 0
+	hc := &http.Client{Timeout: 35 * time.Second}
 
 	for {
-		url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", token, offset)
-		resp, err := http.Get(url)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		var result struct {
-			OK     bool             `json:"ok"`
-			Result []TelegramUpdate `json:"result"`
-		}
-		json.NewDecoder(resp.Body).Decode(&result)
-		resp.Body.Close()
-
-		if !result.OK {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		for _, u := range result.Result {
-			offset = u.UpdateID + 1
-			if u.Message == nil || u.Message.Text == "" {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", token, offset)
+			resp, err := hc.Get(url)
+			if err != nil {
+				time.Sleep(5 * time.Second)
 				continue
 			}
 
-			// Security Check
-			uidStr := strconv.FormatInt(u.Message.From.ID, 10)
-			if !strings.Contains(allowedUsers, uidStr) {
-				sendTelegram(token, strconv.FormatInt(u.Message.Chat.ID, 10), "⛔ <b>Unauthorized</b>")
-				continue
+			var result struct {
+				Ok     bool             `json:"ok"`
+				Result []TelegramUpdate `json:"result"`
 			}
+			json.NewDecoder(resp.Body).Decode(&result)
+			resp.Body.Close()
 
-			parts := strings.Fields(u.Message.Text)
-			cmd := strings.ToLower(parts[0])
-			chatStr := strconv.FormatInt(u.Message.Chat.ID, 10)
-
-			switch cmd {
-			case "/status":
-				s.mu.RLock()
-				sys := s.System
-				net := s.Network
-				s.mu.RUnlock()
-				msg := fmt.Sprintf("🏥 <b>M3TAL Status</b>\nCPU: <b>%.1f%%</b>\nRAM: <b>%.1f%%</b>\nNet: <b>%s</b>", sys.CPU, sys.Mem, net.Down)
-				sendTelegram(token, chatStr, msg)
-
-			case "/restart":
-				if len(parts) < 2 {
-					sendTelegram(token, chatStr, "❓ Usage: <code>/restart &lt;name&gt;</code>")
+			for _, u := range result.Result {
+				offset = u.UpdateID + 1
+				if u.Message == nil {
 					continue
 				}
-				target := parts[1]
-				sendTelegram(token, chatStr, fmt.Sprintf("⏳ Restarting <code>%s</code>...", target))
-				_, err := cli.ContainerRestart(ctx, target, client.ContainerRestartOptions{})
-				if err != nil {
-					sendTelegram(token, chatStr, fmt.Sprintf("❌ Error: %v", err))
-				} else {
-					sendTelegram(token, chatStr, fmt.Sprintf("✅ <code>%s</code> restarted.", target))
+
+				uidStr := strconv.FormatInt(u.Message.From.ID, 10)
+				allowed := false
+				for _, uid := range strings.Split(allowedUsers, ",") {
+					if strings.TrimSpace(uid) == uidStr {
+						allowed = true
+						break
+					}
+				}
+				if !allowed {
+					sendTelegram(token, strconv.FormatInt(u.Message.Chat.ID, 10), "⛔ <b>Unauthorized</b>")
+					continue
 				}
 
-			case "/mute":
-				hours := 1
-				if len(parts) > 1 {
-					hours, _ = strconv.Atoi(parts[1])
+				parts := strings.Fields(u.Message.Text)
+				cmd := strings.ToLower(parts[0])
+				chatStr := strconv.FormatInt(u.Message.Chat.ID, 10)
+
+				switch cmd {
+				case "/status":
+					s.mu.RLock()
+					sys := s.System
+					net := s.Network
+					s.mu.RUnlock()
+					msg := fmt.Sprintf("🏥 <b>M3TAL Status</b>\nCPU: <b>%.1f%%</b>\nRAM: <b>%.1f%%</b>\nNet: <b>%s</b>", sys.CPU, sys.Mem, net.Down)
+					sendTelegram(token, chatStr, msg)
+
+				case "/restart":
+					if len(parts) < 2 {
+						sendTelegram(token, chatStr, "❓ Usage: <code>/restart <name></code>")
+						continue
+					}
+					target := parts[1]
+					sendTelegram(token, chatStr, fmt.Sprintf("⏳ Restarting <code>%s</code>...", target))
+					_, err := cli.ContainerRestart(ctx, target, container.RestartOptions{})
+					if err != nil {
+						sendTelegram(token, chatStr, fmt.Sprintf("❌ Error: %v", err))
+					} else {
+						sendTelegram(token, chatStr, fmt.Sprintf("✅ <code>%s</code> restarted.", target))
+					}
 				}
-				s.mu.Lock()
-				s.MutedUntil = time.Now().Add(time.Duration(hours) * time.Hour).Unix()
-				s.mu.Unlock()
-				sendTelegram(token, chatStr, fmt.Sprintf("🔇 Alerts muted for <b>%d hours</b>.", hours))
-
-			case "/unmute":
-				s.mu.Lock()
-				s.MutedUntil = 0
-				s.mu.Unlock()
-				sendTelegram(token, chatStr, "🔔 Alerts <b>resumed</b>.")
-
-			case "/help":
-				msg := "🤖 <b>M3TAL Commands</b>\n/status - System overview\n/restart &lt;name&gt; - Restart service\n/mute &lt;h&gt; - Mute alerts\n/unmute - Resume alerts"
-				sendTelegram(token, chatStr, msg)
 			}
 		}
-	}
-}
-
-func writeAtomically(path string, data []byte) {
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err == nil {
-		_ = os.Rename(tmpPath, path)
 	}
 }
 
 func sendTelegram(token, chatID, text string) {
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
-	body, _ := json.Marshal(map[string]string{
+	payload, _ := json.Marshal(map[string]string{
 		"chat_id":    chatID,
 		"text":       text,
 		"parse_mode": "HTML",
 	})
-
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		log.Printf("❌ Failed to send Telegram: %v", err)
-		return
-	}
-	defer resp.Body.Close()
+	http.Post(url, "application/json", bytes.NewBuffer(payload))
 }
