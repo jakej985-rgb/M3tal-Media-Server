@@ -5,16 +5,16 @@ services:
     container_name: m3tal-permission-fixer
     user: "0:0"
     volumes:
-      - ../control-plane/state:/docker/state
-      - ../source/dashboard:/docker/dashboard
+      - ./state:/docker/state
+      - ./users.json:/docker/users.json
     command: >
       sh -c "chown -R ${PUID:-1000}:${PGID:-1000} /docker/state && 
              chmod -R 770 /docker/state &&
              touch /docker/state/acme.json &&
              chown ${PUID:-1000}:${PGID:-1000} /docker/state/acme.json &&
              chmod 600 /docker/state/acme.json &&
-             chown -R ${PUID:-1000}:${PGID:-1000} /docker/dashboard/users.json &&
-             chmod 600 /docker/dashboard/users.json || true"
+             chown -R ${PUID:-1000}:${PGID:-1000} /docker/users.json &&
+             chmod 600 /docker/users.json || true"
     networks:
       - proxy
 
@@ -25,16 +25,16 @@ services:
       permission-fixer:
         condition: service_completed_successfully
     volumes:
-      - ..:/docker
-    working_dir: /docker/source/dashboard
+      - ./users.json:/docker/users.json
+      - ./state:/docker/state
     command: python3 server.py
     restart: unless-stopped
     # Running as non-root appuser (configured in Dockerfile)
     environment:
       - TZ=America/Denver
       - DASHBOARD_SECRET=${DASHBOARD_SECRET:?DASHBOARD_SECRET not set — run from repo root with .env}
-      - STATE_DIR=/docker/control-plane/state
-      - USERS_FILE=/docker/source/dashboard/users.json
+      - STATE_DIR=/docker/state
+      - USERS_FILE=/docker/users.json
       - DASHBOARD_HOST=0.0.0.0
       - DASHBOARD_PORT=8082
       - PYTHONUNBUFFERED=1
@@ -104,7 +104,7 @@ services:
     extra_hosts:
       - "m3tal-docker-proxy:127.0.0.1"
     volumes:
-      - ../control-plane/state:/docker/control-plane/state
+      - ./state:/docker/state
       - /sys:/sys:ro
       - /proc:/proc:ro
       - /usr/bin/radeontop:/usr/bin/radeontop:ro
@@ -113,7 +113,7 @@ services:
     environment:
       - TZ=America/Denver
       - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
-      - STATE_DIR=/docker/control-plane/state
+      - STATE_DIR=/docker/state
     restart: unless-stopped
     deploy:
       resources:

@@ -25,8 +25,6 @@ KEEP_BACKUPS = 5
 BACKUP_TARGETS = [
     ".env",
     "docker",
-    "control-plane/state",
-    "source/dashboard/users.json",
 ]
 
 EXCLUDE_PATTERNS = {".log", ".pid"}
