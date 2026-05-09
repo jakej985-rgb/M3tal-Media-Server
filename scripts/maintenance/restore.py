@@ -13,10 +13,7 @@ import tarfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-# Ensure we can find the agents package for centralized paths (Audit Fix 14)
-sys.path.append(str(REPO_ROOT / "control-plane"))
-from agents.utils.paths import BACKUP_DIR
-
+BACKUP_DIR = REPO_ROOT / "backups"
 DEFAULT_BACKUP_DIR = BACKUP_DIR
 PYTHON = sys.executable
 
@@ -115,10 +112,10 @@ def main() -> None:
 
     if restore(backup_file, REPO_ROOT):
         print("[OK] Restore complete.")
-        print("[OK] Re-running init to refresh state...")
-        init_script = REPO_ROOT / "control-plane" / "init.py"
-        subprocess.run([PYTHON, str(init_script)], check=True)
-        print("[DONE] System ready. Run 'python3 control-plane/supervisor.py' to resume.")
+        print("[OK] Re-running m3tal init to refresh state...")
+        m3tal_cli = REPO_ROOT / "m3tal.py"
+        subprocess.run([PYTHON, str(m3tal_cli), "init"], check=True)
+        print("[DONE] System ready. Run 'python3 m3tal.py init' to resume.")
     else:
         sys.exit(1)
 

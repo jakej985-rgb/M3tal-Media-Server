@@ -4,16 +4,13 @@ from pathlib import Path
 # M3TAL Environment Audit Tool (v2.2 Hardened)
 # Responsibility: Safely inspect environment variables with secret masking.
 
-# Import paths module
+# Detect repository root
 p = Path(__file__).resolve()
+REPO_ROOT = None
 for parent in [p] + list(p.parents):
-    agents_dir = parent / "control-plane" / "agents"
-    if agents_dir.exists() and (parent / ".env").exists():
-        if str(agents_dir.parent) not in sys.path:
-            sys.path.append(str(agents_dir.parent))
+    if (parent / ".env").exists() and (parent / "docker").exists():
+        REPO_ROOT = parent
         break
-
-from agents.utils.paths import REPO_ROOT
 
 ROOT = REPO_ROOT
 ENV_FILE = ROOT / ".env" if ROOT else None

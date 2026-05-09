@@ -12,10 +12,10 @@ if sys.stdout.encoding.lower() != 'utf-8':
     except (AttributeError, Exception):
         pass
 
-# M3TAL Unified CLI (v2.2 Production-Grade)
-# Responsibility: Centralized entrypoint for all M3TAL orchestration and observability.
+# M3TAL Unified CLI (v2.3 Production-Grade)
+# Responsibility: Centralized entrypoint for all M3TAL orchestration.
 
-# --- Environment Variable Bootstrap (V2.3) ------------------------------------
+# --- Environment Variable Bootstrap -------------------------------------------
 def _bootstrap_env():
     # Attempt to find root to locate .env
     p = Path(__file__).resolve()
@@ -44,18 +44,9 @@ def _bootstrap_env():
 
     # Audit Fix: Enforce Project Root
     os.chdir(root)
-    
-_bootstrap_env()
+    return root
 
-# --- Path Constants -----------------------------------------------------------
-ROOT = Path(__file__).resolve().parent
-if not (ROOT / "docker").exists():
-    # Fallback if m3tal.py is executed from elsewhere
-    p = Path(__file__).resolve()
-    for parent in [p] + list(p.parents):
-        if (parent / ".env").exists() and (parent / "docker").exists():
-            ROOT = parent
-            break
+ROOT = _bootstrap_env()
 
 # --- Execution Helpers --------------------------------------------------------
 def get_compose_files():
@@ -148,10 +139,6 @@ def cmd_shutdown(args):
     print("\n[SHUTDOWN] M3TAL environment shutdown complete.")
     return 0
 
-def cmd_bootstrap(args):
-    """Alias for full system initialization."""
-    return cmd_init(args)
-
 # --- CLI Structure ------------------------------------------------------------
 def main():
     if not ROOT:
@@ -198,16 +185,14 @@ def main():
         print(f"   Searching in: {ROOT}")
         sys.exit(1)
 
-    # Environment is already loaded by _bootstrap_env() at the top of this file.
-
     if args.command == "init":
         sys.exit(cmd_init(args))
     elif args.command == "shutdown":
         sys.exit(cmd_shutdown(args))
     elif args.command == "build":
         sys.exit(cmd_build(args))
-    elif args.command == "bootstrap":
-        sys.exit(cmd_bootstrap(args))
+    elif args.command in ["bootstrap", "init"]:
+        sys.exit(cmd_init(args))
     else:
         sys.exit(cmd_obsolete())
 

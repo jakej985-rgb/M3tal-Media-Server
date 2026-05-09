@@ -16,11 +16,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 ENV_FILE = os.path.join(REPO_ROOT, ".env")
 EXAMPLE_FILE = os.path.join(REPO_ROOT, ".env.example")
 
-# Inject M3TAL Control Plane paths for discovery tools
-CONTROL_PLANE = os.path.join(REPO_ROOT, "control-plane")
-if CONTROL_PLANE not in sys.path:
-    sys.path.append(CONTROL_PLANE)
-    sys.path.append(os.path.join(CONTROL_PLANE, "agents"))
+# M3TAL Control Plane paths are now consolidated under docker/state
 
 # Rex Guardrail: Required variables for system integrity
 REQUIRED_VARS = [
@@ -150,22 +146,9 @@ def main():
     allowed_users = get_input("Allowed User IDs (comma-separated)", current_env.get("ALLOWED_USERS", "0"))
     new_env["ALLOWED_USERS"] = allowed_users
 
-    mapping = {}
     if auto_discover == "y":
-        try:
-            # Set bot token in environment temporarily so discovery can use it
-            os.environ["TELEGRAM_BOT_TOKEN"] = bot_token
-            from agents.telegram.discovery import discover_and_map
-            mapping = discover_and_map()
-            
-            if mapping:
-                print(f"\n{GREEN}--- Discovered Chats ---{END}")
-                for k, v in mapping.items():
-                    print(f"  ✅ {k} = {v}")
-            else:
-                print(f"\n{YELLOW}⚠ No tags discovered. Falling back to manual input.{END}")
-        except Exception as e:
-            print(f"\n{RED}[!] Auto-discovery error: {e}{END}")
+        print(f"\n{YELLOW}⚠ Telegram Auto-discovery is currently disabled in this version.{END}")
+        print("Please enter your Chat IDs manually below.")
 
     # Helper to ask only if not in mapping
     def get_chat_id(key, label):
@@ -225,7 +208,7 @@ def main():
         new_env["TRAEFIK_AUTH_HASH"] = hash_val # Store raw for reference
         
         # Write dedicated users file for Traefik middleware
-        traefik_users_path = os.path.join(REPO_ROOT, "control-plane", "state", "traefik-dynamic-dir", "users")
+        traefik_users_path = os.path.join(REPO_ROOT, "docker", "state", "traefik-dynamic-dir", "users")
         os.makedirs(os.path.dirname(traefik_users_path), exist_ok=True)
         with open(traefik_users_path, "w", encoding="utf-8") as f:
             f.write(f"{auth_user}:{hash_val}\n")
@@ -300,7 +283,7 @@ def main():
                 f.write("\n")
                 
         print(f"\n{GREEN}{BOLD}✅ Configuration complete!{END}")
-        print(f"You can now run {BOLD}python m3tal.py run{END} to start the server.\n")
+        print(f"You can now run {BOLD}python m3tal.py init{END} to start the server.\n")
     except Exception as e:
         print(f"{RED}Error writing .env: {e}{END}")
 
