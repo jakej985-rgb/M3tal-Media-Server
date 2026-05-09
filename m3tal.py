@@ -49,135 +49,110 @@ def _bootstrap_env():
     
 _bootstrap_env()
 
-# --- Component Imports (Post-Env) ---------------------------------------------
-try:
-    from agents.utils.paths import (
-        REPO_ROOT, SCRIPTS_DIR, AGENTS_DIR, CONTROL_PLANE
-    )
-    # Centralized Audit Import (Phase 2)
-    from config.audit import run_audit, FAILED as AUDIT_FAILED
-except Exception as e:
-    print(f"[X] FATAL: Critical path module missing or corrupted: {e}")
-    sys.exit(1)
-
-ROOT = REPO_ROOT
+# --- Path Constants -----------------------------------------------------------
+ROOT = Path(__file__).resolve().parent
+if not (ROOT / "docker").exists():
+    # Fallback if m3tal.py is executed from elsewhere
+    p = Path(__file__).resolve()
+    for parent in [p] + list(p.parents):
+        if (parent / ".env").exists() and (parent / "docker").exists():
+            ROOT = parent
+            break
 
 # --- Execution Helpers --------------------------------------------------------
-def run_script(path, *args, check=False):
-    """Executes an internal script while passing repo-root context."""
-    if not path.exists():
-        print(f"[X] Error: Script not found at {path}")
-        return
+def get_compose_files():
+    """Dynamically discover all docker-compose files in priority order."""
+    docker_dir = ROOT / "docker"
+    compose_files = []
     
-    cmd = [sys.executable, str(path)] + list(args)
-    try:
-        # We don't use 'check=True' for long-running agents so they can be 
-        # interrupted with Ctrl+C without showing a traceback.
-        cp = subprocess.run(cmd, check=check)
-        return cp.returncode
-    except KeyboardInterrupt:
-        print("\n[!] Operation cancelled by user.")
-        return 1
-    except Exception as e:
-        print(f"[X] Execution error: {e}")
-        return 1
+    # Add m3tal-compose first (since it has the proxy and backend)
+    cp_compose = docker_dir / "m3tal-compose.yml"
+    if cp_compose.exists():
+        compose_files.append(cp_compose)
+        
+    # Then network and routing
+    network_compose = docker_dir / "network-compose.yml"
+    if network_compose.exists():
+        compose_files.append(network_compose)
+        
+    routing_compose = docker_dir / "routing-compose.yml"
+    if routing_compose.exists():
+        compose_files.append(routing_compose)
+        
+    # Then the rest dynamically
+    if docker_dir.exists():
+        for file in docker_dir.glob("*-compose.yml"):
+            if file not in compose_files:
+                compose_files.append(file)
+                
+    # Also discover any docker-compose.yml in root of docker/ if any
+    root_compose = docker_dir / "docker-compose.yml"
+    if root_compose.exists() and root_compose not in compose_files:
+        compose_files.append(root_compose)
+
+    return compose_files
 
 # --- Command Handlers ---------------------------------------------------------
-def cmd_logs(args):
-    """Starts the Docker logs agent."""
-    path = AGENTS_DIR / "docker_logs_agent.py"
-    # Forward arguments
-    args_list = [args.stack]
-    if args.alerts:
-        args_list.append("--alerts")
-    return run_script(path, *args_list)
-
-def cmd_env():
-    """Launches the environment audit tool."""
-    path = SCRIPTS_DIR / "view_env.py"
-    return run_script(path)
-
-def cmd_audit(args):
-    """Runs the infrastructure contract auditor (Centralized Import)."""
-    json_out = hasattr(args, 'json') and args.json
-    strict = hasattr(args, 'strict') and args.strict
-    status = run_audit(json_out=json_out, strict=strict)
-    return 0 if status != AUDIT_FAILED else 1
+def cmd_obsolete():
+    print("[!] This command is obsolete and has been removed in the Go-native M3TAL Control Plane.")
+    return 1
 
 def cmd_build(args):
     """Enforces a clean rebuild of the control plane containers."""
     print("\n[BUILD] Triggering no-cache build of M3TAL Control Plane...")
-    cmd = ["docker", "compose", "build", "--no-cache", "control-plane"]
-    target_stack = REPO_ROOT / "control-plane"
+    compose_file = ROOT / "docker" / "m3tal-compose.yml"
+    cmd = ["docker", "compose", "-f", str(compose_file), "build", "--no-cache"]
     try:
-        subprocess.run(cmd, cwd=str(target_stack), check=True)
+        subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True)
         print("[INIT] Build successful. Containers are up to date.")
         return 0
     except Exception as e:
         print(f"[X] Build failed: {e}")
         return 1
 
-def cmd_test():
-    """Runs the end-to-end truth tests (routing validation)."""
-    path = CONTROL_PLANE / "config" / "health.py"
-    return run_script(path)
-
 def cmd_init(args):
     """Initializes the M3TAL environment."""
-    path = CONTROL_PLANE / "init.py"
-    if args.repair:
-        status = run_script(path, f"--repair={args.repair}", check=True)
-    else:
-        status = run_script(path, check=True)
-    
-    if status != 0:
-        return status
-
-    # Bootstrap Guard: Automatically audit after init
-    print("\n[INIT] Performing post-bootstrap infrastructure audit...")
-    return cmd_audit(args)
-
-def cmd_run():
-    """Launches the main Control Plane supervisor."""
-    path = AGENTS_DIR / "run.py"
-    return run_script(path)
+    compose_files = get_compose_files()
+    if not compose_files:
+        print("[X] No compose files found!")
+        return 1
+        
+    for cf in compose_files:
+        print(f"\n[INIT] Starting stack: {cf.name}...")
+        cmd = ["docker", "compose", "-f", str(cf), "up", "-d"]
+        try:
+            subprocess.run(cmd, cwd=str(cf.parent), check=True)
+        except Exception as e:
+            print(f"[X] Failed to start {cf.name}: {e}")
+            return 1
+            
+    print("\n[INIT] M3TAL environment initialization complete.")
+    return 0
 
 def cmd_shutdown(args):
     """Executes the Global Blackout or selective shutdown."""
-    path = CONTROL_PLANE / "shutdown.py"
-    return run_script(path, *args.stacks)
-
-def cmd_heal():
-    """Performs lightweight runtime healing (FS, logs, state)."""
-    path = CONTROL_PLANE / "init.py"
-    return run_script(path, "--repair=fs,logs,state")
+    compose_files = get_compose_files()
+    if not compose_files:
+        print("[X] No compose files found!")
+        return 1
+        
+    # Reverse the order for shutdown
+    compose_files.reverse()
+    
+    for cf in compose_files:
+        print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
+        cmd = ["docker", "compose", "-f", str(cf), "down"]
+        try:
+            subprocess.run(cmd, cwd=str(cf.parent), check=True)
+        except Exception as e:
+            print(f"[X] Failed to stop {cf.name}: {e}")
+            
+    print("\n[SHUTDOWN] M3TAL environment shutdown complete.")
+    return 0
 
 def cmd_bootstrap(args):
     """Alias for full system initialization."""
     return cmd_init(args)
-
-def cmd_config():
-    """Launches the interactive environment configuration wizard."""
-    path = SCRIPTS_DIR / "config" / "configure_env.py"
-    return run_script(path)
-
-def cmd_dashpass():
-    """Launches the dashboard password management tool."""
-    path = SCRIPTS_DIR / "config" / "dashpass.py"
-    return run_script(path)
-
-def cmd_traefik(args):
-    """Handles Traefik-specific orchestration and auditing."""
-    if args.subcommand == "audit":
-        path = CONTROL_PLANE / "config" / "audit.py"
-        args_list = []
-        if hasattr(args, 'strict') and args.strict:
-            args_list.append("--strict")
-        return run_script(path, *args_list)
-    elif args.subcommand == "test":
-        path = CONTROL_PLANE / "config" / "health.py"
-        return run_script(path)
-    return 1
 
 # --- CLI Structure ------------------------------------------------------------
 def main():
@@ -192,57 +167,25 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
-    # logs [stack|all]
-    p_logs = subparsers.add_parser("logs", help="Stream redacted and secure Docker logs")
-    p_logs.add_argument("stack", nargs="?", default="all", help="Target stack name or 'all' (default: all)")
-    p_logs.add_argument("--alerts", action="store_true", help="Enable proactive Telegram alerting")
-
-    # env
-    subparsers.add_parser("env", help="Run hardened environment audit (masked secrets)")
-
-    # audit
-    p_audit = subparsers.add_parser("audit", help="Audit Docker networking and Traefik contracts")
-    p_audit.add_argument("--json", action="store_true", help="Output audit results in machine-readable JSON")
-    p_audit.add_argument("--strict", action="store_true", help="Fail on ANY warnings (CI/CD mode)")
-
-    # traefik [audit|test]
-    p_traefik = subparsers.add_parser("traefik", help="Traefik routing operations")
-    p_t_sub = p_traefik.add_subparsers(dest="subcommand", help="Traefik subcommand")
-    
-    p_t_audit = p_t_sub.add_parser("audit", help="Verify labels vs Traefik runtime API")
-    p_t_audit.add_argument("--strict", action="store_true", help="Fail on warnings")
-    
-    p_t_sub.add_parser("test", help="Execute curl-based truth tests")
-
-    # test (Shortcut for m3tal traefik test)
-    subparsers.add_parser("test", help="Run end-to-end routing 'Truth Tests'")
-
     # init
     p_init = subparsers.add_parser("init", help="Run system initialization and bootstrap")
-    p_init.add_argument("--repair", help="Repair scope (e.g. all, docker, fs, state, logs)")
-
-    # run
-    subparsers.add_parser("run", help="Start the persistent Control Plane agent")
+    p_init.add_argument("--repair", help="Legacy argument (ignored)")
 
     # shutdown [stacks...]
     p_shutdown = subparsers.add_parser("shutdown", help="Safely stop M3TAL agents and Docker stacks")
-    p_shutdown.add_argument("stacks", nargs="*", help="Optional specific stacks to stop (default: all)")
-
-    # heal
-    subparsers.add_parser("heal", help="Run lightweight runtime healing (FS, logs, state)")
+    p_shutdown.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
 
     # build
     subparsers.add_parser("build", help="Enforce no-cache rebuild of control-plane agents")
 
     # bootstrap
     p_bootstrap = subparsers.add_parser("bootstrap", help="Full system initialization and first-run orchestration")
-    p_bootstrap.add_argument("--repair", help="Repair scope (e.g. all, docker, fs, state, logs)")
+    p_bootstrap.add_argument("--repair", help="Legacy argument (ignored)")
 
-    # config
-    subparsers.add_parser("config", help="Launch interactive environment setup wizard")
-
-    # dashpass
-    subparsers.add_parser("dashpass", help="Manage dashboard usernames and passwords")
+    # obsolete commands to maintain CLI interface without crashing
+    for cmd in ["logs", "env", "audit", "traefik", "test", "run", "heal", "config", "dashpass"]:
+        p = subparsers.add_parser(cmd, help="[Obsolete]")
+        p.add_argument("args", nargs=argparse.REMAINDER)
 
     # If no args, show help
     if len(sys.argv) == 1:
@@ -259,34 +202,16 @@ def main():
 
     # Environment is already loaded by _bootstrap_env() at the top of this file.
 
-    if args.command == "logs":
-        sys.exit(cmd_logs(args))
-    elif args.command == "env":
-        sys.exit(cmd_env())
-    elif args.command == "audit":
-        sys.exit(cmd_audit(args))
-    elif args.command == "traefik":
-        sys.exit(cmd_traefik(args))
-    elif args.command == "test":
-        sys.exit(cmd_test())
-    elif args.command == "init":
+    if args.command == "init":
         sys.exit(cmd_init(args))
-    elif args.command == "run":
-        sys.exit(cmd_run())
     elif args.command == "shutdown":
         sys.exit(cmd_shutdown(args))
-    elif args.command == "heal":
-        sys.exit(cmd_heal())
     elif args.command == "build":
         sys.exit(cmd_build(args))
     elif args.command == "bootstrap":
         sys.exit(cmd_bootstrap(args))
-    elif args.command == "config":
-        sys.exit(cmd_config())
-    elif args.command == "dashpass":
-        sys.exit(cmd_dashpass())
     else:
-        parser.print_help()
+        sys.exit(cmd_obsolete())
 
 if __name__ == "__main__":
     main()

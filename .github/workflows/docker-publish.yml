@@ -33,7 +33,9 @@ jobs:
         id: repo_name
         run: |
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "repo=$REPO_LOWERCASE" >> $GITHUB_OUTPUT
+          echo "owner=$OWNER_LOWERCASE" >> $GITHUB_OUTPUT
 
       - name: Calculate Version
         id: version
@@ -75,7 +77,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo }}-backend
+          images: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.owner }}/goback
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.version.outputs.VERSION }}
@@ -83,8 +85,8 @@ jobs:
       - name: Build and push Control Plane Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./control-plane/go-backend
-          file: ./control-plane/go-backend/Dockerfile
+          context: ./source/go-backend
+          file: ./source/go-backend/Dockerfile
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
@@ -93,7 +95,7 @@ jobs:
         id: meta-dashboard
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo }}-dashboard
+          images: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.owner }}/godash
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.version.outputs.VERSION }}
@@ -101,8 +103,8 @@ jobs:
       - name: Build and push Dashboard
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./control-plane/Dockerfile.dashboard
+          context: ./source
+          file: ./source/dashboard/Dockerfile
           push: true
           tags: ${{ steps.meta-dashboard.outputs.tags }}
           labels: ${{ steps.meta-dashboard.outputs.labels }}
