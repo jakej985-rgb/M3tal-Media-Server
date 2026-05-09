@@ -88,6 +88,6 @@ jobs:
       uses: ludeeus/action-shellcheck@master
       with:
         scandir: '.'
-        # Fix: Ignore the large vendor directory to avoid external library failures
-        ignore: 'source/go-backend/vendor'
+        # Fix: Use ignore_paths as 'ignore' is deprecated
+        ignore_paths: 'source/go-backend/vendor'
         severity: warning
