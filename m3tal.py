@@ -23,8 +23,6 @@ def _bootstrap_env():
     for parent in [p] + list(p.parents):
         if (parent / ".env").exists() and (parent / "docker").exists():
             root = parent
-            if str(parent / "control-plane") not in sys.path:
-                sys.path.append(str(parent / "control-plane"))
             break
     if not root:
         return
