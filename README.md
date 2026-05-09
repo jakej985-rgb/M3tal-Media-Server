@@ -47,23 +47,26 @@ python3 install.py
 M3TAL provides a unified CLI for all system orchestration.
 
 ```bash
-# 1. Initialize/Bootstrap the system
-python m3tal.py init
+# 1. Start the entire environment (Registry, Backend, and Stacks)
+python m3tal.py up
 
-# 2. Start the Control Plane (Agents + Telegram Bot)
-python m3tal.py run
+# 2. Check the status of all services
+python m3tal.py status
 
-# 3. Stream secure, redacted Docker logs
-python m3tal.py logs
+# 3. Stop everything safely
+python m3tal.py stop
 ```
 
 #### CLI Reference
-| Command | Description |
-| :--- | :--- |
-| `logs [stack]` | Streams redacted Docker logs for a stack or `all`. |
-| `env` | Safe environment audit (masks secrets). |
-| `init` | Production bootstrap and repair system. |
-| `run` | Main Control Plane supervisor. |
+| Command | Aliases | Description |
+| :--- | :--- | :--- |
+| `up` | `start`, `init` | Starts all Docker stacks in priority order. |
+| `status` | `ps`, `ls` | Shows the health and status of all containers. |
+| `stop` | `down` | Safely shuts down the entire system. |
+| `restart` | — | Full system recycle (stop -> start). |
+
+> [!NOTE]
+> For a full list of all commands and advanced options, see the [CLI Guide](CLI_GUIDE.md).
 
 > [!TIP]
 > Add an alias for easier access: `alias m3tal="python m3tal.py"`

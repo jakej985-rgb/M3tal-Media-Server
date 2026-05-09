@@ -12,7 +12,7 @@ if sys.stdout.encoding.lower() != 'utf-8':
     except (AttributeError, Exception):
         pass
 
-# M3TAL Unified CLI (v2.3 Production-Grade)
+# M3TAL Unified CLI (v2.4 Production-Grade)
 # Responsibility: Centralized entrypoint for all M3TAL orchestration.
 
 # --- Environment Variable Bootstrap -------------------------------------------
@@ -126,9 +126,10 @@ def cmd_shutdown(args):
         return 1
         
     # Reverse the order for shutdown
-    compose_files.reverse()
+    compose_files_rev = compose_files.copy()
+    compose_files_rev.reverse()
     
-    for cf in compose_files:
+    for cf in compose_files_rev:
         print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
         cmd = ["docker", "compose", "-f", str(cf), "down"]
         try:
@@ -138,6 +139,23 @@ def cmd_shutdown(args):
             
     print("\n[SHUTDOWN] M3TAL environment shutdown complete.")
     return 0
+
+def cmd_ps(args):
+    """Shows the status of all M3TAL containers."""
+    compose_files = get_compose_files()
+    if not compose_files:
+        print("[X] No compose files found!")
+        return 1
+    for cf in compose_files:
+        print(f"\n[STATUS] Stack: {cf.name}")
+        subprocess.run(["docker", "compose", "-f", str(cf), "ps"], cwd=str(cf.parent))
+    return 0
+
+def cmd_restart(args):
+    """Restarts the M3TAL environment."""
+    print("\n[RESTART] Triggering full system restart...")
+    cmd_shutdown(args)
+    return cmd_init(args)
 
 # --- CLI Structure ------------------------------------------------------------
 def main():
@@ -152,24 +170,29 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
-    # init
-    p_init = subparsers.add_parser("init", help="Run system initialization and bootstrap")
-    p_init.add_argument("--repair", help="Legacy argument (ignored)")
+    # up / start / init / bootstrap
+    for cmd_name in ["up", "start", "init", "bootstrap"]:
+        p = subparsers.add_parser(cmd_name, help="Initialize and start the M3TAL environment")
+        p.add_argument("--repair", help="Legacy argument (ignored)")
 
-    # shutdown [stacks...]
-    p_shutdown = subparsers.add_parser("shutdown", help="Safely stop M3TAL agents and Docker stacks")
-    p_shutdown.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
+    # down / stop / shutdown
+    for cmd_name in ["down", "stop", "shutdown"]:
+        p = subparsers.add_parser(cmd_name, help="Safely stop all M3TAL stacks and services")
+        p.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
+
+    # restart
+    subparsers.add_parser("restart", help="Restart the M3TAL environment")
+
+    # ps / ls / status
+    for cmd_name in ["ps", "ls", "status"]:
+        subparsers.add_parser(cmd_name, help="Show status of M3TAL containers")
 
     # build
-    subparsers.add_parser("build", help="Enforce no-cache rebuild of control-plane agents")
-
-    # bootstrap
-    p_bootstrap = subparsers.add_parser("bootstrap", help="Full system initialization and first-run orchestration")
-    p_bootstrap.add_argument("--repair", help="Legacy argument (ignored)")
+    subparsers.add_parser("build", help="Enforce no-cache rebuild of M3TAL Docker images")
 
     # obsolete commands to maintain CLI interface without crashing
     for cmd in ["logs", "env", "audit", "traefik", "test", "run", "heal", "config", "dashpass"]:
-        p = subparsers.add_parser(cmd, help="[Obsolete]")
+        p = subparsers.add_parser(cmd, help="[Obsolete in Go-native version]")
         p.add_argument("args", nargs=argparse.REMAINDER)
 
     # If no args, show help
@@ -185,14 +208,16 @@ def main():
         print(f"   Searching in: {ROOT}")
         sys.exit(1)
 
-    if args.command == "init":
+    if args.command in ["init", "up", "start", "bootstrap"]:
         sys.exit(cmd_init(args))
-    elif args.command == "shutdown":
+    elif args.command in ["shutdown", "down", "stop"]:
         sys.exit(cmd_shutdown(args))
+    elif args.command == "restart":
+        sys.exit(cmd_restart(args))
+    elif args.command in ["ps", "ls", "status"]:
+        sys.exit(cmd_ps(args))
     elif args.command == "build":
         sys.exit(cmd_build(args))
-    elif args.command in ["bootstrap", "init"]:
-        sys.exit(cmd_init(args))
     else:
         sys.exit(cmd_obsolete())
 
