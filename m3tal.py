@@ -170,13 +170,13 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
-    # up / start / init / bootstrap
-    for cmd_name in ["up", "start", "init", "bootstrap"]:
+    # up / start
+    for cmd_name in ["up", "start"]:
         p = subparsers.add_parser(cmd_name, help="Initialize and start the M3TAL environment")
         p.add_argument("--repair", help="Legacy argument (ignored)")
 
-    # down / stop / shutdown
-    for cmd_name in ["down", "stop", "shutdown"]:
+    # down / stop
+    for cmd_name in ["down", "stop"]:
         p = subparsers.add_parser(cmd_name, help="Safely stop all M3TAL stacks and services")
         p.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
 
@@ -208,9 +208,9 @@ def main():
         print(f"   Searching in: {ROOT}")
         sys.exit(1)
 
-    if args.command in ["init", "up", "start", "bootstrap"]:
+    if args.command in ["up", "start"]:
         sys.exit(cmd_init(args))
-    elif args.command in ["shutdown", "down", "stop"]:
+    elif args.command in ["down", "stop"]:
         sys.exit(cmd_shutdown(args))
     elif args.command == "restart":
         sys.exit(cmd_restart(args))

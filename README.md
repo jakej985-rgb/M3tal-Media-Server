@@ -60,7 +60,7 @@ python m3tal.py stop
 #### CLI Reference
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
-| `up` | `start`, `init` | Starts all Docker stacks in priority order. |
+| `up` | `start` | Starts all Docker stacks in priority order. |
 | `status` | `ps`, `ls` | Shows the health and status of all containers. |
 | `stop` | `down` | Safely shuts down the entire system. |
 | `restart` | — | Full system recycle (stop -> start). |

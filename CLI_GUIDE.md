@@ -9,8 +9,8 @@ These commands control the operational state of the entire M3TAL environment.
 
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
-| **`up`** | `start`, `init`, `bootstrap` | Initializes and starts all Docker stacks in priority order. |
-| **`down`** | `stop`, `shutdown` | Safely stops and removes all M3TAL containers and networks. |
+| **`up`** | `start` | Initializes and starts all Docker stacks in priority order. |
+| **`down`** | `stop` | Safely stops and removes all M3TAL containers and networks. |
 | **`restart`** | — | Performs a full `down` followed by an `up` cycle. |
 | **`build`** | — | Enforces a `--no-cache` rebuild of all local Docker images. |
 
