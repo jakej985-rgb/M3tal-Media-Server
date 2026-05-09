@@ -98,48 +98,12 @@ services:
 
   m3tal-runtime:
     build:
-      context: ..
-      dockerfile: control-plane/Dockerfile.runtime
+      context: ./go-backend
+      dockerfile: Dockerfile
     container_name: m3tal-runtime
     depends_on:
       permission-fixer:
         condition: service_completed_successfully
-    volumes:
-      - ..:/docker
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /sys/class/thermal:/sys/class/thermal:ro
-      - /proc:/host/proc:ro
-      - /:/host:ro
-      - /dev:/dev
-      - /dev/dri:/dev/dri
-    user: root  # Required for Docker socket access and smartctl hardware access
-    privileged: true # Required for raw hardware access to disks
-    network_mode: host
-    environment:
-      - TZ=America/Denver
-      - DOCKER_HOST=tcp://127.0.0.1:2375
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION}
-      - REPO_ROOT=/docker
-      - IN_CONTAINER=true
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-    working_dir: /docker
-    command: python3 control-plane/agents/run.py
-    restart: unless-stopped
-    env_file:
-      - ../.env
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 400M
-
-  # New High-Performance Go Backend (Alpha)
-  m3tal-backend-go:
-    build:
-      context: ./go-backend
-      dockerfile: Dockerfile
-    container_name: m3tal-backend-go
     network_mode: host
     extra_hosts:
       - "m3tal-docker-proxy:127.0.0.1"

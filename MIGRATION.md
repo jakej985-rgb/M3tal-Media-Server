@@ -6,6 +6,7 @@ This guide covers the transition from legacy shell scripts to the **v1.3.0 Auton
 
 ## 🏗️ What changed
 
+*   **Go-Native Control Plane**: The python-based `m3tal-runtime` has been replaced by a high-performance Go-native observability backend.
 *   **Unified CLI**: All operations are now centralized under `m3tal.py`. No more managing individual shell scripts.
 *   **Tiered Orchestration**: Agents are organized into Tiers (Infrastructure, Logic, Polish) ensuring a deterministic startup sequence.
 *   **Python-First**: The `install.sh` and `shutdown.sh` scripts are deprecated (and removed) in favor of internal Python logic.

@@ -83,7 +83,7 @@ Open your browser to `http://YOUR_SERVER_IP:8080`.
 
 ## 🧱 Architecture
 
-The system uses a "Sense-Think-Act" loop driven by independent Python agents:
+The system uses a high-performance Go-native observability backend that continuously executes a "Sense-Think-Act" loop:
 
 1. **Registry** → Discovers your Docker stacks.
 2. **Monitor** → Senses container health.

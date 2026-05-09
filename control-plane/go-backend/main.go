@@ -311,7 +311,7 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 	}
 	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
-		res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
+		res, err := cli.ContainerList(ctx, client.ContainerListOptions{All: true})
 		if err != nil {
 			continue
 		}
@@ -534,7 +534,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	ticker := time.NewTicker(60 * time.Second)
 	hostRe := regexp.MustCompile(`Host\(` + "`" + `([^` + "`" + `]+)` + "`" + `\)`)
-	
+
 	hc := &http.Client{
 		Timeout: 3 * time.Second,
 		Transport: &http.Transport{
@@ -566,7 +566,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 
 				serviceKey := strings.ToLower(strings.Split(host, ".")[0])
 				readableName := strings.ReplaceAll(serviceKey, "-", " ")
-				
+
 				skip := false
 				for _, b := range blacklist {
 					if strings.Contains(strings.ToLower(readableName), b) {
@@ -614,7 +614,7 @@ func logObserverAgent(ctx context.Context) {
 	}
 
 	secrets := []string{"TOKEN", "SECRET", "KEY", "PASSWORD"}
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -649,7 +649,7 @@ func logObserverAgent(ctx context.Context) {
 									break
 								}
 							}
-							
+
 							token := os.Getenv("TELEGRAM_BOT_TOKEN")
 							chat := os.Getenv("TG_ALERT_CHAT_ID")
 							if token != "" && chat != "" {
@@ -771,7 +771,7 @@ func healerAgent(ctx context.Context, s *M3talState) {
 		for _, c := range containers {
 			if c.State == "exited" || c.State == "dead" {
 				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
-				
+
 				_, err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
 				if err != nil {
 					log.Printf("❌ HEALER: Failed to restart %s: %v", c.Name, err)
@@ -867,6 +867,9 @@ func listenerAgent(ctx context.Context, s *M3talState) {
 				}
 
 				parts := strings.Fields(u.Message.Text)
+				if len(parts) == 0 {
+					continue
+				}
 				cmd := strings.ToLower(parts[0])
 				chatStr := strconv.FormatInt(u.Message.Chat.ID, 10)
 
