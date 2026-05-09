@@ -1,10 +1,10 @@
-# 🚀 M3TAL Control Plane (v1.3.0)
+# 🚀 M3TAL Control Plane (v1.4.0.3)
 
 > A lightweight, autonomous, and self-healing container orchestration system for homelabs and small-scale clusters.
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python) 
 ![Docker](https://img.shields.io/badge/docker-m3tal-blue?logo=docker)
-![Version](https://img.shields.io/badge/version-v1.3.0-green)
+![Version](https://img.shields.io/badge/version-v1.4.0.3-green)
 
 M3TAL (Modern Media Management & Management) is an "Autonomous Local Cloud" that manages your Docker containers so you don't have to. It detects failures, scales services, and ensures your media stack is always online.
 

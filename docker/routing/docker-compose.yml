@@ -5,10 +5,9 @@ services:
     container_name: traefik
     command:
       - "--api.dashboard=true"
-      - "--api.insecure=true"
+      - "--ping=true"
       - "--entrypoints.traefik.address=:8080"
       - "--providers.docker=true"
-      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=proxy"
       - "--providers.file.directory=/etc/traefik/dynamic"
@@ -24,6 +23,7 @@ services:
     environment:
       - DOCKER_API_VERSION=1.45
       - DOMAIN=${DOMAIN}
+      - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
     env_file:
       - ../../.env
     cap_add:
@@ -31,7 +31,6 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ../../control-plane/state/traefik-dynamic-dir:/etc/traefik/dynamic:ro
     networks:
       - proxy
@@ -55,6 +54,12 @@ services:
       - "traefik.http.middlewares.m3tal-auth.basicauth.usersfile=/etc/traefik/dynamic/users"
       - "m3tal.stack=routing"
       - "m3tal.role=gateway"
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
     restart: unless-stopped
 

@@ -40,10 +40,11 @@ COPY dashboard/ .
 # 4. Non-Root Execution Enforcement
 RUN groupadd -g 1000 appuser && \
     useradd -m -u 1000 -g 1000 appuser && \
-    chown -R appuser:appuser /docker/dashboard
+    chown -R appuser:appuser /docker/dashboard && \
+    mkdir -p /docker/control-plane/state/logs && \
+    chown -R appuser:appuser /docker/control-plane/state/logs
 
-# Running as root temporarily to fix permission issues with logging
-USER root
+USER appuser
 
 # Startup command
 CMD ["python3", "server.py"]

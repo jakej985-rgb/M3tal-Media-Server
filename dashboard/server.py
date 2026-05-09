@@ -142,7 +142,8 @@ def login():
         if user and password and verify_password(password, user['token_hash']):
             session['username'] = username
             session['role'] = user.get('role', 'viewer')
-            # Audit Fix: Don't pop CSRF token here to avoid breaking multiple tabs
+            # Audit Fix: Rotate CSRF token on login success to prevent fixation
+            session['csrf_token'] = secrets.token_hex(16)
             return redirect(url_for('index'))
             
         return render_template('login.html', error="Invalid credentials", csrf_token=session['csrf_token'])
@@ -449,7 +450,8 @@ def api_action():
 # -------------------------------
 
 @socketio.on('connect')
-def handle_connect(auth=None):
+def handle_connect(auth=None, **kwargs):
+    global background_thread, _bg_started
     # 🛡️ SECURITY FIX: Re-enforcing authentication check (Audit C2)
     if 'username' not in session:
         return False
@@ -458,7 +460,6 @@ def handle_connect(auth=None):
     emit('status', {'msg': 'Connected to M3TAL Control Plane'})
 
     # Start background tasks if not already running
-    global background_thread, _bg_started
     with _bg_lock:
         if not _bg_started or background_thread is None:
             start_background_tasks()

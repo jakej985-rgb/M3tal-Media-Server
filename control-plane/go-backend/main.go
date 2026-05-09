@@ -56,6 +56,7 @@ type Agent struct {
 }
 
 type M3talState struct {
+	dirty      bool
 	System     SystemMetrics
 	Network    NetworkMetrics
 	CPU        float64
@@ -141,11 +142,12 @@ type TelegramUpdate struct {
 }
 
 type ContainerMetric struct {
-	Name   string  `json:"name"`
-	CPU    float64 `json:"cpu"`
-	Mem    float64 `json:"mem"`
-	Status string  `json:"status"`
-	State  string  `json:"state"`
+	Name    string  `json:"name"`
+	CPU     float64 `json:"cpu"`
+	Mem     float64 `json:"mem"`
+	Status  string  `json:"status"`
+	State   string  `json:"state"`
+	Managed bool    `json:"managed"`
 }
 
 type NetworkMetrics struct {
@@ -157,6 +159,14 @@ type NetworkMetrics struct {
 // --- Persistence ---
 
 func (s *M3talState) Save(stateDir string) {
+	s.mu.Lock()
+	if !s.dirty {
+		s.mu.Unlock()
+		return
+	}
+	s.dirty = false
+	s.mu.Unlock()
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -289,6 +299,7 @@ func metricsAgent(s *M3talState) {
 		}
 		s.CPU = cpuVal
 		s.Timestamp = now.Unix()
+		s.dirty = true
 		s.mu.Unlock()
 	}
 }
@@ -321,16 +332,24 @@ func dockerAgent(ctx context.Context, s *M3talState) {
 			if len(c.Names) > 0 {
 				name = c.Names[0][1:]
 			}
+			managed := false
+			if _, ok := c.Labels["m3tal.managed"]; ok {
+				managed = true
+			} else if _, ok := c.Labels["m3tal.stack"]; ok {
+				managed = true
+			}
 			newStats = append(newStats, ContainerMetric{
-				Name:   name,
-				CPU:    0.0,
-				Mem:    0.0,
-				Status: c.Status,
-				State:  string(c.State),
+				Name:    name,
+				CPU:     0.0,
+				Mem:     0.0,
+				Status:  c.Status,
+				State:   string(c.State),
+				Managed: managed,
 			})
 		}
 		s.mu.Lock()
 		s.Containers = newStats
+		s.dirty = true
 		s.mu.Unlock()
 	}
 }
@@ -438,6 +457,7 @@ func hardwareAgent(s *M3talState) {
 			Status:    status,
 		}
 		s.GPU = gpuStats
+		s.dirty = true
 		s.mu.Unlock()
 	}
 }
@@ -526,6 +546,7 @@ func storageAgent(s *M3talState) {
 			Timestamp: time.Now().Unix(),
 			Status:    status,
 		}
+		s.dirty = true
 		s.mu.Unlock()
 	}
 }
@@ -603,6 +624,7 @@ func scoutAgent(ctx context.Context, s *M3talState) {
 
 		s.mu.Lock()
 		s.NetworkL = links
+		s.dirty = true
 		s.mu.Unlock()
 	}
 }
@@ -615,54 +637,83 @@ func logObserverAgent(ctx context.Context) {
 
 	secrets := []string{"TOKEN", "SECRET", "KEY", "PASSWORD"}
 
+	activeLogs := make(map[string]context.CancelFunc)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
+			for _, cancel := range activeLogs {
+				cancel()
+			}
 			return
-		default:
+		case <-ticker.C:
 			res, err := cli.ContainerList(ctx, client.ContainerListOptions{})
 			if err != nil {
-				time.Sleep(10 * time.Second)
 				continue
 			}
 
-			var wg sync.WaitGroup
+			currentContainers := make(map[string]bool)
 			for _, c := range res.Items {
-				wg.Add(1)
-				go func(containerID string, name string) {
-					defer wg.Done()
-					options := client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true, Tail: "0"}
-					out, err := cli.ContainerLogs(ctx, containerID, options)
-					if err != nil {
-						return
-					}
-					defer out.Close()
+				currentContainers[c.ID] = true
+				if _, exists := activeLogs[c.ID]; !exists {
+					logCtx, cancel := context.WithCancel(ctx)
+					activeLogs[c.ID] = cancel
 
-					scanner := bufio.NewScanner(out)
-					for scanner.Scan() {
-						line := scanner.Text()
-						lLine := strings.ToLower(line)
-						if strings.Contains(lLine, "error") || strings.Contains(lLine, "panic") || strings.Contains(lLine, "fatal") || strings.Contains(lLine, "fail") {
-							for _, s := range secrets {
-								if strings.Contains(strings.ToUpper(line), s) {
-									line = "[REDACTED LOG ENTRY]"
-									break
+					go func(cCtx context.Context, containerID string, name string) {
+						options := client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true, Tail: "0"}
+						out, err := cli.ContainerLogs(cCtx, containerID, options)
+						if err != nil {
+							return
+						}
+						defer out.Close()
+
+						lines := make(chan string)
+						go func() {
+							scanner := bufio.NewScanner(out)
+							for scanner.Scan() {
+								lines <- scanner.Text()
+							}
+							close(lines)
+						}()
+
+						for {
+							select {
+							case <-cCtx.Done():
+								return
+							case line, ok := <-lines:
+								if !ok {
+									return
+								}
+								lLine := strings.ToLower(line)
+								if strings.Contains(lLine, "error") || strings.Contains(lLine, "panic") || strings.Contains(lLine, "fatal") || strings.Contains(lLine, "fail") {
+									for _, s := range secrets {
+										if strings.Contains(strings.ToUpper(line), s) {
+											line = "[REDACTED LOG ENTRY]"
+											break
+										}
+									}
+
+									token := os.Getenv("TELEGRAM_BOT_TOKEN")
+									chat := os.Getenv("TG_ALERT_CHAT_ID")
+									if token != "" && chat != "" {
+										msg := fmt.Sprintf("⚠️ <b>Log Alert [%s]</b>\n<code>%s</code>", name, line)
+										sendTelegram(token, chat, msg)
+									}
 								}
 							}
-
-							token := os.Getenv("TELEGRAM_BOT_TOKEN")
-							chat := os.Getenv("TG_ALERT_CHAT_ID")
-							if token != "" && chat != "" {
-								msg := fmt.Sprintf("⚠️ <b>Log Alert [%s]</b>\n<code>%s</code>", name, line)
-								sendTelegram(token, chat, msg)
-							}
-							time.Sleep(5 * time.Second)
 						}
-					}
-				}(c.ID, c.Names[0][1:])
+					}(logCtx, c.ID, c.Names[0][1:])
+				}
 			}
-			wg.Wait()
-			time.Sleep(10 * time.Second)
+
+			for id, cancel := range activeLogs {
+				if !currentContainers[id] {
+					cancel()
+					delete(activeLogs, id)
+				}
+			}
 		}
 	}
 }
@@ -736,6 +787,7 @@ func analyzeSystem(s *M3talState) {
 	}
 	s.Anomalies = anomalies
 	s.Decisions = decisions
+	s.dirty = true
 }
 
 func getUptime() string {
@@ -769,7 +821,7 @@ func healerAgent(ctx context.Context, s *M3talState) {
 		s.mu.RUnlock()
 
 		for _, c := range containers {
-			if c.State == "exited" || c.State == "dead" {
+			if c.Managed && (c.State == "exited" || c.State == "dead") {
 				log.Printf("🛡️ HEALER: Detected crashed container: %s. Restarting...", c.Name)
 
 				_, err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
@@ -788,6 +840,7 @@ func healerAgent(ctx context.Context, s *M3talState) {
 				if len(s.Decisions) > 50 {
 					s.Decisions = s.Decisions[1:]
 				}
+				s.dirty = true
 				s.mu.Unlock()
 			}
 		}
@@ -888,6 +941,22 @@ func listenerAgent(ctx context.Context, s *M3talState) {
 						continue
 					}
 					target := parts[1]
+
+					allowedRestarts := os.Getenv("ALLOWED_DOCKER_RESTARTS")
+					if allowedRestarts != "" && allowedRestarts != "*" {
+						isAllowed := false
+						for _, r := range strings.Split(allowedRestarts, ",") {
+							if strings.TrimSpace(r) == target {
+								isAllowed = true
+								break
+							}
+						}
+						if !isAllowed {
+							sendTelegram(token, chatStr, "⛔ <b>Restart not allowed</b>")
+							continue
+						}
+					}
+
 					sendTelegram(token, chatStr, fmt.Sprintf("⏳ Restarting <code>%s</code>...", target))
 					_, err := cli.ContainerRestart(ctx, target, client.ContainerRestartOptions{})
 					if err != nil {
