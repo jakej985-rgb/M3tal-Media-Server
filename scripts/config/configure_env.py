@@ -146,6 +146,7 @@ def main():
     allowed_users = get_input("Allowed User IDs (comma-separated)", current_env.get("ALLOWED_USERS", "0"))
     new_env["ALLOWED_USERS"] = allowed_users
 
+    mapping = {}
     if auto_discover == "y":
         print(f"\n{YELLOW}⚠ Telegram Auto-discovery is currently disabled in this version.{END}")
         print("Please enter your Chat IDs manually below.")

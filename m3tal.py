@@ -17,30 +17,33 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 # --- Environment Variable Bootstrap -------------------------------------------
 def _bootstrap_env():
-    # Attempt to find root to locate .env
+    # Attempt to find root by looking for the 'docker' folder
     p = Path(__file__).resolve()
     root = None
     for parent in [p] + list(p.parents):
-        if (parent / ".env").exists() and (parent / "docker").exists():
+        if (parent / "docker").exists() and (parent / "m3tal.py").exists():
             root = parent
             break
     if not root:
         return
     
-    with open(root / ".env", "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("export "):
-                line = line[len("export "):].strip()
-            if "=" in line:
-                k, v = line.split("=", 1)
-                k, v = k.strip(), v.strip()
-                v = re.sub(r'\s+#.*$', '', v).strip()
-                if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
-                    v = v[1:-1]
-                os.environ[k] = v
+    # Load .env only if it exists (might be missing in CI)
+    env_path = root / ".env"
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):].strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip()
+                    v = re.sub(r'\s+#.*$', '', v).strip()
+                    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                        v = v[1:-1]
+                    os.environ[k] = v
 
     # Audit Fix: Enforce Project Root
     os.chdir(root)
@@ -202,11 +205,14 @@ def main():
 
     args = parser.parse_args()
 
-    # Context Guard: Ensure we have a valid environment before any command
-    if not (ROOT / ".env").exists():
+    # Context Guard: Ensure we have a valid environment for lifecycle commands
+    env_missing = not (ROOT / ".env").exists()
+    if env_missing and args.command in ["up", "start", "restart", "down", "stop"]:
         print("[X] FATAL: Missing .env file at repository root.")
-        print(f"   Searching in: {ROOT}")
+        print("   This command requires a valid environment configuration.")
         sys.exit(1)
+    elif env_missing:
+        print("[!] Warning: Missing .env file. Some features may not work as expected.")
 
     if args.command in ["up", "start"]:
         sys.exit(cmd_init(args))
