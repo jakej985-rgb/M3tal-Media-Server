@@ -57,19 +57,20 @@ def get_compose_files():
     docker_dir = ROOT / "docker"
     compose_files = []
     
-    # Add m3tal-compose first (since it has the proxy and backend)
-    cp_compose = docker_dir / "m3tal-compose.yml"
-    if cp_compose.exists():
-        compose_files.append(cp_compose)
-        
-    # Then network and routing
+    # 1. Network setup MUST be first
     network_compose = docker_dir / "network-compose.yml"
     if network_compose.exists():
         compose_files.append(network_compose)
-        
+
+    # 2. Routing/Traefik
     routing_compose = docker_dir / "routing-compose.yml"
     if routing_compose.exists():
         compose_files.append(routing_compose)
+        
+    # 3. M3TAL Core (Dashboard, Go-Backend)
+    cp_compose = docker_dir / "m3tal-compose.yml"
+    if cp_compose.exists():
+        compose_files.append(cp_compose)
         
     # Then the rest dynamically
     if docker_dir.exists():
@@ -160,6 +161,30 @@ def cmd_restart(args):
     cmd_shutdown(args)
     return cmd_init(args)
 
+def cmd_pull(args):
+    """Pulls the latest images for the M3TAL stacks."""
+    compose_files = get_compose_files()
+    if not compose_files:
+        print("[X] No compose files found!")
+        return 1
+        
+    # If a specific stack was requested, filter for it
+    target = args.stack if hasattr(args, "stack") else None
+    
+    for cf in compose_files:
+        if target and target.lower() not in cf.name.lower():
+            continue
+            
+        print(f"\n[PULL] Refreshing images for: {cf.name}...")
+        cmd = ["docker", "compose", "-f", str(cf), "pull"]
+        try:
+            subprocess.run(cmd, cwd=str(cf.parent), check=True)
+        except Exception as e:
+            print(f"[X] Failed to pull {cf.name}: {e}")
+            
+    print("\n[PULL] Image synchronization complete.")
+    return 0
+
 # --- CLI Structure ------------------------------------------------------------
 def main():
     if not ROOT:
@@ -193,6 +218,10 @@ def main():
     # build
     subparsers.add_parser("build", help="Enforce no-cache rebuild of M3TAL Docker images")
 
+    # pull [stack]
+    p_pull = subparsers.add_parser("pull", help="Pull latest images from registry (GHCR)")
+    p_pull.add_argument("stack", nargs="?", help="Specific stack to pull (e.g. m3tal, media)")
+
     # obsolete commands to maintain CLI interface without crashing
     for cmd in ["logs", "env", "audit", "traefik", "test", "run", "heal", "config", "dashpass"]:
         p = subparsers.add_parser(cmd, help="[Obsolete in Go-native version]")
@@ -224,6 +253,8 @@ def main():
         sys.exit(cmd_ps(args))
     elif args.command == "build":
         sys.exit(cmd_build(args))
+    elif args.command == "pull":
+        sys.exit(cmd_pull(args))
     else:
         sys.exit(cmd_obsolete())
 

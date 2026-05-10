@@ -12,6 +12,7 @@ These commands control the operational state of the entire M3TAL environment.
 | **`up`** | `start` | Initializes and starts all Docker stacks in priority order. |
 | **`down`** | `stop` | Safely stops and removes all M3TAL containers and networks. |
 | **`restart`** | — | Performs a full `down` followed by an `up` cycle. |
+| **`pull`** | — | Pulls the latest images for all stacks from GHCR (Registry). |
 | **`build`** | — | Enforces a `--no-cache` rebuild of all local Docker images. |
 
 ---
