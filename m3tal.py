@@ -104,8 +104,25 @@ def cmd_build(args):
         print(f"[X] Build failed: {e}")
         return 1
 
+def _ensure_network():
+    """Ensures the M3TAL 'proxy' network exists."""
+    print("[INIT] Ensuring 'proxy' network exists...")
+    try:
+        subprocess.run(["docker", "network", "inspect", "proxy"], capture_output=True, check=True)
+    except subprocess.CalledProcessError:
+        print("[INIT] Creating 'proxy' network...")
+        try:
+            subprocess.run(["docker", "network", "create", "proxy"], check=True)
+        except Exception as e:
+            print(f"[X] Failed to create network: {e}")
+            return False
+    return True
+
 def cmd_init(args):
     """Initializes the M3TAL environment."""
+    if not _ensure_network():
+        return 1
+        
     compose_files = get_compose_files()
     if not compose_files:
         print("[X] No compose files found!")
