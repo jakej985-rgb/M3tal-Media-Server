@@ -280,6 +280,19 @@ def cmd_dashpass(args):
         json.dump(users, f, indent=2)
         
     print(f"[AUTH] Success! Password for '{username}' has been updated.")
+    
+    # Audit Fix: If we modified the file, restart the dashboard to refresh bind mounts
+    print("[AUTH] Restarting dashboard to apply changes...")
+    compose_file = ROOT / "docker" / "m3tal-compose.yml"
+    project_name = get_project_name(compose_file)
+    env_file = ROOT / ".env"
+    cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(compose_file), "restart", "m3tal-dashboard"]
+    try:
+        subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True, capture_output=True)
+        print("[AUTH] Dashboard restarted successfully.")
+    except Exception:
+        print("[!] Note: Dashboard restart skipped (container might not be running).")
+        
     return 0
 
 # --- CLI Structure ------------------------------------------------------------
