@@ -19,7 +19,7 @@ services:
       - proxy
 
   m3tal-dashboard:
-    image: ghcr.io/jakej985-rgb/godash:latest
+    image: ghcr.io/jakej985-rgb/godash:debug
     container_name: m3tal-dashboard
     depends_on:
       permission-fixer:
@@ -97,7 +97,7 @@ services:
       retries: 3
 
   m3tal-runtime:
-    image: ghcr.io/jakej985-rgb/goback:latest
+    image: ghcr.io/jakej985-rgb/goback:debug
     container_name: m3tal-runtime
     depends_on:
       permission-fixer:
