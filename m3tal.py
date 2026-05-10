@@ -141,6 +141,12 @@ def cmd_init(args):
         project_name = get_project_name(cf)
         env_file = ROOT / ".env"
         cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(cf), "up", "-d"]
+        
+        if getattr(args, "recreate", False):
+            cmd.append("--force-recreate")
+        if getattr(args, "remove_orphans", False):
+            cmd.append("--remove-orphans")
+            
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
@@ -192,9 +198,12 @@ def cmd_ps(args):
     return 0
 
 def cmd_restart(args):
-    """Restarts the M3TAL environment."""
-    print("\n[RESTART] Triggering full system restart...")
-    cmd_shutdown(args)
+    """Restarts the M3TAL environment using recreation (up -r)."""
+    print("\n[RESTART] Triggering system recreation (up --force-recreate)...")
+    args.recreate = True
+    # Default to remove orphans on restart for cleanliness
+    if not hasattr(args, "remove_orphans"):
+        args.remove_orphans = True
     return cmd_init(args)
 
 def cmd_pull(args):
@@ -333,6 +342,8 @@ def main():
     # up / start
     for cmd_name in ["up", "start"]:
         p = subparsers.add_parser(cmd_name, help="Initialize and start the M3TAL environment")
+        p.add_argument("-r", "--recreate", action="store_true", help="Force recreate containers")
+        p.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file")
         p.add_argument("--repair", help="Legacy argument (ignored)")
 
     # down / stop

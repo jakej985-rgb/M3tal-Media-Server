@@ -111,6 +111,7 @@ services:
       - /:/host:ro
     devices:
       - /dev/dri:/dev/dri
+    privileged: true
     cap_add:
       - SYS_RAWIO
     environment:
