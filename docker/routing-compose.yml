@@ -25,7 +25,7 @@ services:
       - DOMAIN=${DOMAIN}
       - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
     env_file:
-      - ../../.env
+      - ../.env
     cap_add:
       - NET_BIND_SERVICE
     security_opt:
@@ -70,7 +70,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ../.env
     labels:
       - "m3tal.stack=routing"
       - "m3tal.role=edge"
