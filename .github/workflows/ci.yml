@@ -47,8 +47,8 @@ jobs:
         pip install -r source/dashboard/requirements.txt
     - name: Verify CLI script
       run: python m3tal.py --help
-    - name: Verify CLI Init dry run
-      run: python m3tal.py init --help
+    - name: Verify CLI Up dry run
+      run: python m3tal.py up --help
 
   test-python-cli-windows:
     # Notice: windows-2025 is redirected, so we use windows-latest (standard)
