@@ -223,6 +223,62 @@ def cmd_pull(args):
     print("\n[PULL] Image synchronization complete.")
     return 0
 
+def cmd_dashpass(args):
+    """Resets the dashboard admin password."""
+    import json
+    try:
+        import bcrypt
+    except ImportError:
+        print("[X] Error: 'bcrypt' is required for password hashing.")
+        print("    Install it with: pip install bcrypt")
+        return 1
+        
+    users_file = ROOT / "docker" / "users.json"
+    if not users_file.exists():
+        print(f"[X] Error: {users_file} not found.")
+        return 1
+        
+    username = args.username or "admin"
+    password = args.password
+    
+    if not password:
+        import getpass
+        password = getpass.getpass(f"Enter new password for '{username}': ")
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            print("[X] Passwords do not match!")
+            return 1
+            
+    print(f"\n[AUTH] Resetting password for '{username}'...")
+    
+    # Hash password
+    salt = bcrypt.gensalt()
+    pwd_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    
+    # Load and update
+    try:
+        with open(users_file, "r") as f:
+            users = json.load(f)
+    except Exception:
+        users = []
+        
+    # Remove existing user if exists
+    users = [u for u in users if u.get("username") != username]
+    
+    # Add new entry
+    users.append({
+        "username": username,
+        "token_hash": pwd_hash,
+        "role": "admin"
+    })
+    
+    # Save back
+    with open(users_file, "w") as f:
+        json.dump(users, f, indent=2)
+        
+    print(f"[AUTH] Success! Password for '{username}' has been updated.")
+    return 0
+
 # --- CLI Structure ------------------------------------------------------------
 def main():
     if not ROOT:
@@ -262,8 +318,13 @@ def main():
     p_pull = subparsers.add_parser("pull", help="Pull latest images from registry (GHCR)")
     p_pull.add_argument("stack", nargs="?", help="Specific stack to pull (e.g. m3tal, media)")
 
+    # dashpass [username] [--password PWD]
+    p_pass = subparsers.add_parser("dashpass", help="Reset dashboard admin password")
+    p_pass.add_argument("username", nargs="?", default="admin", help="Username to reset (default: admin)")
+    p_pass.add_argument("--password", help="Set password non-interactively")
+
     # obsolete commands to maintain CLI interface without crashing
-    for cmd in ["logs", "env", "audit", "traefik", "test", "run", "heal", "config", "dashpass"]:
+    for cmd in ["logs", "env", "audit", "traefik", "test", "run", "heal", "config"]:
         p = subparsers.add_parser(cmd, help="[Obsolete in Go-native version]")
         p.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -295,6 +356,8 @@ def main():
         sys.exit(cmd_build(args))
     elif args.command == "pull":
         sys.exit(cmd_pull(args))
+    elif args.command == "dashpass":
+        sys.exit(cmd_dashpass(args))
     else:
         sys.exit(cmd_obsolete())
 

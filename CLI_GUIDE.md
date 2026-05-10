@@ -14,6 +14,7 @@ These commands control the operational state of the entire M3TAL environment.
 | **`restart`** | — | Performs a full `down` followed by an `up` cycle. |
 | **`pull`** | — | Pulls the latest images for all stacks from GHCR (Registry). |
 | **`build`** | — | Enforces a `--no-cache` rebuild of all local Docker images. |
+| **`dashpass`** | — | Resets the password for a dashboard user (e.g., `admin`). |
 
 ---
 
