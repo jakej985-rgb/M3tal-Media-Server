@@ -234,9 +234,12 @@ def cmd_dashpass(args):
         return 1
         
     users_file = ROOT / "docker" / "users.json"
-    if not users_file.exists():
-        print(f"[X] Error: {users_file} not found.")
-        return 1
+    
+    # Audit Fix: If Docker created this as a directory (missing host file), nuke it
+    if users_file.exists() and users_file.is_dir():
+        print(f"[!] Warning: {users_file} is a directory. Removing to recreate as file...")
+        import shutil
+        shutil.rmtree(users_file)
         
     username = args.username or "admin"
     password = args.password
