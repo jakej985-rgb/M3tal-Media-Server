@@ -6,15 +6,15 @@ services:
     user: "0:0"
     volumes:
       - ./state:/docker/state
-      - ./users.json:/docker/users.json
     command: >
       sh -c "chown -R ${PUID:-1000}:${PGID:-1000} /docker/state && 
              chmod -R 770 /docker/state &&
              touch /docker/state/acme.json &&
              chown ${PUID:-1000}:${PGID:-1000} /docker/state/acme.json &&
              chmod 600 /docker/state/acme.json &&
-             chown -R ${PUID:-1000}:${PGID:-1000} /docker/users.json &&
-             chmod 600 /docker/users.json || true"
+             touch /docker/state/users.json &&
+             chown ${PUID:-1000}:${PGID:-1000} /docker/state/users.json &&
+             chmod 600 /docker/state/users.json || true"
     networks:
       - proxy
 
@@ -25,7 +25,6 @@ services:
       permission-fixer:
         condition: service_completed_successfully
     volumes:
-      - ./users.json:/docker/users.json
       - ./state:/docker/state
     command: python3 server.py
     restart: unless-stopped
@@ -34,7 +33,7 @@ services:
       - TZ=America/Denver
       - DASHBOARD_SECRET=${DASHBOARD_SECRET:?DASHBOARD_SECRET not set — run from repo root with .env}
       - STATE_DIR=/docker/state
-      - USERS_FILE=/docker/users.json
+      - USERS_FILE=/docker/state/users.json
       - DASHBOARD_HOST=0.0.0.0
       - DASHBOARD_PORT=8082
       - PYTHONUNBUFFERED=1

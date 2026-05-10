@@ -233,7 +233,7 @@ def cmd_dashpass(args):
         print("    Install it with: pip install bcrypt")
         return 1
         
-    users_file = ROOT / "docker" / "users.json"
+    users_file = ROOT / "docker" / "state" / "users.json"
     
     # Audit Fix: If Docker created this as a directory (missing host file), nuke it
     if users_file.exists() and users_file.is_dir():
