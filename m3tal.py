@@ -224,7 +224,7 @@ def cmd_pull(args):
     return 0
 
 def cmd_dashpass(args):
-    """Resets the dashboard admin password."""
+    """Manages dashboard users and passwords interactively."""
     import json
     try:
         import bcrypt
@@ -235,64 +235,86 @@ def cmd_dashpass(args):
         
     users_file = ROOT / "docker" / "state" / "users.json"
     
-    # Audit Fix: If Docker created this as a directory (missing host file), nuke it
-    if users_file.exists() and users_file.is_dir():
-        print(f"[!] Warning: {users_file} is a directory. Removing to recreate as file...")
-        import shutil
-        shutil.rmtree(users_file)
-        
-    username = args.username or "admin"
-    password = args.password
+    # Audit Fix: Ensure parent directory exists
+    users_file.parent.mkdir(parents=True, exist_ok=True)
     
-    if not password:
-        import getpass
-        password = getpass.getpass(f"Enter new password for '{username}': ")
-        confirm = getpass.getpass("Confirm password: ")
-        if password != confirm:
-            print("[X] Passwords do not match!")
-            return 1
-            
-    print(f"\n[AUTH] Resetting password for '{username}'...")
-    
-    # Hash password
-    salt = bcrypt.gensalt()
-    pwd_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-    
-    # Load and update
+    # Load existing users
     try:
         with open(users_file, "r") as f:
             users = json.load(f)
     except Exception:
         users = []
         
-    # Remove existing user if exists
-    users = [u for u in users if u.get("username") != username]
+    # Automatic mode if arguments are provided via CLI
+    if args.password:
+        username = args.username or "admin"
+        password = args.password
+        print(f"\n[AUTH] Non-interactive reset for '{username}'...")
+    else:
+        # Interactive Menu
+        print("\n--- M3TAL User Management ---")
+        print("1.) Reset 'admin' password")
+        print("2.) Manage existing users")
+        print("3.) Add new user")
+        print("q.) Quit")
+        
+        choice = input("\nSelect an option: ").strip().lower()
+        
+        username = None
+        if choice == "1":
+            username = "admin"
+        elif choice == "2":
+            if not users:
+                print("[!] No users found.")
+                return 0
+            print("\nExisting Users:")
+            for i, u in enumerate(users):
+                print(f"  {i+1}.) {u['username']} [{u.get('role', 'viewer')}]")
+            idx = input("\nSelect user index: ").strip()
+            try:
+                username = users[int(idx)-1]['username']
+            except (ValueError, IndexError):
+                print("[X] Invalid selection.")
+                return 1
+        elif choice == "3":
+            username = input("Enter new username: ").strip()
+            if not username:
+                return 0
+        elif choice == "q":
+            return 0
+        else:
+            print("[X] Invalid choice.")
+            return 1
+
+        import getpass
+        password = getpass.getpass(f"Enter password for '{username}': ")
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            print("[X] Passwords do not match!")
+            return 1
+            
+    # Hash and Save
+    pwd_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
-    # Add new entry
+    # Update record
+    role = "admin" if username == "admin" else "viewer"
+    # Find if user exists to preserve role if not admin
+    existing = next((u for u in users if u.get("username") == username), None)
+    if existing and username != "admin":
+        role = existing.get("role", "viewer")
+        
+    users = [u for u in users if u.get("username") != username]
     users.append({
         "username": username,
         "token_hash": pwd_hash,
-        "role": "admin"
+        "role": role
     })
     
-    # Save back
     with open(users_file, "w") as f:
         json.dump(users, f, indent=2)
         
-    print(f"[AUTH] Success! Password for '{username}' has been updated.")
-    
-    # Audit Fix: If we modified the file, restart the dashboard to refresh bind mounts
-    print("[AUTH] Restarting dashboard to apply changes...")
-    compose_file = ROOT / "docker" / "m3tal-compose.yml"
-    project_name = get_project_name(compose_file)
-    env_file = ROOT / ".env"
-    cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(compose_file), "restart", "m3tal-dashboard"]
-    try:
-        subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True, capture_output=True)
-        print("[AUTH] Dashboard restarted successfully.")
-    except Exception:
-        print("[!] Note: Dashboard restart skipped (container might not be running).")
-        
+    print(f"\n[AUTH] Success! '{username}' has been updated.")
+    print("[AUTH] Changes are live (no dashboard restart required).")
     return 0
 
 # --- CLI Structure ------------------------------------------------------------
