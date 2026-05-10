@@ -247,6 +247,20 @@ def cmd_pull(args):
     print("\n[PULL] Image synchronization complete.")
     return 0
 
+def cmd_reset_history(args):
+    """Resets the resource usage history data."""
+    history_file = ROOT / "docker" / "state" / "history.json"
+    if history_file.exists():
+        try:
+            history_file.unlink()
+            print(f"[SUCCESS] Resource history cleared: {history_file}")
+        except Exception as e:
+            print(f"[X] Failed to delete history: {e}")
+            return 1
+    else:
+        print("[!] No history file found to reset.")
+    return 0
+
 def cmd_dashpass(args):
     """Manages dashboard users and passwords interactively."""
     import json
@@ -380,6 +394,9 @@ def main():
     # build
     subparsers.add_parser("build", help="Enforce no-cache rebuild of M3TAL Docker images")
 
+    # reset-history
+    subparsers.add_parser("reset-history", help="Clear the resource usage history data (graph points)")
+
     # pull [stack]
     p_pull = subparsers.add_parser("pull", help="Pull latest images from registry (GHCR)")
     p_pull.add_argument("stack", nargs="?", help="Specific stack to pull (e.g. m3tal, media)")
@@ -420,6 +437,8 @@ def main():
         sys.exit(cmd_ps(args))
     elif args.command == "build":
         sys.exit(cmd_build(args))
+    elif args.command == "reset-history":
+        sys.exit(cmd_reset_history(args))
     elif args.command == "pull":
         sys.exit(cmd_pull(args))
     elif args.command == "dashpass":
