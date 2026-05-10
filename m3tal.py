@@ -156,6 +156,10 @@ def cmd_shutdown(args):
         print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
         env_file = ROOT / ".env"
         cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "down"]
+        
+        if getattr(args, "remove_orphans", False):
+            cmd.append("--remove-orphans")
+            
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
@@ -228,10 +232,12 @@ def main():
     # down / stop
     for cmd_name in ["down", "stop"]:
         p = subparsers.add_parser(cmd_name, help="Safely stop all M3TAL stacks and services")
+        p.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file")
         p.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
 
     # restart
-    subparsers.add_parser("restart", help="Restart the M3TAL environment")
+    p_restart = subparsers.add_parser("restart", help="Restart the M3TAL environment")
+    p_restart.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file during shutdown")
 
     # ps / ls / status
     for cmd_name in ["ps", "ls", "status"]:
