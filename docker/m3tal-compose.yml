@@ -109,6 +109,10 @@ services:
       - /usr/bin/radeontop:/usr/bin/radeontop:ro
       - /usr/sbin/smartctl:/usr/sbin/smartctl:ro
       - /:/host:ro
+    devices:
+      - /dev/dri:/dev/dri
+    cap_add:
+      - SYS_RAWIO
     environment:
       - TZ=America/Denver
       - DOCKER_HOST=tcp://m3tal-docker-proxy:2375
