@@ -1,0 +1,6 @@
+[submodule "source/dashboard"]
+	path = source/dashboard
+	url = https://github.com/jakej985-rgb/m3tal-godash.git
+[submodule "source/go-backend"]
+	path = source/go-backend
+	url = https://github.com/jakej985-rgb/m3tal-goback.git
