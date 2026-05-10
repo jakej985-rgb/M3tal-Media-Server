@@ -94,7 +94,8 @@ def cmd_build(args):
     """Enforces a clean rebuild of the control plane containers."""
     print("\n[BUILD] Triggering no-cache build of M3TAL Control Plane...")
     compose_file = ROOT / "docker" / "m3tal-compose.yml"
-    cmd = ["docker", "compose", "-f", str(compose_file), "build", "--no-cache"]
+    env_file = ROOT / ".env"
+    cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(compose_file), "build", "--no-cache"]
     try:
         subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True)
         print("[INIT] Build successful. Containers are up to date.")
@@ -112,7 +113,8 @@ def cmd_init(args):
         
     for cf in compose_files:
         print(f"\n[INIT] Starting stack: {cf.name}...")
-        cmd = ["docker", "compose", "-f", str(cf), "up", "-d"]
+        env_file = ROOT / ".env"
+        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "up", "-d"]
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
@@ -135,7 +137,8 @@ def cmd_shutdown(args):
     
     for cf in compose_files_rev:
         print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
-        cmd = ["docker", "compose", "-f", str(cf), "down"]
+        env_file = ROOT / ".env"
+        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "down"]
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
@@ -152,7 +155,8 @@ def cmd_ps(args):
         return 1
     for cf in compose_files:
         print(f"\n[STATUS] Stack: {cf.name}")
-        subprocess.run(["docker", "compose", "-f", str(cf), "ps"], cwd=str(cf.parent))
+        env_file = ROOT / ".env"
+        subprocess.run(["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "ps"], cwd=str(cf.parent))
     return 0
 
 def cmd_restart(args):
@@ -176,7 +180,8 @@ def cmd_pull(args):
             continue
             
         print(f"\n[PULL] Refreshing images for: {cf.name}...")
-        cmd = ["docker", "compose", "-f", str(cf), "pull"]
+        env_file = ROOT / ".env"
+        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "pull"]
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
