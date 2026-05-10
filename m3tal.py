@@ -85,6 +85,13 @@ def get_compose_files():
 
     return compose_files
 
+def get_project_name(cf_path):
+    """Derives a clean project name from the compose filename."""
+    name = cf_path.stem.replace("-compose", "").replace(".yml", "")
+    if name == "docker": # Handle docker-compose.yml
+        return "m3tal-core"
+    return f"m3tal-{name}"
+
 # --- Command Handlers ---------------------------------------------------------
 def cmd_obsolete():
     print("[!] This command is obsolete and has been removed in the Go-native M3TAL Control Plane.")
@@ -94,8 +101,9 @@ def cmd_build(args):
     """Enforces a clean rebuild of the control plane containers."""
     print("\n[BUILD] Triggering no-cache build of M3TAL Control Plane...")
     compose_file = ROOT / "docker" / "m3tal-compose.yml"
+    project_name = get_project_name(compose_file)
     env_file = ROOT / ".env"
-    cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(compose_file), "build", "--no-cache"]
+    cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(compose_file), "build", "--no-cache"]
     try:
         subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True)
         print("[INIT] Build successful. Containers are up to date.")
@@ -130,8 +138,9 @@ def cmd_init(args):
         
     for cf in compose_files:
         print(f"\n[INIT] Starting stack: {cf.name}...")
+        project_name = get_project_name(cf)
         env_file = ROOT / ".env"
-        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "up", "-d"]
+        cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(cf), "up", "-d"]
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
@@ -154,8 +163,9 @@ def cmd_shutdown(args):
     
     for cf in compose_files_rev:
         print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
+        project_name = get_project_name(cf)
         env_file = ROOT / ".env"
-        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "down"]
+        cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(cf), "down"]
         
         if getattr(args, "remove_orphans", False):
             cmd.append("--remove-orphans")
@@ -176,8 +186,9 @@ def cmd_ps(args):
         return 1
     for cf in compose_files:
         print(f"\n[STATUS] Stack: {cf.name}")
+        project_name = get_project_name(cf)
         env_file = ROOT / ".env"
-        subprocess.run(["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "ps"], cwd=str(cf.parent))
+        subprocess.run(["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(cf), "ps"], cwd=str(cf.parent))
     return 0
 
 def cmd_restart(args):
@@ -201,8 +212,9 @@ def cmd_pull(args):
             continue
             
         print(f"\n[PULL] Refreshing images for: {cf.name}...")
+        project_name = get_project_name(cf)
         env_file = ROOT / ".env"
-        cmd = ["docker", "compose", "--env-file", str(env_file), "-f", str(cf), "pull"]
+        cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(cf), "pull"]
         try:
             subprocess.run(cmd, cwd=str(cf.parent), check=True)
         except Exception as e:
