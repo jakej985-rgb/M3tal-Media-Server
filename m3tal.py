@@ -136,7 +136,12 @@ def cmd_init(args):
         print("[X] No compose files found!")
         return 1
         
+    target = getattr(args, "stack", None)
+    
     for cf in compose_files:
+        if target and target.lower() not in cf.name.lower():
+            continue
+            
         print(f"\n[INIT] Starting stack: {cf.name}...")
         project_name = get_project_name(cf)
         env_file = ROOT / ".env"
@@ -167,7 +172,12 @@ def cmd_shutdown(args):
     compose_files_rev = compose_files.copy()
     compose_files_rev.reverse()
     
+    target = getattr(args, "stack", None)
+    
     for cf in compose_files_rev:
+        if target and target.lower() not in cf.name.lower():
+            continue
+            
         print(f"\n[SHUTDOWN] Stopping stack: {cf.name}...")
         project_name = get_project_name(cf)
         env_file = ROOT / ".env"
@@ -190,7 +200,12 @@ def cmd_ps(args):
     if not compose_files:
         print("[X] No compose files found!")
         return 1
+    target = getattr(args, "stack", None)
+    
     for cf in compose_files:
+        if target and target.lower() not in cf.name.lower():
+            continue
+            
         print(f"\n[STATUS] Stack: {cf.name}")
         project_name = get_project_name(cf)
         env_file = ROOT / ".env"
@@ -342,23 +357,25 @@ def main():
     # up / start
     for cmd_name in ["up", "start"]:
         p = subparsers.add_parser(cmd_name, help="Initialize and start the M3TAL environment")
+        p.add_argument("stack", nargs="?", help="Specific stack to up (e.g. m3tal, media)")
         p.add_argument("-r", "--recreate", action="store_true", help="Force recreate containers")
         p.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file")
-        p.add_argument("--repair", help="Legacy argument (ignored)")
 
     # down / stop
     for cmd_name in ["down", "stop"]:
         p = subparsers.add_parser(cmd_name, help="Safely stop all M3TAL stacks and services")
+        p.add_argument("stack", nargs="?", help="Specific stack to stop (e.g. m3tal, media)")
         p.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file")
-        p.add_argument("stacks", nargs="*", help="Legacy argument (ignored)")
 
     # restart
     p_restart = subparsers.add_parser("restart", help="Restart the M3TAL environment")
+    p_restart.add_argument("stack", nargs="?", help="Specific stack to restart (e.g. m3tal, media)")
     p_restart.add_argument("--remove-orphans", action="store_true", help="Remove containers for services not defined in the Compose file during shutdown")
 
     # ps / ls / status
     for cmd_name in ["ps", "ls", "status"]:
-        subparsers.add_parser(cmd_name, help="Show status of M3TAL containers")
+        p = subparsers.add_parser(cmd_name, help="Show status of M3TAL containers")
+        p.add_argument("stack", nargs="?", help="Specific stack to show (e.g. m3tal, media)")
 
     # build
     subparsers.add_parser("build", help="Enforce no-cache rebuild of M3TAL Docker images")
