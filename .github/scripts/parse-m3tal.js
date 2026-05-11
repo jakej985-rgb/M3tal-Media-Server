@@ -1,5 +1,9 @@
 import fs from "fs";
 
+if (!fs.existsSync("docs")) {
+  fs.mkdirSync("docs");
+}
+
 if (!fs.existsSync("source")) {
   console.log("No source directory found.");
   process.exit(0);

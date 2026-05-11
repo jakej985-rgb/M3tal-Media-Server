@@ -1,5 +1,9 @@
 import fs from "fs";
 
+if (!fs.existsSync("docs")) {
+  fs.mkdirSync("docs");
+}
+
 const file = fs.existsSync(".env.example") ? ".env.example" : ".env";
 if (!fs.existsSync(file)) {
   console.log("No env file found.");

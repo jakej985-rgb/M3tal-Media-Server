@@ -1,4 +1,8 @@
 import fs from "fs";
+
+if (!fs.existsSync("docs")) {
+  fs.mkdirSync("docs");
+}
 import path from "path";
 import yaml from "js-yaml";
 
