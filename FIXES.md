@@ -1,48 +1,51 @@
-### **DocCritic Audit Report**
-**Auditor:** Senior DevOps Auditor, M3TAL Platform  
-**Target:** M3TAL Control Plane (v1.4.0.3)  
-**Status:** **FAILED**
+### 🚩 DocCritic Audit Report: M3TAL Platform (v1.4.0.3)
+
+**Verdict: FAILED**
+As a new user, I attempted to stand up this environment based strictly on the provided documentation. I am currently unable to reach a functional state. The documentation suffers from "developer blindness"—it assumes I know how to reconcile the Python CLI orchestrator with the `m3tal-stack` Docker configuration and fails to define critical network access points.
 
 ---
 
-### **Verdict**
-**Non-Deployable.** The documentation provides a high-level overview of the architecture but fails to provide a path to a functional runtime. A new user has no way of knowing how to configure the environment, which ports are exposed, or how to handle build-time dependencies. The "magic" assumed in `install.py` and `m3tal.py` is not documented, leading to potential failure states that the user cannot debug.
-
----
-
-### **Issue List**
+### 📑 Detailed Issue List
 
 #### **BLOCKER**
-*   **Missing `.env` Specification:** The project uses `source/m3tal-stack` (Docker Compose), yet there is zero mention of required environment variables (DB URLs, API keys, Traefik domain configs). Containers will crash on startup.
-*   **Missing Build Instructions:** You mention Go-native backends and Python components. Does the user need to `go build` the binary before running `m3tal.py`? Are these containers pre-built? There is no "build" or "compile" step documented.
-*   **Hardcoded Host Assumptions:** You mandate `/mnt` directory structures. If a user is on a different filesystem layout (e.g., `/data/m3tal` or Windows/Mac Docker Desktop), the stack will fail to start.
+*   **Missing `.env` Template:** While the doc says "Create a .env file," it provides zero context on mandatory variables (e.g., API keys, DB credentials, or service-specific secrets). Does the Go backend require `DB_PASSWORD`? Is there a `JWT_SECRET`? The app will crash on startup if these are missing.
+*   **Missing Traefik/Gateway configuration:** The docs mention a "Control Plane" and "Dashboard," but there is no mention of how to expose these to the host. If the dashboard is on `8080` and the backend on `9090`, how does the user reach them? Is Traefik pre-configured in `source/m3tal-stack`?
+*   **Orchestration Disconnect:** The documentation does not explain how `m3tal.py` communicates with the `source/m3tal-stack` Docker Compose files. Does `m3tal.py` call `docker-compose` directly? If so, does the user need to install `docker-compose` v2 explicitly?
 
 #### **WARNING**
-*   **Traefik/Gateway Visibility:** The documentation mentions a Traefik gateway implicitly (via architectural diagrams), but does not list required ports (80/443/8080) or how to map them to the host firewall.
-*   **`m3tal.py` vs `install.py` Ambiguity:** The doc references `install.py` for setup but `m3tal.py` for orchestration. It is unclear if `install.py` persists state or if the user must run it every time.
+*   **Hardcoded Pathing (`/mnt`):** Forcing `/mnt` is a major "Dev-only" assumption. This requires `sudo` access and `/mnt` is often reserved for mounts on Linux systems. If I am on macOS or a restricted containerized environment, this installation fails immediately.
+*   **`install.py` vs `m3tal.py` Ambiguity:** The README lists `install.py` but then shifts to `m3tal.py` for operations. It is unclear if `install.py` creates the `.env` file, installs dependencies, or builds the Go binaries.
 
 #### **SUGGESTION**
-*   **Dependency Injection:** The "Prerequisites" section should mention `pip` requirements for the Python CLI and `go mod download` for the backend.
-*   **Deployment Troubleshooting:** There is no "Logs" section. If `m3tal.py up` fails, the user is left in the dark.
+*   **Architecture Diagram:** The text is dense. A simple ASCII flow diagram showing the connection between the Go Backend and the Python CLI would clarify the "Sense-Think-Act" loop.
+*   **Default State:** The README should provide a `cp .env.example .env` command to ensure the user has a baseline.
 
 ---
 
-### **Suggested Fixes**
+### 🛠 Suggested Fixes
 
-1.  **Add a `config.env.example` file:** Provide a template in the repo and reference it in the README:
-    > "Copy `config.env.example` to `.env` and fill in the required `API_KEY` and `STORAGE_PATH` variables."
-2.  **Explicit Build Steps:** Clarify the deployment lifecycle.
-    *   *If automated:* "The `install.py` script automatically compiles the Go binaries and initializes the Docker environment." 
-    *   *If manual:* Add a section: `cd source/go-backend && go build -o m3tal-backend .`
-3.  **Path Configuration:** Allow path overrides. Instead of mandating `/mnt`, update your Docker Compose files to use an environment variable: `volumes: - ${M3TAL_MEDIA_PATH:-/mnt/media}:/media`.
-4.  **Network/Port Table:** Add a table to the README:
-    | Service | Port | Purpose |
-    | :--- | :--- | :--- |
-    | Traefik | 80/443 | Entrypoint |
-    | Go-Backend | 9000 | API Traffic |
-5.  **Troubleshooting Section:** Add: 
-    > "If services fail to start, run `docker compose -f source/m3tal-stack/docker-compose.yml logs -f` to inspect container health."
+1.  **Environment Setup:**
+    *   Add an `env.example` file to the repo.
+    *   Update `install.py` to check for this file and run a `setup` routine that validates the existence of the `/mnt` directories before deployment.
 
----
+2.  **Explicit Deployment Instructions:**
+    *   Clarify the "Gateway":
+        > "Access your M3TAL dashboard at `http://localhost:8080`. The API is accessible internally at `http://localhost:9090`."
+    *   Specify the command execution order clearly:
+        ```bash
+        # 1. Prepare Environment
+        cp .env.example .env
+        # 2. Initialize Infrastructure
+        python3 install.py
+        # 3. Start Orchestrator
+        source venv/bin/activate
+        python3 m3tal.py up
+        ```
 
-**Auditor Note:** *M3TAL is an orchestration platform; it cannot have an "orchestration" problem in its own documentation. Treat the README as the first unit test for the user experience. Fix these gaps before the next release.*
+3.  **Pathing Flexibility:**
+    *   Add a variable in the `.env` file (e.g., `M3TAL_ROOT_DIR`) so users can change the `/mnt` requirement to a local project directory if they don't have root access to `/mnt`.
+
+4.  **Dependency Management:**
+    *   Explicitly state that `docker-compose` (the command) must be available in the path, as the Python CLI is essentially a wrapper for Docker operations.
+
+**DocCritic Note:** *Fix these gaps, or your user churn rate will be 100% within the first 10 minutes of deployment.*
