@@ -72,16 +72,29 @@ def get_compose_files():
     if cp_compose.exists():
         compose_files.append(cp_compose)
         
-    # Then the rest dynamically
+    # 4. Standard Core Extras
     if docker_dir.exists():
         for file in docker_dir.glob("*-compose.yml"):
             if file not in compose_files:
                 compose_files.append(file)
+
+    # 5. Decentralized Discovery: Find *-compose.yml in any folder named 'docker'
+    # We skip .git, venv, and other hidden/system folders
+    for docker_folder in ROOT.rglob("docker"):
+        if any(part.startswith(".") or part == "venv" for part in docker_folder.parts):
+            continue
+            
+        for file in docker_folder.glob("*-compose.yml"):
+            if file not in compose_files:
+                compose_files.append(file)
                 
-    # Also discover any docker-compose.yml in root of docker/ if any
-    root_compose = docker_dir / "docker-compose.yml"
-    if root_compose.exists() and root_compose not in compose_files:
-        compose_files.append(root_compose)
+    # Also discover any docker-compose.yml in root of docker/ folders
+    for docker_folder in ROOT.rglob("docker"):
+         if any(part.startswith(".") or part == "venv" for part in docker_folder.parts):
+            continue
+         root_compose = docker_folder / "docker-compose.yml"
+         if root_compose.exists() and root_compose not in compose_files:
+            compose_files.append(root_compose)
 
     return compose_files
 

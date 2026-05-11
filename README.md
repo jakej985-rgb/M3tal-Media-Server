@@ -124,10 +124,10 @@ M3TAL uses a dedicated `proxy` Docker network to isolate services. To expose you
 
 To orchestrate your own services (Plex, Radarr, Nextcloud, etc.) alongside the M3TAL core:
 
-1. **Create a User Stack**: Place your custom `docker-compose.yml` files in the `source/user-stacks/` directory.
-2. **Network Integration**: Ensure your services join the `proxy` network to communicate with the M3TAL backend and reverse proxy.
-3. **Deployment**: Run `python m3tal.py up` — the orchestrator automatically discovers and deploys all stacks in `user-stacks/`.
-4. **Monitoring**: M3TAL's autonomous agents will automatically begin sensing health and metrics for your new containers.
+1. **Decentralized Discovery**: M3TAL automatically scans the repository for any directory named `docker/`. It will discover and manage any files matching `*-compose.yml` or `docker-compose.yml` found within those folders.
+2. **Standard Setup**: Simply create a `docker/` folder in your project directory and add your compose file (e.g., `source/my-plex/docker/plex-compose.yml`).
+3. **Network Integration**: Ensure your services join the `proxy` network to communicate with the M3TAL backend and reverse proxy.
+4. **Deployment**: Run `python m3tal.py up` — the orchestrator automatically discovers and deploys all matched stacks in the correct order.
 
 ### 3. Login
 
