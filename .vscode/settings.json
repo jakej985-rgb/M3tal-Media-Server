@@ -16,5 +16,8 @@
         "${workspaceFolder}/scripts/helpers",
         "${workspaceFolder}/control-plane/agents",
         "${workspaceFolder}/scripts/test"
+    ],
+    "github-actions.workflows.pinned.workflows": [
+        "source/go-backend/.github/workflows/docs-agent.yml"
     ]
 }
