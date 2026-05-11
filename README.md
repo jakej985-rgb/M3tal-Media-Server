@@ -33,109 +33,83 @@ The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the 
 ## 📦 Prerequisites
 
 * **Docker Engine**: v20.10+
-* **Docker Compose**: v2.0+
+* **Docker Compose**: v2.0+ (or `docker-compose-plugin`)
 * **Go**: 1.21+ (For building backend modules)
-* **Python**: v3.9+ (For the CLI Orchestrator)
+* **Python**: v3.10+ (For the Dashboard interface)
 
 ---
 
 ## 🚀 Installation & Deployment
 
-### 1. Initialize
+### 1. Initialize & Automate Setup
+
+The most reliable way to start is using the provided setup script. This script verifies dependencies, creates standardized storage paths (with correct permissions), and initializes your environment.
 
 ```bash
 git clone https://github.com/jakej985-rgb/M3tal-Media-Server.git
 cd M3tal-Media-Server
+
+# Run the automated setup (Requires sudo for /mnt creation)
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
-### 2. Run the Interactive Installer
+### 2. Configure Environment
 
-The `install.py` script is the primary entry point for new installations. It handles the venv creation, scaffolding, and initial configuration.
+After running the setup script, a `.env` file will be created from the template. **You must edit this file** to set your unique secrets and network configuration.
 
 ```bash
-# On Linux/macOS
-python3 install.py
-
-# On Windows (PowerShell)
-python install.py
+nano .env
 ```
 
----
+Key variables to set:
+* `DASHBOARD_SECRET`: A long random string for session security.
+* `API_TOKEN`: Used for secure communication between the dashboard and the Go backend.
+* `LOCAL_IP`: Your host machine's IP address.
 
-## ⚙️ Detailed Configuration
+### 3. Dashboard Dependencies
 
-If you prefer manual configuration or need to audit the system requirements:
-
-### 1. Infrastructure Requirements (Linux)
-
-M3TAL assumes a standardized storage layout. If the installer didn't create these, run:
+The dashboard is a Python/Flask application. Ensure its dependencies are installed:
 
 ```bash
-# Create standardized storage paths
-sudo mkdir -p /mnt/media /mnt/config /mnt/downloads
-
-# Ensure correct permissions (Standard UID/GID 1000)
-sudo chown -R 1000:1000 /mnt/media /mnt/config /mnt/downloads
-sudo chmod -R 775 /mnt/media /mnt/config /mnt/downloads
-```
-
-### 2. Environment Variables (`.env`)
-
-The system requires a `.env` file at the root. Key variables include:
-
-```ini
-# --- Core Config ---
-DASHBOARD_PORT=8080
-STATE_DIR=./state
-LOG_LEVEL=info
-
-# --- Auth ---
-DASHBOARD_SECRET=your_super_secret_token_here
-ADMIN_PASSWORD=your_secure_password
-
-# --- Network ---
-NETWORK_NAME=proxy
-LOCAL_IP=192.168.1.100
-
-# --- Storage ---
-BASE_STORAGE_PATH=/mnt
+cd source/dashboard
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd ../..
 ```
 
 ---
 
 ## 🎮 System Orchestration
 
-Once installed, follow these steps to manage your cluster.
-
-### 1. Build the Control Plane
-
-```bash
-go build -o m3tal ./cmd/m3tal
-```
-
-### 2. Launch (Unified Control Plane)
-
 M3TAL provides a unified Go CLI for all system orchestration.
 
+### Launching the Ecosystem
+
+Running `./m3tal up` automatically invokes `docker compose -f source/m3tal-stack/m3tal-compose.yml up -d`, ensuring the API, Dashboard, and core media services are launched in the correct sequence.
+
 ```bash
-# 1. Start the entire environment
+# Start the entire environment
 ./m3tal up
 
-# 2. Check the status of all services
+# Check the status of all services
 ./m3tal status
 
-# 3. Stop everything safely
+# Stop everything safely
 ./m3tal down
 ```
 
 ---
 
-## 🌐 M3TAL Ecosystem
+## 🌐 Network & Port Exposure
 
-This repository is the **Core Orchestrator**. It integrates with the following companion projects:
+By default, the M3TAL Dashboard is exposed on port `8080`.
 
-* [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): Unified performance monitoring frontend.
-* [m3tal-goback](https://github.com/jakej985-rgb/m3tal-goback): Standardized Go middleware for M3TAL service communication.
+* **Dashboard**: `http://localhost:8080` (or your host IP)
+* **API Endpoints**: `http://localhost:5000/api` (Internal use only)
+
+*Note: For production deployments, it is highly recommended to use a reverse proxy like Traefik or Nginx to handle SSL/TLS termination.*
 
 ---
 
@@ -145,18 +119,17 @@ The system is now fully **Go-Native**.
 
 * **Core Logic**: Centralized in the `/pkg` directory at the repository root.
 * **CLI**: The primary entry point is the Go-native `./m3tal` binary (`cmd/m3tal`).
-* **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for orchestration.
-* **API Strategy**: The Dashboard is an API-only architecture delegating all logic to the Go `api` service (`cmd/api`).
+* **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for core orchestration.
 
 ---
 
 ## 🧱 Data Persistence & Pathing
 
-To ensure consistency across the ecosystem, M3TAL mandates strict path mapping:
+To ensure consistency across the ecosystem, M3TAL mandates strict path mapping (created during `setup.sh`):
 
 * `/mnt/media`: Primary media library.
 * `/mnt/config`: Persistent configuration for all containers.
-* `/mnt/logs`: Unified log aggregation.
+* `/mnt/downloads`: Unified download directory.
 
 *Warning: Modifying these paths manually in `source/m3tal-stack` will break service recovery and migration scripts.*
 
@@ -164,8 +137,8 @@ To ensure consistency across the ecosystem, M3TAL mandates strict path mapping:
 
 ## 🔐 Security & Safety
 
-* **API-Only Interaction**: Services do not communicate via shell; they communicate via restricted REST endpoints defined in the Go-backend.
-* **Token-based RBAC**: Ensures that the Dashboard and CLI cannot execute unauthorized administrative tasks.
+* **API-Only Interaction**: Services communicate via restricted REST endpoints defined in the Go-backend, authenticated via the `API_TOKEN`.
+* **RBAC**: Access to the Dashboard is protected via session-based authentication and hashed passwords.
 
 ---
 
@@ -173,4 +146,4 @@ To ensure consistency across the ecosystem, M3TAL mandates strict path mapping:
 
 Licensed under MIT.
 
-*DocSmith Status: Architecture scan complete. README synchronized to Go-native layout.*
+*DocCritic Status: Blockers addressed. Setup automation implemented.*
