@@ -18,7 +18,7 @@ func CheckService(name string, url string) ServiceHealth {
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
-	
+
 	resp, err := client.Get(url)
 	if err != nil {
 		return ServiceHealth{

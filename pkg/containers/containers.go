@@ -2,19 +2,19 @@ package containers
 
 import (
 	"context"
-	"io"
 	"github.com/moby/moby/client"
+	"io"
 )
 
 // ContainerInfo represents basic container information
 type ContainerInfo struct {
-	ID      string   `json:"id"`
-	Names   []string `json:"names"`
-	Image   string   `json:"image"`
-	Status  string   `json:"status"`
-	State   string   `json:"state"`
-	CPU     float64  `json:"cpu"`
-	Memory  float64  `json:"memory"`
+	ID     string   `json:"id"`
+	Names  []string `json:"names"`
+	Image  string   `json:"image"`
+	Status string   `json:"status"`
+	State  string   `json:"state"`
+	CPU    float64  `json:"cpu"`
+	Memory float64  `json:"memory"`
 }
 
 // Provider defines the interface for container management
@@ -97,7 +97,7 @@ func (m *Manager) Logs(name string, tail string) (string, error) {
 		return "", err
 	}
 	defer result.Close()
-	
+
 	content, err := io.ReadAll(result)
 	if err != nil {
 		return "", err

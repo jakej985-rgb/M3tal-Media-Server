@@ -14,6 +14,7 @@
 The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the management plane from the orchestration interface.
 
 ### The Component Stack
+
 * **Orchestrator (`./m3tal`)**: The Go-native CLI "Mission Control." It handles host-level lifecycle management, environment verification, and Docker daemon communication.
 * **Backend API (`cmd/api`)**: The high-performance Go-native engine. It processes metrics, manages state, and performs the "Sense-Think-Act" loop.
 * **Core Logic (`pkg/`)**: Importable Go library containing all container and system management logic.
@@ -21,6 +22,7 @@ The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the 
 * **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose definitions that host the runtime environment.
 
 ### Communication Flow
+
 1. **CLI** triggers `docker compose` in `source/m3tal-stack`.
 2. **Backend** monitors Docker events and container health.
 3. **Dashboard** queries the **Backend** for real-time status and metrics.
@@ -29,22 +31,25 @@ The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the 
 ---
 
 ## 📦 Prerequisites
-- **Docker Engine**: v20.10+
-- **Docker Compose**: v2.0+
-- **Go**: 1.21+ (For building backend modules)
-- **Python**: v3.9+ (For the CLI Orchestrator)
+
+* **Docker Engine**: v20.10+
+* **Docker Compose**: v2.0+
+* **Go**: 1.21+ (For building backend modules)
+* **Python**: v3.9+ (For the CLI Orchestrator)
 
 ---
 
 ## 🚀 Installation & Deployment
 
 ### 1. Initialize
+
 ```bash
 git clone https://github.com/jakej985-rgb/M3tal-Media-Server.git
 cd M3tal-Media-Server
 ```
 
-#### 2. Run the Interactive Installer
+### 2. Run the Interactive Installer
+
 The `install.py` script is the primary entry point for new installations. It handles the venv creation, scaffolding, and initial configuration.
 
 ```bash
@@ -57,11 +62,12 @@ python install.py
 
 ---
 
-### ⚙️ Detailed Configuration
+## ⚙️ Detailed Configuration
 
 If you prefer manual configuration or need to audit the system requirements:
 
-#### 1. Infrastructure Requirements (Linux)
+### 1. Infrastructure Requirements (Linux)
+
 M3TAL assumes a standardized storage layout. If the installer didn't create these, run:
 
 ```bash
@@ -73,7 +79,8 @@ sudo chown -R 1000:1000 /mnt/media /mnt/config /mnt/downloads
 sudo chmod -R 775 /mnt/media /mnt/config /mnt/downloads
 ```
 
-#### 2. Environment Variables (`.env`)
+### 2. Environment Variables (`.env`)
+
 The system requires a `.env` file at the root. Key variables include:
 
 ```ini
@@ -96,16 +103,18 @@ BASE_STORAGE_PATH=/mnt
 
 ---
 
-### 🎮 System Orchestration
+## 🎮 System Orchestration
 
 Once installed, follow these steps to manage your cluster.
 
-#### 1. Build the Control Plane
+### 1. Build the Control Plane
+
 ```bash
 go build -o m3tal ./cmd/m3tal
 ```
 
-#### 2. Launch (Unified Control Plane)
+### 2. Launch (Unified Control Plane)
+
 M3TAL provides a unified Go CLI for all system orchestration.
 
 ```bash
@@ -122,6 +131,7 @@ M3TAL provides a unified Go CLI for all system orchestration.
 ---
 
 ## 🌐 M3TAL Ecosystem
+
 This repository is the **Core Orchestrator**. It integrates with the following companion projects:
 
 * [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): Unified performance monitoring frontend.
@@ -130,31 +140,37 @@ This repository is the **Core Orchestrator**. It integrates with the following c
 ---
 
 ## 🛠 Go-Native Migration Status
+
 The system is now fully **Go-Native**.
-- **Core Logic**: Centralized in the `/pkg` directory at the repository root.
-- **CLI**: The primary entry point is the Go-native `./m3tal` binary (`cmd/m3tal`).
-- **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for orchestration.
-- **API Strategy**: The Dashboard is an API-only architecture delegating all logic to the Go `api` service (`cmd/api`).
+
+* **Core Logic**: Centralized in the `/pkg` directory at the repository root.
+* **CLI**: The primary entry point is the Go-native `./m3tal` binary (`cmd/m3tal`).
+* **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for orchestration.
+* **API Strategy**: The Dashboard is an API-only architecture delegating all logic to the Go `api` service (`cmd/api`).
 
 ---
 
 ## 🧱 Data Persistence & Pathing
+
 To ensure consistency across the ecosystem, M3TAL mandates strict path mapping:
-- `/mnt/media`: Primary media library.
-- `/mnt/config`: Persistent configuration for all containers.
-- `/mnt/logs`: Unified log aggregation.
+
+* `/mnt/media`: Primary media library.
+* `/mnt/config`: Persistent configuration for all containers.
+* `/mnt/logs`: Unified log aggregation.
 
 *Warning: Modifying these paths manually in `source/m3tal-stack` will break service recovery and migration scripts.*
 
 ---
 
 ## 🔐 Security & Safety
+
 * **API-Only Interaction**: Services do not communicate via shell; they communicate via restricted REST endpoints defined in the Go-backend.
 * **Token-based RBAC**: Ensures that the Dashboard and CLI cannot execute unauthorized administrative tasks.
 
 ---
 
 ## 📜 License
+
 Licensed under MIT.
 
 *DocSmith Status: Architecture scan complete. README synchronized to Go-native layout.*

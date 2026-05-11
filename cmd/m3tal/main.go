@@ -83,7 +83,7 @@ func main() {
 		Short: "Run M3TAL background agents",
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Println("🚀 M3TAL Core Daemon starting...")
-			
+
 			// Background Metrics Collection
 			go func() {
 				for {
@@ -141,12 +141,12 @@ func main() {
 				fmt.Printf("Password for %s: ", username)
 				fmt.Scanln(&password)
 			}
-			
+
 			hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 			if err != nil {
 				log.Fatal(err)
 			}
-			
+
 			fmt.Printf("✅ Updating user %s...\n", username)
 			usersFile := "source/m3tal-stack/users.json"
 			updateUser(usersFile, username, string(hash))

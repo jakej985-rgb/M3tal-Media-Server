@@ -135,13 +135,13 @@ func main() {
 			return
 		}
 		tail := r.URL.Query().Get("tail")
-		
+
 		content, err := mgr.Logs(name, tail)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"logs": content})
 	}))
@@ -156,7 +156,9 @@ func handleContainerAction(w http.ResponseWriter, r *http.Request, action func(s
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	var req struct { Name string `json:"name"` }
+	var req struct {
+		Name string `json:"name"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
