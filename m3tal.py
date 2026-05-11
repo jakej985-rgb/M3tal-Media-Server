@@ -21,7 +21,7 @@ def _bootstrap_env():
     p = Path(__file__).resolve()
     root = None
     for parent in [p] + list(p.parents):
-        if (parent / "docker").exists() and (parent / "m3tal.py").exists():
+        if (parent / "source" / "m3tal-stack").exists() and (parent / "m3tal.py").exists():
             root = parent
             break
     if not root:
@@ -54,7 +54,7 @@ ROOT = _bootstrap_env()
 # --- Execution Helpers --------------------------------------------------------
 def get_compose_files():
     """Dynamically discover all docker-compose files in priority order."""
-    docker_dir = ROOT / "docker"
+    docker_dir = ROOT / "source" / "m3tal-stack"
     compose_files = []
     
     # 1. Network setup MUST be first
@@ -100,12 +100,12 @@ def cmd_obsolete():
 def cmd_build(args):
     """Enforces a clean rebuild of the control plane containers."""
     print("\n[BUILD] Triggering no-cache build of M3TAL Control Plane...")
-    compose_file = ROOT / "docker" / "m3tal-compose.yml"
+    compose_file = ROOT / "source" / "m3tal-stack" / "m3tal-compose.yml"
     project_name = get_project_name(compose_file)
     env_file = ROOT / ".env"
     cmd = ["docker", "compose", "-p", project_name, "--env-file", str(env_file), "-f", str(compose_file), "build", "--no-cache"]
     try:
-        subprocess.run(cmd, cwd=str(ROOT / "docker"), check=True)
+        subprocess.run(cmd, cwd=str(ROOT / "source" / "m3tal-stack"), check=True)
         print("[INIT] Build successful. Containers are up to date.")
         return 0
     except Exception as e:
@@ -113,14 +113,14 @@ def cmd_build(args):
         return 1
 
 def _ensure_network():
-    """Ensures the M3TAL 'proxy' network exists."""
-    print("[INIT] Ensuring 'proxy' network exists...")
+    """Ensures the M3TAL 'm3tal' network exists."""
+    print("[INIT] Ensuring 'm3tal' network exists...")
     try:
-        subprocess.run(["docker", "network", "inspect", "proxy"], capture_output=True, check=True)
+        subprocess.run(["docker", "network", "inspect", "m3tal"], capture_output=True, check=True)
     except subprocess.CalledProcessError:
-        print("[INIT] Creating 'proxy' network...")
+        print("[INIT] Creating 'm3tal' network...")
         try:
-            subprocess.run(["docker", "network", "create", "proxy"], check=True)
+            subprocess.run(["docker", "network", "create", "m3tal"], check=True)
         except Exception as e:
             print(f"[X] Failed to create network: {e}")
             return False
@@ -249,7 +249,7 @@ def cmd_pull(args):
 
 def cmd_reset_history(args):
     """Resets the resource usage history data."""
-    history_file = ROOT / "docker" / "state" / "history.json"
+    history_file = ROOT / "source" / "m3tal-stack" / "state" / "history.json"
     if history_file.exists():
         try:
             history_file.unlink()
@@ -271,7 +271,7 @@ def cmd_dashpass(args):
         print("    Install it with: pip install bcrypt")
         return 1
         
-    users_file = ROOT / "docker" / "state" / "users.json"
+    users_file = ROOT / "source" / "m3tal-stack" / "users.json"
     
     # Audit Fix: Ensure parent directory exists
     users_file.parent.mkdir(parents=True, exist_ok=True)

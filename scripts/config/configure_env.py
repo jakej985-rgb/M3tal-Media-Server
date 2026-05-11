@@ -208,8 +208,8 @@ def main():
         hash_val = bcrypt.hashpw(passwd, salt).decode('utf-8')
         new_env["TRAEFIK_AUTH_HASH"] = hash_val # Store raw for reference
         
-        # Write dedicated users file for Traefik middleware
-        traefik_users_path = os.path.join(REPO_ROOT, "docker", "state", "traefik-dynamic-dir", "users")
+        # Consolidated path for Traefik dynamic config under CONFIG_DIR
+        traefik_users_path = os.path.join(new_env["CONFIG_DIR"], "traefik", "dynamic", "users")
         os.makedirs(os.path.dirname(traefik_users_path), exist_ok=True)
         with open(traefik_users_path, "w", encoding="utf-8") as f:
             f.write(f"{auth_user}:{hash_val}\n")

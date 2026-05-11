@@ -8,7 +8,7 @@ from pathlib import Path
 p = Path(__file__).resolve()
 REPO_ROOT = None
 for parent in [p] + list(p.parents):
-    if (parent / ".env").exists() and (parent / "docker").exists():
+    if (parent / ".env").exists() and (parent / "source" / "m3tal-stack").exists():
         REPO_ROOT = parent
         break
 
@@ -60,7 +60,7 @@ def load_env_safe():
 
 def main():
     if not ROOT:
-        print("❌ ERROR: Could not locate repository root (missing .env or docker/)")
+        print("❌ ERROR: Could not locate repository root (missing .env or source/m3tal-stack/)")
         sys.exit(1)
         
     env = load_env_safe()
