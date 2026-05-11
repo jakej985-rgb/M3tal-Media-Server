@@ -47,12 +47,7 @@ cd M3tal-Media-Server
 ```
 
 #### 2. Run the Interactive Installer
-The `install.py` script is the primary entry point for new installations. It performs the following actions:
-- **Dependency Audit**: Verifies Git, Docker, and Python availability.
-- **Venv Setup**: Creates a Python virtual environment and installs requirements.
-- **Scaffolding**: Creates necessary host directories (`/mnt/media`, `/mnt/config`, etc.).
-- **Interactive Config**: Launches a wizard to generate your `.env` file and set your administrative password.
-- **Network Initialization**: Creates the required `proxy` Docker bridge network.
+The `install.py` script is the primary entry point for new installations. It handles the venv creation, scaffolding, and initial configuration.
 
 ```bash
 # On Linux/macOS
@@ -60,6 +55,45 @@ python3 install.py
 
 # On Windows (PowerShell)
 python install.py
+```
+
+---
+
+### ⚙️ Detailed Configuration
+
+If you prefer manual configuration or need to audit the system requirements:
+
+#### 1. Infrastructure Requirements (Linux)
+M3TAL assumes a standardized storage layout. If the installer didn't create these, run:
+
+```bash
+# Create standardized storage paths
+sudo mkdir -p /mnt/media /mnt/config /mnt/downloads
+
+# Ensure correct permissions (Standard UID/GID 1000)
+sudo chown -R 1000:1000 /mnt/media /mnt/config /mnt/downloads
+sudo chmod -R 775 /mnt/media /mnt/config /mnt/downloads
+```
+
+#### 2. Environment Variables (`.env`)
+The system requires a `.env` file at the root. Key variables include:
+
+```ini
+# --- Core Config ---
+DASHBOARD_PORT=8080
+STATE_DIR=./state
+LOG_LEVEL=info
+
+# --- Auth ---
+DASHBOARD_SECRET=your_super_secret_token_here
+ADMIN_PASSWORD=your_secure_password
+
+# --- Network ---
+NETWORK_NAME=proxy
+LOCAL_IP=192.168.1.100
+
+# --- Storage ---
+BASE_STORAGE_PATH=/mnt
 ```
 
 ---
