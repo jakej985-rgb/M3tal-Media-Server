@@ -132,11 +132,12 @@ type ContainerMetric struct {
 	Mem      float64 `json:"mem"`
 	MemUsage uint64  `json:"mem_usage"`
 	MemLimit uint64  `json:"mem_limit"`
-	Status   string  `json:"status"`
-	State    string  `json:"state"`
-	Managed  bool    `json:"managed"`
-	NetRx    uint64  `json:"net_rx"`
-	NetTx    uint64  `json:"net_tx"`
+	Status       string  `json:"status"`
+	State        string  `json:"state"`
+	HealthStatus string  `json:"health_status"` // "healthy", "unhealthy", "starting", or ""
+	Managed      bool    `json:"managed"`
+	NetRx        uint64  `json:"net_rx"`
+	NetTx        uint64  `json:"net_tx"`
 }
 
 type NetworkMetrics struct {
@@ -378,17 +379,23 @@ func monitorAgent(ctx context.Context, s *M3talState) {
 			} else if _, ok := c.Labels["m3tal.stack"]; ok {
 				managed = true
 			}
+			health := ""
+			if c.State == "running" && c.Health != nil {
+				health = c.Health.Status
+			}
+
 			newStats = append(newStats, ContainerMetric{
-				Name:     name,
-				CPU:      cpuPerc,
-				Mem:      memPerc,
-				MemUsage: memUsage,
-				MemLimit: memLimit,
-				Status:   c.Status,
-				State:    string(c.State),
-				Managed:  managed,
-				NetRx:    netRx,
-				NetTx:    netTx,
+				Name:         name,
+				CPU:          cpuPerc,
+				Mem:          memPerc,
+				MemUsage:     memUsage,
+				MemLimit:     memLimit,
+				Status:       c.Status,
+				State:        string(c.State),
+				HealthStatus: health,
+				Managed:      managed,
+				NetRx:        netRx,
+				NetTx:        netTx,
 			})
 		}
 		s.mu.Lock()
@@ -660,14 +667,56 @@ func reconcileAgent(ctx context.Context, s *M3talState) {
 	logger.Println("Agent started")
 	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	ticker := time.NewTicker(10 * time.Second)
+	
+	// Track recovery attempts to prevent restart loops
+	recoveries := make(map[string]int)
+	lastRecovery := make(map[string]time.Time)
+
 	for range ticker.C {
 		s.mu.RLock()
 		containers := s.Containers
 		s.mu.RUnlock()
+		
 		for _, c := range containers {
-			if c.Managed && (c.State == "exited" || c.State == "dead") {
-				logger.Printf("🛡️ RECONCILE: Restarting crashed container: %s", c.Name)
-				cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{})
+			if !c.Managed { continue }
+
+			shouldHeal := false
+			reason := ""
+
+			// Rule 1: Service is Down
+			if c.State == "exited" || c.State == "dead" {
+				shouldHeal = true
+				reason = "container_down"
+			}
+			
+			// Rule 2: Zombie Service (Running but Unhealthy)
+			if c.State == "running" && c.HealthStatus == "unhealthy" {
+				shouldHeal = true
+				reason = "zombie_unhealthy"
+			}
+
+			if shouldHeal {
+				// Cooldown Check: Max 3 restarts per hour per service
+				if time.Since(lastRecovery[c.Name]) < 1*time.Hour && recoveries[c.Name] >= 3 {
+					logger.Printf("⚠️ RECONCILE: Skipping %s recovery (Rate Limit reached). Possible fatal loop.", c.Name)
+					continue
+				}
+
+				logger.Printf("🛡️ RECONCILE: Healing %s (Reason: %s)", c.Name, reason)
+				
+				if err := cli.ContainerRestart(ctx, c.Name, client.ContainerRestartOptions{}); err != nil {
+					logger.Printf("❌ RECONCILE: Failed to heal %s: %v", c.Name, err)
+				} else {
+					logger.Printf("✅ RECONCILE: Successfully healed %s.", c.Name)
+					
+					// Update recovery tracking
+					if time.Since(lastRecovery[c.Name]) > 1*time.Hour {
+						recoveries[c.Name] = 1
+					} else {
+						recoveries[c.Name]++
+					}
+					lastRecovery[c.Name] = time.Now()
+				}
 			}
 		}
 	}

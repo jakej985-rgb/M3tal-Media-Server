@@ -15,8 +15,8 @@ services:
       - WEBUI_IP_ADDRESS=0.0.0.0
       - TORRENTING_PORT=6881
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/qbittorrent:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
+      - /mnt/config/qbittorrent:/config
+      - /mnt:/mnt
     env_file:
       - ../.env
     labels:
@@ -53,8 +53,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/radarr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
+      - /mnt/config/radarr:/config
+      - /mnt:/mnt
     deploy:
       resources:
         limits:
@@ -86,8 +86,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/sonarr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
+      - /mnt/config/sonarr:/config
+      - /mnt:/mnt
     deploy:
       resources:
         limits:
@@ -107,10 +107,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/bazarr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/bazarr:/config
+      - /mnt:/mnt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bazarr.rule=Host(`bazarr.${DOMAIN:?DOMAIN not set}`)"
@@ -140,10 +138,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/komga:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/komga:/config
+      - /mnt:/mnt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.komga.rule=Host(`komga.${DOMAIN:?DOMAIN not set}`)"
@@ -173,7 +169,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/jellyseerr:/app/config
+      - /mnt/config/jellyseerr:/app/config
+      - /mnt:/mnt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN:?DOMAIN not set}`)"
@@ -199,10 +196,8 @@ services:
     container_name: autobrr
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/autobrr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/autobrr:/config
+      - /mnt:/mnt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.autobrr.rule=Host(`autobrr.${DOMAIN:?DOMAIN not set}`)"
@@ -227,10 +222,8 @@ services:
     container_name: recyclarr
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/recyclarr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/recyclarr:/config
+      - /mnt:/mnt
     labels:
       - "m3tal.stack=media"
       - "m3tal.role=internal"
@@ -252,11 +245,9 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/tdarr:/app/config
-      - ${DATA_DIR:?DATA_DIR not set}/logs/tdarr:/app/logs
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/tdarr:/app/config
+      - /mnt/logs/tdarr:/app/logs
+      - /mnt:/mnt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.tdarr.rule=Host(`tdarr.${DOMAIN:?DOMAIN not set}`)"
@@ -291,10 +282,8 @@ services:
       timeout: 10s
       retries: 3
     volumes:
-      - ${DATA_DIR:?DATA_DIR not set}/config/prowlarr:/config
-      - ${DATA_DIR:?DATA_DIR not set}:/mnt
-      - ${DATA_DIR:?DATA_DIR not set}/downloads:/downloads
-      - ${DATA_DIR:?DATA_DIR not set}/media:/media
+      - /mnt/config/prowlarr:/config
+      - /mnt:/mnt
     env_file:
       - ../.env
     deploy:
