@@ -1,46 +1,51 @@
-As the **Senior DevOps Auditor for the M3TAL platform**, I have performed a clean-room installation attempt of the current repository state. 
+As **DocCritic**, Senior DevOps Auditor for the M3TAL platform, I have performed a rigorous walkthrough of your current documentation. 
 
-### **Verdict: FAILED**
-The documentation is currently insufficient for a standard deployment. As an auditor, I cannot recommend this for production or homelab use in its current state. The "Installation" section assumes a pre-configured environment that the user has no instructions to create, and the bridge between the Go binary and the Docker Compose stack is logically opaque.
+My verdict: **DEPLOYMENT FAILURE.** 
 
----
+The current documentation acts as a conceptual whitepaper rather than a functional runbook. A user following these steps will encounter multiple "Environment Not Found" errors and a broken stack.
 
-### **Issue List**
+### 📋 Detailed Issue List
 
-#### **BLOCKER**
-*   **[BLOCKER] Missing `m3tal.py` initialization:** The README references a Go-native workflow, but provides no instructions on how the Go binary interacts with the `source/m3tal-stack` folder. Does `./m3tal up` look for a specific compose file path? This is undefined.
-*   **[BLOCKER] Missing `.env` template:** The documentation mentions a `.env` file but provides no instruction on *creating* it. A user will fail at `./m3tal up` because the required environment variables are not loaded by the orchestrator.
-*   **[BLOCKER] The `/mnt` Assumption:** You mandate `/mnt/media`, `/mnt/config`, and `/mnt/downloads`. If these directories do not exist on the host, Docker will attempt to create them as `root`-owned folders, causing permission denied errors for the media server. There is no `setup.sh` or check provided.
-
-#### **WARNING**
-*   **[WARNING] Port exposure unknown:** The README defines `DASHBOARD_PORT=8080` in the `.env` section, but fails to mention that the user must expose ports on their host or configure Traefik (mentioned in your prompt but missing from the doc).
-*   **[WARNING] Python/Flask Build Gap:** The README mentions the dashboard is a Python/Flask app, but provides no instructions on installing dependencies (`pip install -r requirements.txt`) or how the Go orchestrator builds/triggers the Python environment.
-
-#### **SUGGESTION**
-*   **[SUGGESTION] Ambiguous "Go-Native" transition:** You state the dashboard is an "API-consumer." The user has no instructions on whether they need to start the API separately or if `./m3tal up` handles the full stack (API + Dashboard + Compose).
+*   **[BLOCKER] Missing `.env` initialization:** The installation process does not mention generating or copying a `.env.example` file. The application will crash immediately on launch if the file is missing, but the user is never instructed to create it from a template.
+*   **[BLOCKER] Traefik/Gateway configuration:** You mention `NETWORK_NAME=proxy` and standard Docker Compose files, but you fail to disclose the entry point (e.g., Traefik/Nginx) or how to access the dashboard once `docker compose up` succeeds.
+*   **[BLOCKER] Hardcoded `/mnt` requirement:** The installation assumes a Linux-native root-level directory (`/mnt`). This is a **host-breaking assumption** for users on Windows (WSL2), macOS, or those without `/mnt` permissions.
+*   **[WARNING] `install.py` ambiguity:** The README mentions `install.py` creates "scaffolding," but it fails to define what that scaffolding *is*. Does it write the `.env`? Does it register the Docker network?
+*   **[WARNING] Missing Build Instructions:** The README discusses Go-native components, but if a developer clones the repo, they have no clear "Build" command for the transitionary components.
+*   **[SUGGESTION] Service Orchestration:** You list `source/m3tal-stack` but don't explain if users should modify the files within that directory. If they are managed via the (missing) Go CLI, users should be warned not to touch them manually.
 
 ---
 
-### **Suggested Fixes**
+### 🛠 Required Fixes
 
-1.  **Add a `setup.sh` script:** Create a script that automates the environment:
-    ```bash
-    mkdir -p /mnt/media /mnt/config /mnt/downloads
-    cp .env.example .env
-    # Prompt user for DASHBOARD_SECRET
-    ```
-2.  **Explicitly define the Orchestration command:** Clarify exactly what `./m3tal up` does. 
-    *   *Correction:* "Running `./m3tal up` invokes `docker compose -f source/m3tal-stack/docker-compose.yml up -d`."
-3.  **Dependency Management:** Add a section for the Dashboard:
-    ```bash
-    # Inside source/dashboard
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    ```
-4.  **Update Prerequisites:** Add `python3-venv` and `docker-compose-plugin` (or `docker-compose`) to the list to ensure the user has the necessary binary environment.
-5.  **Environment Documentation:** Provide a `.env.example` file in the repo and update the docs to instruct the user to: 
-    *   `cp .env.example .env`
-    *   `nano .env` (to configure their specific paths if they choose *not* to use `/mnt`).
+#### 1. Fix the Environment Setup (BLOCKER)
+Add an explicit step before deployment:
+```bash
+# In the root directory
+cp .env.example .env
+# Edit the .env file with your specific paths
+nano .env 
+```
+*Note: Ensure an `.env.example` file actually exists in your repository.*
 
-**DocCritic Note:** *Fix these blockers and resubmit. The architectural transition to Go is promising, but the developer experience (DX) is currently broken.*
+#### 2. Define Gateway Access (BLOCKER)
+Explicitly state how to access the dashboard.
+*   *Action:* "Once the stack is running, access the M3TAL Dashboard at `http://<LOCAL_IP>:8080` (or `http://localhost:8080`). Ensure that your `LOCAL_IP` in `.env` matches your host's network interface."
+
+#### 3. Normalize Storage Paths (BLOCKER)
+Do not hardcode `/mnt`. Update the instructions to allow user-defined paths.
+*   *Correction:* "By default, M3TAL looks for data in `/mnt`. If you wish to store data in a different location (e.g., `~/m3tal_data`), update the `BASE_STORAGE_PATH` in your `.env` file and ensure the directory exists with correct permissions."
+
+#### 4. Clarify `install.py` (WARNING)
+Provide a clear "What this does" section for the installer:
+*   *Refinement:* "The `install.py` script performs three tasks: 1) Creates a Python virtual environment, 2) Installs dependency requirements via `pip`, and 3) Validates that your host system has the necessary Docker volumes available."
+
+#### 5. Add a "Common Troubleshooting" section (SUGGESTION)
+Users will inevitably fail on permissions. Add a simple command:
+```bash
+# If your services fail to write to storage:
+docker compose logs -f
+# Ensure your user ID is correct:
+id -u  # Check if this matches the 1000:1000 in your stack
+```
+
+**DocCritic Final Note:** You are selling a "Control Plane," but the current documentation reads like an architectural roadmap. **Focus on the "How" for the user, not just the "Why" for the design.** Fix the hardcoded paths and the missing `.env` instructions immediately to prevent total project abandonment by new users.
