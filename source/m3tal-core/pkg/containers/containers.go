@@ -8,14 +8,25 @@ import (
 
 // ContainerInfo represents basic container information
 type ContainerInfo struct {
-	ID      string `json:"id"`
+	ID      string   `json:"id"`
 	Names   []string `json:"names"`
-	Image   string `json:"image"`
-	Status  string `json:"status"`
-	State   string `json:"state"`
+	Image   string   `json:"image"`
+	Status  string   `json:"status"`
+	State   string   `json:"state"`
+	CPU     float64  `json:"cpu"`
+	Memory  float64  `json:"memory"`
 }
 
-// Manager handles Docker container operations
+// Provider defines the interface for container management
+type Provider interface {
+	ListContainers() ([]ContainerInfo, error)
+	StartContainer(name string) error
+	StopContainer(name string) error
+	RestartContainer(name string) error
+	Logs(name string, tail string) (string, error)
+}
+
+// Manager handles Docker container operations (implements Provider)
 type Manager struct {
 	cli *client.Client
 }
@@ -45,6 +56,8 @@ func (m *Manager) ListContainers() ([]ContainerInfo, error) {
 			Image:  c.Image,
 			Status: c.Status,
 			State:  string(c.State),
+			CPU:    0.0, // TODO: Fetch from stats
+			Memory: 0.0, // TODO: Fetch from stats
 		})
 	}
 	return info, nil

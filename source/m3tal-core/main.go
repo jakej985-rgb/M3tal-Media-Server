@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
@@ -74,7 +76,38 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd)
+	var daemonCmd = &cobra.Command{
+		Use:   "daemon",
+		Short: "Run M3TAL background agents",
+		Run: func(cmd *cobra.Command, args []string) {
+			log.Println("🚀 M3TAL Core Daemon starting...")
+			
+			// Background Metrics Collection
+			go func() {
+				for {
+					stats, err := system.GetStats()
+					if err == nil {
+						data, _ := json.Marshal(stats)
+						stateDir := os.Getenv("STATE_DIR")
+						if stateDir != "" {
+							_ = os.WriteFile(filepath.Join(stateDir, "metrics.json"), data, 0644)
+						}
+					}
+					time.Sleep(10 * time.Second)
+				}
+			}()
+
+			// Keep alive
+			select {}
+		},
+	}
+
+	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd)
+
+	// Default to daemon if no args
+	if len(os.Args) == 1 {
+		os.Args = append(os.Args, "daemon")
+	}
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
