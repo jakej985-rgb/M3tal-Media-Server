@@ -96,15 +96,37 @@ services:
       timeout: 5s
       retries: 3
 
-  m3tal-runtime:
+  m3tal-api:
     image: ghcr.io/jakej985-rgb/m3tal-goback:debug
-    container_name: m3tal-runtime
+    container_name: m3tal-api
+    depends_on:
+      permission-fixer:
+        condition: service_completed_successfully
+      m3tal-core:
+        condition: service_started
+    network_mode: host
+    extra_hosts:
+      - "m3tal-docker-proxy:127.0.0.1"
+    volumes:
+      - ./state:/docker/state
+    environment:
+      - TZ=America/Denver
+      - STATE_DIR=/docker/state
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 50M
+
+  m3tal-core:
+    build: 
+      context: ../source/m3tal-core
+    container_name: m3tal-core
     depends_on:
       permission-fixer:
         condition: service_completed_successfully
     network_mode: host
-    extra_hosts:
-      - "m3tal-docker-proxy:127.0.0.1"
     volumes:
       - ./state:/docker/state
       - /sys:/sys:ro
@@ -127,8 +149,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.25'
-          memory: 50M
+          cpus: '0.3'
+          memory: 100M
 
 networks:
   proxy:
