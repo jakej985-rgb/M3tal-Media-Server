@@ -130,10 +130,11 @@ This repository is the **Core Orchestrator**. It integrates with the following c
 ---
 
 ## 🛠 Go-Native Migration Status
-The system is currently in a **Go-Native phase**. 
-- **Core Logic**: Moved to `source/go-backend`.
-- **Performance**: Reduced memory overhead by 40% over the previous Python-based monitoring agent.
-- **API Strategy**: The Dashboard is moving toward an API-only architecture where it contains no business logic, delegating all heavy lifting to `go-backend`.
+The system is now fully **Go-Native**.
+- **Core Logic**: Centralized in the `/pkg` directory at the repository root.
+- **CLI**: The primary entry point is the Go-native `./m3tal` binary (`cmd/m3tal`).
+- **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for orchestration.
+- **API Strategy**: The Dashboard is an API-only architecture delegating all logic to the Go `api` service (`cmd/api`).
 
 ---
 

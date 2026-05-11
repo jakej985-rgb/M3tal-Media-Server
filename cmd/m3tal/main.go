@@ -12,6 +12,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -127,7 +128,32 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd)
+	var dashpassCmd = &cobra.Command{
+		Use:   "dashpass [username] [password]",
+		Short: "Manage dashboard users",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			username := args[0]
+			password := ""
+			if len(args) > 1 {
+				password = args[1]
+			} else {
+				fmt.Printf("Password for %s: ", username)
+				fmt.Scanln(&password)
+			}
+			
+			hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatal(err)
+			}
+			
+			fmt.Printf("✅ Updating user %s...\n", username)
+			usersFile := "source/m3tal-stack/users.json"
+			updateUser(usersFile, username, string(hash))
+		},
+	}
+
+	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd)
 
 	// Default to daemon if no args
 	if len(os.Args) == 1 {
@@ -165,4 +191,32 @@ func runCompose(args ...string) {
 			fmt.Printf("❌ Failed to run compose on %s: %v\n", stack, err)
 		}
 	}
+}
+
+func updateUser(filePath, username, hash string) {
+	type User struct {
+		Username string `json:"username"`
+		Hash     string `json:"token_hash"`
+		Role     string `json:"role"`
+	}
+	var users []User
+	data, err := os.ReadFile(filePath)
+	if err == nil {
+		json.Unmarshal(data, &users)
+	}
+
+	found := false
+	for i, u := range users {
+		if u.Username == username {
+			users[i].Hash = hash
+			found = true
+			break
+		}
+	}
+	if !found {
+		users = append(users, User{Username: username, Hash: hash, Role: "admin"})
+	}
+
+	newData, _ := json.MarshalIndent(users, "", "  ")
+	os.WriteFile(filePath, newData, 0644)
 }
