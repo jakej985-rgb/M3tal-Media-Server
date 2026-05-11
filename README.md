@@ -14,8 +14,9 @@
 The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the management plane from the orchestration interface.
 
 ### The Component Stack
-* **Orchestrator (`m3tal.py`)**: The Python-based CLI "Mission Control." It handles host-level lifecycle management, environment verification, and Docker daemon communication.
-* **Backend API (`source/go-backend`)**: The high-performance Go-native engine. It processes metrics, manages state, and performs the "Sense-Think-Act" loop.
+* **Orchestrator (`./m3tal`)**: The Go-native CLI "Mission Control." It handles host-level lifecycle management, environment verification, and Docker daemon communication.
+* **Backend API (`cmd/api`)**: The high-performance Go-native engine. It processes metrics, manages state, and performs the "Sense-Think-Act" loop.
+* **Core Logic (`pkg/`)**: Importable Go library containing all container and system management logic.
 * **Dashboard (`source/dashboard`)**: A Flask-based interface providing visualization and control, communicating exclusively with the Go-backend via REST API.
 * **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose definitions that host the runtime environment.
 
@@ -99,29 +100,23 @@ BASE_STORAGE_PATH=/mnt
 
 Once installed, follow these steps to manage your cluster.
 
-#### 1. Activate Environment
-Always ensure your Python virtual environment is active before running the orchestrator:
-
+#### 1. Build the Control Plane
 ```bash
-# On Linux/macOS
-source venv/bin/activate
-
-# On Windows (PowerShell)
-.\venv\Scripts\activate
+go build -o m3tal ./cmd/m3tal
 ```
 
 #### 2. Launch (Unified Control Plane)
-M3TAL provides a unified CLI for all system orchestration.
+M3TAL provides a unified Go CLI for all system orchestration.
 
 ```bash
-# 1. Start the entire environment (Registry, Backend, and Stacks)
-python m3tal.py up
+# 1. Start the entire environment
+./m3tal up
 
 # 2. Check the status of all services
-python m3tal.py status
+./m3tal status
 
 # 3. Stop everything safely
-python m3tal.py stop
+./m3tal down
 ```
 
 ---
