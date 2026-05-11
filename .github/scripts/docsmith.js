@@ -72,6 +72,15 @@ async function run() {
     "gemini-2.5-flash",
     "gemini-3-flash",
     "gemini-2-flash",
+    "gemma-3-27b",
+    "gemma-3-12b",
+    "gemma-3-4b",
+    "gemma-3-1b",
+    "gemini-1.5-flash", 
+    "gemini-1.5-flash-latest", 
+    "gemini-1.5-flash-001", 
+    "gemini-1.5-flash-002", 
+    "gemini-1.5-pro", 
     "gemini-pro"
   ];
   
