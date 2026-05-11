@@ -22,25 +22,50 @@ M3TAL (Modern Media Management & Management) is an "Autonomous Local Cloud" that
 
 ---
 
-## 🚀 Quick Start
+### 📦 Prerequisites
 
-For a detailed beginner guide, see [Getting Started](docs/GET_STARTED.md).
+Before deploying the M3TAL Control Plane, ensure your host system meets the following requirements:
 
-### 1. Install
+- **Docker Engine**: v20.10+ (Check with `docker info`)
+- **Docker Compose**: v2.0+ (Check with `docker compose version`)
+- **Python**: v3.9+ (For the Orchestrator CLI)
+- **Git**: For repository cloning and updates
 
+> [!NOTE]
+> The M3TAL Go Backend is built and deployed within the Docker infrastructure. **You do not need a local Go toolchain** installed on your host system.
+
+---
+
+### 🚀 Installation Phase
+
+The M3TAL platform uses an interactive, cross-platform installer that handles dependency verification, environment scaffolding, and initial configuration.
+
+#### 1. Clone and Initialize
 ```bash
 git clone https://github.com/jakej985-rgb/M3tal-Media-Server.git
 cd M3tal-Media-Server
+```
 
-# Recommended: Create a virtual environment
-python3 -m venv venv
-# On Windows (PowerShell), you may need to run this first:
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+#### 2. Run the Interactive Installer
+The `install.py` script is the primary entry point for new installations. It performs the following actions:
+- **Dependency Audit**: Verifies Git, Docker, and Python availability.
+- **Venv Setup**: Creates a Python virtual environment and installs requirements.
+- **Scaffolding**: Creates necessary host directories (`/mnt/media`, `/mnt/config`, etc.).
+- **Interactive Config**: Launches a wizard to generate your `.env` file and set your administrative password.
+- **Network Initialization**: Creates the required `proxy` Docker bridge network.
 
-# Cross-platform installer (recommended)
+```bash
+# On Linux/macOS
 python3 install.py
 
+# On Windows (PowerShell)
+python install.py
+```
+
+---
+
+### 🎮 System Orchestration
+Once installed, use the **M3TAL Orchestrator (`m3tal.py`)** to manage the lifecycle of the stack.
 
 ### 2. Launch (Unified Control Plane)
 
@@ -94,6 +119,11 @@ The system uses a high-performance Go-native observability backend that continuo
 4. **Anomaly** → Identifies issues (crashes, leaks).
 5. **Decision** → Plans recovery or scaling actions.
 6. **Reconcile** → Executes actions (restart/scale).
+
+### 📂 Components
+- **Infrastructure (Docker Compose)**: The `source/m3tal-stack` directory contains the standardized Docker Compose configurations for the entire platform. This includes the Go Backend, Dashboard, and core services.
+- **Core Orchestrator**: The `m3tal.py` CLI acts as the system's "Mission Control," wrapping Docker commands into high-level lifecycle actions (`up`, `down`, `status`, `logs`).
+- **Control Plane**: The `agents/` directory houses the Python-based decision and healing agents.
 
 ---
 
