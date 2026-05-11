@@ -645,16 +645,78 @@ func decisionAgent(ctx context.Context, s *M3talState) {
 			s.mu.Lock()
 			score := 100
 			var issues []string
-			if s.Temp.CPUTemp > 85 { score -= 20; issues = append(issues, "CPU Thermal Critical") }
-			if s.System.CPU > 95 { score -= 10; issues = append(issues, "CPU Saturation") }
+
+			// --- 1. Thermal Stress Check (-15 pts each) ---
+			if s.Temp.CPUTemp > 80 {
+				score -= 15
+				issues = append(issues, fmt.Sprintf("High CPU Temp: %.1f°C", s.Temp.CPUTemp))
+			}
+			if s.Temp.GPUTemp > 80 {
+				score -= 15
+				issues = append(issues, fmt.Sprintf("High GPU Temp: %.1f°C", s.Temp.GPUTemp))
+			}
+
+			// --- 2. Resource Saturation (-10 pts each) ---
+			if s.System.CPU > 90 {
+				score -= 10
+				issues = append(issues, "CPU Saturation (>90%)")
+			}
+			if s.System.Mem > 90 {
+				score -= 10
+				issues = append(issues, "Memory Pressure (>90%)")
+			}
+
+			// --- 3. Service Instability (-20 pts each) ---
+			unhealthyCount := 0
+			crashedCount := 0
+			for _, c := range s.Containers {
+				if !c.Managed { continue }
+				if c.HealthStatus == "unhealthy" {
+					unhealthyCount++
+				}
+				if c.State == "exited" || c.State == "dead" {
+					crashedCount++
+				}
+			}
+			if unhealthyCount > 0 {
+				penalty := unhealthyCount * 20
+				score -= penalty
+				issues = append(issues, fmt.Sprintf("%d Unhealthy Services", unhealthyCount))
+			}
+			if crashedCount > 0 {
+				penalty := crashedCount * 20
+				score -= penalty
+				issues = append(issues, fmt.Sprintf("%d Crashed Services", crashedCount))
+			}
+
+			// --- 4. Disk Pressure (-5 pts each) ---
+			for dev, info := range s.Storage.Disks {
+				if info.Percent > 95 {
+					score -= 5
+					issues = append(issues, fmt.Sprintf("Disk Space Critical: %s", dev))
+				}
+			}
+
+			// Finalize Score
+			if score < 0 { score = 0 }
 			
-			mode := "FULL"
-			if score < 50 { mode = "CRITICAL" } else if score < 85 { mode = "DEGRADED" }
+			mode := "OPTIMAL"
+			if score < 40 {
+				mode = "CRITICAL"
+			} else if score < 70 {
+				mode = "DEGRADED"
+			} else if score < 90 {
+				mode = "STABLE"
+			}
 			
 			s.Health = HealthReport{
-				Score: score, Mode: mode, Verdict: mode, Issues: issues,
-				Uptime: getUptime(), Timestamp: time.Now().Unix(),
-				Agents: map[string]Agent{"decision": {Status: "healthy", Timestamp: time.Now().Unix()}},
+				Score:     score,
+				Mode:      mode,
+				Verdict:   mode,
+				Issues:    issues,
+				Uptime:    getUptime(),
+				Timestamp: time.Now().Unix(),
+				Agents:    map[string]Agent{"decision": {Status: "healthy", Timestamp: time.Now().Unix()}},
 			}
 			s.dirty = true
 			s.mu.Unlock()
