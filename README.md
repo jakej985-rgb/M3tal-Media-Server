@@ -1,6 +1,6 @@
 # 🚀 M3TAL Control Plane (v1.4.0.3)
 
-> A lightweight, autonomous, and self-healing container orchestration system for homelabs and small-scale clusters.
+> This repository, named **M3tal-Media-Server**, serves as the **Core Orchestrator and Control Plane** for the broader M3TAL Ecosystem. It is a lightweight, autonomous, and self-healing container orchestration system for homelabs and small-scale clusters.
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python) 
 ![Docker](https://img.shields.io/badge/docker-m3tal-blue?logo=docker)
@@ -65,10 +65,20 @@ python install.py
 ---
 
 ### 🎮 System Orchestration
-Once installed, use the **M3TAL Orchestrator (`m3tal.py`)** to manage the lifecycle of the stack.
 
-### 2. Launch (Unified Control Plane)
+Once installed, follow these steps to manage your cluster.
 
+#### 1. Activate Environment
+Always ensure your Python virtual environment is active before running the orchestrator:
+```bash
+# On Linux/macOS
+source venv/bin/activate
+
+# On Windows (PowerShell)
+.\venv\Scripts\activate
+```
+
+#### 2. Launch (Unified Control Plane)
 M3TAL provides a unified CLI for all system orchestration.
 
 ```bash
@@ -97,7 +107,27 @@ python m3tal.py stop
 > Add an alias for easier access: `alias m3tal="python m3tal.py"`
 
 > [!WARNING]
-> Running `docker compose` inside `docker/media/` or other subdirs is **broken by design** and will fail. Always execute from the repository root to ensure correct volume mounting and networking.
+> Running `docker compose` directly inside `source/m3tal-stack/` is **intentionally unsupported** for core services. To add your own services, see the [Custom Stacks](#-adding-your-own-media-services) section below.
+
+---
+
+### 🌐 External Access & Reverse Proxy
+
+M3TAL uses a dedicated `proxy` Docker network to isolate services. To expose your media services (Plex, Sonarr, etc.) to the internet:
+- **Integrated Gateway**: The system includes a Traefik-based reverse proxy pre-configured for the `proxy` network.
+- **Automatic Discovery**: Services added with the correct Docker labels (e.g., `traefik.http.routers...`) are automatically picked up and assigned SSL certificates via Let's Encrypt.
+- **Dashboard Access**: By default, the Dashboard is exposed on port `8080` for initial setup, but should be proxied behind a domain for production use.
+
+---
+
+### 🛠 Adding Your Own Media Services
+
+To orchestrate your own services (Plex, Radarr, Nextcloud, etc.) alongside the M3TAL core:
+
+1. **Create a User Stack**: Place your custom `docker-compose.yml` files in the `source/user-stacks/` directory.
+2. **Network Integration**: Ensure your services join the `proxy` network to communicate with the M3TAL backend and reverse proxy.
+3. **Deployment**: Run `python m3tal.py up` — the orchestrator automatically discovers and deploys all stacks in `user-stacks/`.
+4. **Monitoring**: M3TAL's autonomous agents will automatically begin sensing health and metrics for your new containers.
 
 ### 3. Login
 
@@ -143,6 +173,21 @@ M3TAL is designed to be **safe**:
 * [ ] Predictive AI Scaling (predicting load spikes)
 * [ ] Gossip protocol node discovery
 * [ ] Plugin system for custom agents
+
+---
+
+## 🧹 Uninstallation & Cleanup
+
+To completely remove M3TAL and its associated data:
+
+1. **Stop Services**: `python m3tal.py down`
+2. **Remove Infrastructure**:
+   ```bash
+   docker network rm proxy
+   # Optional: docker system prune -a (WARNING: removes all unused images/networks)
+   ```
+3. **Delete Files**:
+   Remove the repository directory and any host-mounted storage paths (e.g., the directory you chose for `/mnt/media` and `/mnt/config` during installation).
 
 ---
 
