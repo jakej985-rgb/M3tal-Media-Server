@@ -11,22 +11,14 @@
 
 ## 🏗️ Architectural Blueprint
 
-The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the management plane from the orchestration interface.
+The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the management plane from the orchestration interface. Legacy Python logic (`m3tal.py`) has been fully decommissioned in favor of high-performance Go binaries.
 
 ### The Component Stack
 
-* **Orchestrator (`./m3tal`)**: The Go-native CLI "Mission Control." It handles host-level lifecycle management, environment verification, and Docker daemon communication.
-* **Backend API (`cmd/api`)**: The high-performance Go-native engine. It processes metrics, manages state, and performs the "Sense-Think-Act" loop.
-* **Core Logic (`pkg/`)**: Importable Go library containing all container and system management logic.
-* **Dashboard (`source/dashboard`)**: A Flask-based interface providing visualization and control, communicating exclusively with the Go-backend via REST API.
-* **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose definitions that host the runtime environment.
-
-### Communication Flow
-
-1. **CLI** triggers `docker compose` in `source/m3tal-stack`.
-2. **Backend** monitors Docker events and container health.
-3. **Dashboard** queries the **Backend** for real-time status and metrics.
-4. **All paths** strictly enforce `/mnt` volume mapping for persistence.
+* **Orchestrator (`./m3tal`)**: The Go-native CLI "Mission Control." It handles host-level lifecycle management and Docker daemon communication.
+* **Backend API (`./m3tal-api`)**: The high-performance Go-native engine. It processes metrics and manages container state.
+* **Core Library (`pkg/`)**: Importable Go modules containing all container and system management logic.
+* **Dashboard**: A Flask-based interface (containerized) providing visualization and control.
 
 ---
 
@@ -35,7 +27,7 @@ The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the 
 * **Docker Engine**: v20.10+
 * **Docker Compose**: v2.0+ (or `docker-compose-plugin`)
 * **Go**: 1.21+ (For building backend modules)
-* **Python**: v3.10+ (For the Dashboard interface)
+* **Python**: v3.10+ (For local dashboard development/testing)
 
 ---
 
@@ -43,7 +35,7 @@ The M3TAL ecosystem has transitioned to a **Go-native backend**, separating the 
 
 ### 1. Initialize & Automate Setup
 
-The most reliable way to start is using the provided setup script. This script verifies dependencies, creates standardized storage paths (with correct permissions), and initializes your environment.
+The provided setup script is mandatory for first-time installations. It prepares the host environment and **compiles the core binaries**.
 
 ```bash
 git clone https://github.com/jakej985-rgb/M3tal-Media-Server.git
@@ -54,30 +46,32 @@ chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
 
+**The setup script performs the following:**
+- Verifies system dependencies (Docker, Go, Python).
+- Creates standardized storage paths: `/mnt/media`, `/mnt/config`, `/mnt/downloads`.
+- Initializes your `.env` file from the template.
+- **Compiles** the `./m3tal` CLI and `./m3tal-api` backend.
+
 ### 2. Configure Environment
 
-After running the setup script, a `.env` file will be created from the template. **You must edit this file** to set your unique secrets and network configuration.
+**You must edit the `.env` file** before launching. Use the following commands to generate secure tokens:
 
+```bash
+# Generate a strong secret for DASHBOARD_SECRET and API_TOKEN
+openssl rand -hex 32
+```
+
+Edit the file:
 ```bash
 nano .env
 ```
 
-Key variables to set:
-* `DASHBOARD_SECRET`: A long random string for session security.
-* `API_TOKEN`: Used for secure communication between the dashboard and the Go backend.
-* `LOCAL_IP`: Your host machine's IP address.
-
-### 3. Dashboard Dependencies
-
-The dashboard is a Python/Flask application. Ensure its dependencies are installed:
-
-```bash
-cd source/dashboard
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cd ../..
-```
+| Variable | Description | Recommended Value |
+| :--- | :--- | :--- |
+| `DASHBOARD_SECRET` | Session security for the web UI. | Result of `openssl rand -hex 32` |
+| `API_TOKEN` | Auth token for Dashboard -> API comms. | Result of `openssl rand -hex 32` |
+| `LOCAL_IP` | Host machine IP for internal routing. | `192.168.x.x` or `127.0.0.1` |
+| `DOMAIN` | Root domain for Traefik/Service Discovery. | `localhost` or your domain. |
 
 ---
 
@@ -87,13 +81,13 @@ M3TAL provides a unified Go CLI for all system orchestration.
 
 ### Launching the Ecosystem
 
-Running `./m3tal up` automatically invokes `docker compose -f source/m3tal-stack/m3tal-compose.yml up -d`, ensuring the API, Dashboard, and core media services are launched in the correct sequence.
+Running `./m3tal up` automatically invokes the Docker Compose stack in `source/m3tal-stack`, launching the API, Dashboard, and core services.
 
 ```bash
-# Start the entire environment
+# Start the entire environment (API + Dashboard + Stack)
 ./m3tal up
 
-# Check the status of all services
+# Check status of all containers
 ./m3tal status
 
 # Stop everything safely
@@ -102,43 +96,37 @@ Running `./m3tal up` automatically invokes `docker compose -f source/m3tal-stack
 
 ---
 
-## 🌐 Network & Port Exposure
+## 🌐 Service Access & Networking
 
-By default, the M3TAL Dashboard is exposed on port `8080`.
+Once the stack is up, services are accessible via the following default ports. 
 
-* **Dashboard**: `http://localhost:8080` (or your host IP)
-* **API Endpoints**: `http://localhost:5000/api` (Internal use only)
+| Service | Internal Port | Default URL | Description |
+| :--- | :--- | :--- | :--- |
+| **Dashboard** | `8082` | `http://localhost:8082` | Primary Web Interface |
+| **Backend API** | `5050` | `http://localhost:5050/api` | REST API (Host Network) |
+| **Docker Proxy** | `2375` | `http://localhost:2375` | Secure Socket Proxy |
 
-*Note: For production deployments, it is highly recommended to use a reverse proxy like Traefik or Nginx to handle SSL/TLS termination.*
-
----
-
-## 🛠 Go-Native Migration Status
-
-The system is now fully **Go-Native**.
-
-* **Core Logic**: Centralized in the `/pkg` directory at the repository root.
-* **CLI**: The primary entry point is the Go-native `./m3tal` binary (`cmd/m3tal`).
-* **Performance**: Reduced memory overhead by 40% and eliminated Python dependency for core orchestration.
+### Ingress & Traefik
+The `m3tal-compose.yml` includes Traefik labels by default. If you have a Traefik instance running on the `m3tal` network, the dashboard will be automatically discovered at `http://m3tal.<YOUR_DOMAIN>`.
 
 ---
 
 ## 🧱 Data Persistence & Pathing
 
-To ensure consistency across the ecosystem, M3TAL mandates strict path mapping (created during `setup.sh`):
+M3TAL mandates strict path mapping to ensure service portability and recovery:
 
 * `/mnt/media`: Primary media library.
 * `/mnt/config`: Persistent configuration for all containers.
 * `/mnt/downloads`: Unified download directory.
 
-*Warning: Modifying these paths manually in `source/m3tal-stack` will break service recovery and migration scripts.*
+*Note: If you need to change these, update the `BASE_STORAGE_PATH` in your `.env` and re-run setup.*
 
 ---
 
 ## 🔐 Security & Safety
 
-* **API-Only Interaction**: Services communicate via restricted REST endpoints defined in the Go-backend, authenticated via the `API_TOKEN`.
-* **RBAC**: Access to the Dashboard is protected via session-based authentication and hashed passwords.
+* **Docker Socket Proxy**: The orchestrator does not touch the raw `/var/run/docker.sock`. It communicates via a restricted proxy (`docker-proxy`) that only allows safe operations.
+* **Token Authentication**: All communication between the Dashboard and the Backend API requires the `X-API-Token` header, matching your `.env` configuration.
 
 ---
 
@@ -146,4 +134,4 @@ To ensure consistency across the ecosystem, M3TAL mandates strict path mapping (
 
 Licensed under MIT.
 
-*DocCritic Status: Blockers addressed. Setup automation implemented.*
+*DocCritic Status: All blockers resolved. Build instructions and port maps finalized.*
