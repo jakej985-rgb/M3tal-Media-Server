@@ -1,120 +1,67 @@
-# m3tal-core Plan (Control Plane)
+# M3TAL Core Architecture (Go-Native)
 
-## Purpose
-Central brain of the system.
+## 🧠 Sense-Think-Act Loop
+The system is built on a 6-pillar architecture implemented as high-performance Go agents.
 
-Handles:
-- Agents
-- Automation
-- Self-healing
-- System state
+### 1. Monitor (`monitorAgent`)
+**Role**: Senses container state.
+- Tracks Docker container status (running, exited, dead).
+- Gathers per-container CPU, Memory, and I/O metrics.
+- Discovers "managed" containers via labels (`m3tal.managed`).
 
----
+### 2. Metrics (`metricsAgent`)
+**Role**: Senses hardware and host state.
+- Collects system-wide CPU and Memory usage.
+- Discovers hardware temperatures (hwmon/thermal zones).
+- Polls GPU metrics (Load, VRAM, Temp) via `radeontop` or sysfs.
+- Monitors storage health (Usage, SMART temperatures).
 
-## Goals
-- Single entrypoint (`run.sh`)
-- Stable agent execution loop
-- Centralized logging + state
-- No Docker definitions here
+### 3. Anomaly (`anomalyAgent`)
+**Role**: Identifies abnormal patterns.
+- Watches Docker event streams for sudden crashes or restart loops.
+- Scans container logs for critical errors, panics, or fatal exceptions.
+- Surfaces "Anomalies" to the state machine.
 
----
+### 4. Decision (`decisionAgent`)
+**Role**: The Brain.
+- Analyzes the current state (Health Score).
+- Evaluates anomalies and determines corrective actions.
+- Enforces cooldowns to prevent flapping.
+- Generates "Decisions" for the Reconciler.
 
-## Structure
+### 5. Reconcile (`reconcileAgent`)
+**Role**: The Hands.
+- Executes approved decisions.
+- Restarts failed services.
+- Triggers alerts via Notify.
+- (Future) Performs auto-scaling actions.
 
-m3tal-core/
-├── m3tal.py
-├── agents/
-├── logs/
-├── state/
-├── config/
-├── internal/
-└── run.sh
-
----
-
-## Tasks
-
-### 1. Normalize agents
-- Move all agents into `/agents`
-- Ensure all scripts are executable
-
-chmod +x agents/*.sh
-
----
-
-### 2. Fix run loop
-
-Create `run.sh`:
-
-#!/bin/bash
-
-LOG_DIR="./logs"
-mkdir -p "$LOG_DIR"
-
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_DIR/core.log"
-}
-
-run_agents() {
-  bash agents/monitor.sh
-  bash agents/metrics.sh
-  bash agents/anomaly-agent.sh
-  bash agents/decision-engine.sh
-  bash agents/reconcile.sh
-  bash agents/registry.sh
-}
-
-log "Starting m3tal-core..."
-
-while true; do
-  run_agents
-  sleep 10
-done
+### 6. Registry (`registryAgent`)
+**Role**: Memory and Persistence.
+- Synchronizes the in-memory state to atomic JSON files.
+- Ensures the Dashboard has a real-time view of the system.
+- Maintains historical metrics for trend analysis.
 
 ---
 
-### 3. Standardize paths
+## 🛠️ Implementation Specs
 
-ALL agents must use:
+### Directory Structure
+```
+source/go-backend/
+├── main.go        # Unified agent entrypoint
+├── vendor/        # Pinned dependencies
+└── logs/          # Isolated agent logs
+```
 
-/mnt
+### Persistence
+All state is persisted to `./state/*.json` to ensure the Control Plane can restart without losing context.
 
----
-
-### 4. Permissions
-
-sudo chown -R 1000:1000 /mnt
-sudo chmod -R 775 /mnt
-
----
-
-### 5. Logging
-
-Each agent logs to:
-
-/logs/<agent>.log
-
----
-
-### 6. State system (required for API later)
-
-Create:
-
-state/system.json
-
-Example:
-
-{
-  "status": "healthy",
-  "containers": {},
-  "last_check": ""
-}
-
----
-
-## Done When
-
-- `./run.sh` runs continuously
-- No agent crashes
-- Logs populate
-- State file updates
+### Observability
+Each pillar logs to its own file:
+- `monitor.log`
+- `metrics.log`
+- `anomaly.log`
+- `decision.log`
+- `reconcile.log`
+- `registry.log`
