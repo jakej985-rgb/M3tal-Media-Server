@@ -49,3 +49,4 @@ jobs:
       with:
         scandir: '.'
         severity: warning
+        ignore_paths: 'source/m3tal-core/vendor node_modules venv .agents'
