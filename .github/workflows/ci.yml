@@ -37,8 +37,8 @@ jobs:
         go-version: '1.26'
     - name: Go Format Check
       run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+        if [ "$(gofmt -s -l . | grep -v vendor | wc -l)" -gt 0 ]; then
           echo "The following files are not formatted correctly:"
-          gofmt -s -l .
+          gofmt -s -l . | grep -v vendor
           exit 1
         fi
