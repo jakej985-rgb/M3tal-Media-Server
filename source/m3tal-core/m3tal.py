@@ -17,18 +17,17 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 # --- Environment Variable Bootstrap -------------------------------------------
 def _bootstrap_env():
-    # Attempt to find root by looking for the 'docker' folder
     p = Path(__file__).resolve()
     root = None
     for parent in [p] + list(p.parents):
-        if (parent / "source" / "m3tal-stack").exists() and (parent / "m3tal.py").exists():
+        if (parent / "source" / "m3tal-stack").exists() and (parent / "README.md").exists():
             root = parent
             break
     if not root:
         return
     
-    # Load .env only if it exists (might be missing in CI)
-    env_path = root / ".env"
+    # Load .env from its new location in m3tal-core
+    env_path = p.parent / ".env"
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
