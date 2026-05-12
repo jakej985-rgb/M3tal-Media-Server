@@ -288,8 +288,11 @@ func main() {
 func runWizard(update bool) {
 	fmt.Println("🛠️  M3TAL Configuration Wizard")
 	
-	// Handle system paths if root on Linux
+	targetFile := ".env"
+	isSystem := false
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		isSystem = true
+		targetFile = "/etc/m3tal/config.yaml"
 		_ = os.MkdirAll("/etc/m3tal", 0755)
 		_ = os.MkdirAll("/var/lib/m3tal", 0755)
 		fmt.Println("✅ System directories initialized (/etc/m3tal, /var/lib/m3tal)")
@@ -299,7 +302,9 @@ func runWizard(update bool) {
 
 	sourceFile := ".env.example"
 	if update {
-		if _, err := os.Stat(".env"); err == nil {
+		if _, err := os.Stat(targetFile); err == nil {
+			sourceFile = targetFile
+		} else if _, err := os.Stat(".env"); err == nil {
 			sourceFile = ".env"
 		}
 	}
@@ -333,10 +338,13 @@ func runWizard(update bool) {
 	}
 
 	content := strings.Join(lines, "\n")
-	if err := os.WriteFile(".env", []byte(content), 0600); err != nil {
+	if err := os.WriteFile(targetFile, []byte(content), 0600); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("\n✅ Configuration saved to .env")
+	fmt.Printf("\n✅ Configuration saved to %s\n", targetFile)
+	if isSystem {
+		fmt.Println("👉 You may also want to symlink this to .env for local stack commands.")
+	}
 }
 
 func printJSON(v interface{}) {

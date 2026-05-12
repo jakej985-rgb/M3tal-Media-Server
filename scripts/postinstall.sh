@@ -1,12 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "[m3tal] Setting up directories..."
+echo "[m3tal] Installed successfully"
 
-mkdir -p /etc/m3tal
-mkdir -p /var/lib/m3tal
-
-chmod 755 /etc/m3tal
-chmod 755 /var/lib/m3tal
-
-echo "[m3tal] Install complete"
+# Optional: create base dir (non-critical)
+mkdir -p /etc/m3tal || true
