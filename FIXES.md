@@ -1,40 +1,62 @@
-### **DocCritic Audit Report**
-**Project:** M3TAL Media Server (v1.4)  
-**Status:** **FAILED**
-
-**Verdict:** The documentation is dangerously incomplete. It assumes a "perfect" environment and fails to explain critical setup sequences. A new user will encounter "File Not Found" errors, environment variable collisions, and mount permission failures immediately. The lack of explicit instruction on `.env` file generation is a major oversight.
-
----
-
-### **Detailed Issue List**
-
-#### **BLOCKER**
-*   **Missing `.env` creation steps:** The documentation mentions a table of environment variables but fails to provide a command to generate the file (e.g., `cp .env.example .env`). The `m3tal init` command is ambiguous—does it generate the file, or does it fail if the file is missing?
-*   **Mount Point Assumption (`/mnt`):** The documentation mentions `/mnt` as a requirement for host-path consistency but never explains *how* to map this. If a user doesn't have an `/mnt` directory, will the system crash? Does `m3tal` auto-create it?
-*   **Undefined `m3tal` binary usage:** The `build.sh` script is referenced, but there is no instruction on where the resulting binary is placed. Does it stay in root? Does it need to be moved to `/usr/local/bin`? 
-
-#### **WARNING**
-*   **Service Routing Ambiguity:** The documentation claims Traefik is the gateway, but the port table shows the Dashboard at `8082` and Traefik at `8080`. Are these routed *through* Traefik, or are they raw container ports? If they are raw, Traefik is redundant. 
-*   **Go Version Mismatch:** The Prerequisites specify "Go 1.26+". As of this audit, Go 1.26 does not exist (the current stable is 1.23.x). This indicates either a typo or a lack of real-world testing.
-*   **Missing "First Time Run" Flow:** There is no mention of handling Docker Compose files. Does `m3tal up` generate them dynamically? If a user modifies the `source/m3tal-stack`, they are warned not to, but they aren't told *how* the orchestrator handles these templates.
-
-#### **SUGGESTION**
-*   **Configuration Validation:** Add a note about running a validation command (e.g., `./m3tal check`) to verify that the environment and permissions are ready before attempting a full deployment.
-*   **Architecture Diagram:** The text-based "Relationship Mapping" is dense. A simple Mermaid.js diagram showing traffic flow (Browser -> Traefik -> Dashboard/API) would be significantly clearer.
+**DOC-CRITIC AUDIT REPORT v2024.1**
+**Auditor:** DocCritic (Senior DevOps Auditor)
+**Project:** M3TAL Media Server (v1.4)
+**Status:** **REJECTED**
 
 ---
 
-### **Suggested Fixes**
+### ⚖️ VERDICT
+**The documentation is currently UNUSABLE for a new user.** While the architectural overview is high-quality, the installation path contains a "hallucinated" prerequisite and critical gaps regarding repository structure and environment initialization. A user following these steps verbatim will experience a build failure within 60 seconds.
 
-1.  **Add Configuration Step:**
-    *   *Insert:* "Before running `./m3tal init`, you must populate your environment: `cp .env.example .env`. Edit this file to define your `BASE_STORAGE_PATH`."
-2.  **Clarify Mounts:**
-    *   *Add:* "M3TAL expects host media to be located at `/mnt/m3tal`. Ensure this directory exists on your host and is writeable by your user: `sudo mkdir -p /mnt/m3tal && sudo chown $USER:$USER /mnt/m3tal`."
-3.  **Correct Versioning:**
-    *   *Fix:* Update the Prerequisites to reflect the actual minimum supported Go version (e.g., `Go 1.21+`).
-4.  **Define Binary Scope:**
-    *   *Add:* "The `./m3tal` binary will be generated in the root directory. Run all commands as `./m3tal <command>` from the project root."
-5.  **Refine Networking Documentation:**
-    *   *Clarify:* Explicitly state whether the services (8082/5050) are exposed directly to the host or if they *must* be accessed via the Traefik entrypoint (8080). If the latter, the table is misleading and should be updated to show the Traefik frontend hostnames.
-6.  **Add Troubleshooting for Permissions:**
-    *   *Add:* "If Docker volume mounting fails, verify that your user has appropriate permissions on the host path defined in `BASE_STORAGE_PATH`."
+---
+
+### 🚩 DETAILED ISSUE LIST
+
+#### 1. [BLOCKER] Impossible Prerequisite: Go 1.26+
+The documentation requires **Go 1.26+**.
+*   **The Issue:** As of today, the current stable version of Go is 1.22. Go 1.26 does not exist. A user attempting to install "the latest" will find 1.22, assume their environment is "too old," and stop.
+*   **Suggested Fix:** Update the prerequisite to a realistic version (e.g., `Go 1.21+` or `Go 1.22+`).
+
+#### 2. [BLOCKER] The "Empty Shell" Problem (Source Management)
+The README mentions building binaries in `source/` and using `source/m3tal-stack`.
+*   **The Issue:** It is unclear if these directories are included in the main repository, managed via Git Submodules, or if the user needs to clone the "Related Projects" manually into the `source/` folder. If I clone just this repo, `build.sh` will likely fail because `source/` is empty or missing.
+*   **Suggested Fix:** Explicitly state: "Clone with submodules: `git clone --recursive ...`" OR provide a setup script that fetches the dependencies.
+
+#### 3. [BLOCKER] Binary Location Ambiguity
+The Quick Start says to run `./m3tal init`.
+*   **The Issue:** The `build.sh` script "compiles Go-native binaries found in `source/`." It does not state that it moves the resulting orchestrator binary to the root directory. If `go build` outputs to `./source/m3tal/m3tal`, the Quick Start command `./m3tal` will return `command not found`.
+*   **Suggested Fix:** Add a step: `mv source/orchestrator/m3tal .` or ensure `build.sh` explicitly handles the pathing.
+
+#### 4. [WARNING] The `.env` Paradox
+The docs list a table of `.env` variables and state that `m3tal init` generates tokens.
+*   **The Issue:** Does `m3tal init` create the `.env` file from scratch? Does it append to one? Or does the user need to `cp .env.example .env` first? If the user runs `init` without a pre-existing `.env`, the system might crash or use hardcoded defaults that contradict the "Configuration" table.
+*   **Suggested Fix:** Add a step: `cp .env.example .env` before running `./m3tal init`, or clarify that `init` bootstraps the file.
+
+#### 5. [WARNING] Python/Flask Runtime Omission
+The Dashboard is described as a "Python/Flask-based interface."
+*   **The Issue:** Prerequisites only list Docker and Go. If the Dashboard runs inside Docker, this is fine. However, if the `m3tal` orchestrator attempts to run the dashboard locally for dev purposes, the user is missing Python 3.x and `pip install -r requirements.txt`.
+*   **Suggested Fix:** Clarify if the Dashboard is **exclusively** containerized. If not, add Python to Prerequisites.
+
+#### 6. [WARNING] Host Path Assumptions (`/mnt`)
+The "Relationship Mapping" mentions "consistent path mapping at `/mnt` for storage operations."
+*   **The Issue:** On many Linux distros (and specifically WSL), `/mnt` requires root permissions. If the Docker container maps to a host path in `/mnt` that hasn't been `chown`ed to the user, the media server will have permission denied errors.
+*   **Suggested Fix:** Add a note: `sudo mkdir -p /mnt/media && sudo chown $USER:$USER /mnt/media`.
+
+#### 7. [SUGGESTION] Traefik Port Conflict
+`HTTP_PORT` is set to `8080`.
+*   **The Issue:** Port `8080` is a very common default for development tools (Jenkins, Tomcat, other proxy dashboards). 
+*   **Suggested Fix:** Recommend checking port availability or suggest `80` for a "Media Server" experience, with `8080` kept for the Traefik internal dashboard only.
+
+#### 8. [SUGGESTION] Architecture vs. Reality
+The README states the CLI communicates with the API on port `5050` to perform changes.
+*   **The Issue:** If the API is not yet running (because the user hasn't run `./m3tal up`), will `./m3tal config set` fail?
+*   **Suggested Fix:** Clarify which CLI commands are "Offline" (modifying files) and which are "Online" (interacting with the API).
+
+---
+
+### 🛠️ SUMMARY OF REQUIRED CHANGES
+1.  Change **Go 1.26** to **Go 1.21**.
+2.  Add **Git Submodule** instructions.
+3.  Clarify the **Dashboard's** runtime (Docker vs. Host).
+4.  Add a **Permission Warning** for `/mnt`.
+5.  Standardize the **Binary Output Path** in the `build.sh` description.
