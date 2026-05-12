@@ -1,32 +1,68 @@
-As a Senior DevOps Auditor for the M3TAL platform, I have completed a dry-run audit of the deployment documentation.
-
-### **Verdict: FAILED**
-The current documentation is internally inconsistent and assumes a "happy path" that fails the moment a user attempts to reconcile the `Makefile` instructions with the `m3tal` binary usage. It lacks critical security guardrails and path validation, which will lead to immediate environment corruption for new users.
-
----
-
-### **Issue List**
-
-#### **BLOCKER**
-1.  **Instruction Conflict (Orchestrator Bypass):** The README explicitly states: *"**Do NOT** execute `docker compose` commands directly,"* yet the deployment section instructs users to use `make up` and `make down`. If the `Makefile` runs `docker compose` internally, you are violating your own "Critical Directive" and bypassing the `m3tal` binary’s lifecycle management.
-2.  **Missing `.env` Validation:** The documentation mentions `./m3tal init` generates security credentials, but it does not specify if this command creates the `.env` file from a template (e.g., `.env.example`). If the file does not exist, the build will crash, but the user is given no instruction on how to handle a missing config file.
-3.  **Path Assumption/Permissions:** You state: *"All deployed services will utilize consistent mounting points, typically under `/mnt`."* However, standard users do not have write access to `/mnt` by default. There is no instruction to `chown` or `chmod` these directories, which will cause container start failures (Permission Denied).
-
-#### **WARNING**
-4.  **Traefik Gateway Omission:** While Traefik ports are listed in the table, there is zero documentation on how to configure Traefik routes or if the `m3tal` binary handles Traefik dynamic configuration. Users will be unable to actually route traffic to the dashboard via the ingress.
-5.  **Environment Variable Precedence:** It is unclear if variables set via `./m3tal config set` persist in the `.env` file or if they are volatile memory-only settings. Users need to know if they can manually edit `.env` or if the CLI is the only supported method.
-
-#### **SUGGESTION**
-6.  **Dependency Check Script:** Instead of asking users to install Go 1.26+, provide a `pre-flight.sh` that checks for `docker`, `go`, and `make`, and verifies the Docker daemon is responding.
-7.  **Windows/Linux Path Syntax:** The Windows instructions reference `.\m3tal.exe`, but the `Makefile` (which you recommend) is a Unix-native tool. Windows users cannot run `make up` out-of-the-box. This is a major technical gap for cross-platform support.
+**To:** Engineering Team / Repository Maintainers
+**From:** DocCritic, Senior DevOps Auditor
+**Subject:** Deployment Readiness Audit: M3TAL Media Server
 
 ---
 
-### **Suggested Fixes**
+### **OVERALL VERDICT: FAIL**
+The documentation is currently **un-deployable** for a new user without internal knowledge. While the architectural overview is excellent, the operational instructions contain "Impossible Prerequisites," contradictory pathing logic, and significant gaps regarding the container lifecycle and environment bootstrap.
 
-*   **For the "Orchestrator Bypass" (Blocker):** Remove the `make up`/`make down` commands from the guide. Ensure the `m3tal` CLI manages the stack entirely: `./m3tal up` and `./m3tal down`. If `make` must be used, the `Makefile` should call the `m3tal` binary, not raw `docker compose`.
-*   **For the `.env` configuration (Blocker):** Update the `init` section: 
-    *   *Add:* "Run `./m3tal init` to generate your `.env` file from the provided `template.env`." 
-    *   *Add:* A warning: "Verify the `BASE_STORAGE_PATH` exists on your host and that the current user has write permissions: `sudo chown $USER:$USER /mnt/your-path`."
-*   **For the Traefik/Ports (Warning):** Add a "Networking" section clarifying that Traefik acts as the reverse proxy. Specify: "The Dashboard is accessible via `http://localhost:8080` (routed via Traefik)."
-*   **For Windows/Linux Parity (Suggestion):** Standardize the command structure. If the binary is named `m3tal`, prioritize `./m3tal up` for all platforms and move platform-specific shell scripts into a `/scripts` directory. Remove the suggestion of `make` if it cannot be guaranteed to work on both WSL and native Windows.
+---
+
+### **DETAILED ISSUE LIST**
+
+#### 🛑 BLOCKER: Impossible Prerequisite (Go Version)
+*   **Issue:** The README requires **Go 1.26+**. 
+*   **Reasoning:** As of late 2024, the current stable version of Go is 1.23. Go 1.26 does not exist. A new user following this will spend an hour searching for a non-existent SDK.
+*   **Suggested Fix:** Update the prerequisite to a realistic version (e.g., Go 1.21+ or 1.22+) that matches your actual `go.mod` file.
+
+#### 🛑 BLOCKER: The "Chicken and Egg" Configuration 
+*   **Issue:** The instructions tell the user to run `./m3tal init` in Step 2, but only explain the `.env` file in the "Configuration" section *after* deployment.
+*   **Reasoning:** If `./m3tal init` generates the `.env`, the user needs to know what it’s doing. If the user is supposed to create the `.env` manually first to define `BASE_STORAGE_PATH`, the `init` command will likely fail or use incorrect defaults.
+*   **Suggested Fix:** Move the `.env` table *before* the Deployment section. Explicitly state: "1. Create .env from template, 2. Run build, 3. Run init."
+
+#### ⚠️ WARNING: Contradictory Pathing Logic
+*   **Issue:** The "M3TAL Ecosystem Integration" section claims the system "Emphasizes the use of a consistent `/mnt` path," but the Configuration table lists the default `BASE_STORAGE_PATH` as `./data`.
+*   **Reasoning:** This is a classic "Dev-only" assumption. If the production standard is `/mnt/m3tal`, the default in the `.env` should reflect that, or the documentation should explain why it differs.
+*   **Suggested Fix:** Align the documentation. If `/mnt` is the standard, provide the command `sudo mkdir -p /mnt/m3tal && sudo chown $USER /mnt/m3tal`.
+
+#### ⚠️ WARNING: Missing Binary Permissions
+*   **Issue:** You mention `chmod +x build.sh`, but you do not mention `chmod +x m3tal` after the build is complete.
+*   **Reasoning:** On many Linux distributions, a newly compiled binary may not have execution bits set depending on the umask. A new user will get `Permission Denied` and stall.
+*   **Suggested Fix:** Add `chmod +x m3tal m3tal-api` to the build instructions.
+
+#### ⚠️ WARNING: Dashboard Build Ambiguity
+*   **Issue:** The "Build the Platform" section only covers Go binaries. It mentions the Dashboard is Python/Flask.
+*   **Reasoning:** Does the user need `pip install`? Is there a `requirements.txt`? Or is the Dashboard *only* built via Docker? If it's the latter, the "Build" section should explicitly state: "Go binaries are built locally; the Dashboard is handled via Docker."
+*   **Suggested Fix:** Clarify the build scope. Add a "Dashboard" subsection under Build if local Python dependencies are required for development.
+
+#### ⚠️ WARNING: Network Ingress Confusion (Traefik)
+*   **Issue:** The port table lists Traefik on 8080/443 and Dashboard on 8082.
+*   **Reasoning:** If Traefik is the "Primary HTTP ingress," users should be accessing the services via Traefik (likely using hostnames like `dashboard.local`). If they access `localhost:8082` directly, they are bypassing the Orchestrator's gateway, which often breaks headers, SSL, and authentication.
+*   **Suggested Fix:** Clarify the "Recommended Access Method." Should they use the Traefik port or the direct service port? If Traefik is used, provide a sample `/etc/hosts` entry.
+
+#### 💡 SUGGESTION: Missing "Source" Context
+*   **Issue:** You mention `source/m3tal-stack`, but the CLI commands are run from the root.
+*   **Reasoning:** A user might try to `cd` into `source` to run Docker commands. 
+*   **Suggested Fix:** Explicitly state that all `./m3tal` commands must be run from the repository root.
+
+---
+
+### **REQUIRED FIXES SUMMARY**
+
+1.  **Correct Go Version:** Change 1.26+ to 1.21+ (or current).
+2.  **Order of Operations:** 
+    *   1. Build Binaries.
+    *   2. Configure `.env` (Define storage and ports).
+    *   3. `init` (Generate keys).
+    *   4. `up` (Deploy).
+3.  **Storage Setup:** Add a "Storage Preparation" step:
+    ```bash
+    # Ensure storage directory exists
+    mkdir -p ./data
+    ```
+4.  **CLI Verification:** Add a step to verify the build: `./m3tal --version`.
+5.  **Environment Template:** Mention if a `.env.example` exists. If not, the user has to copy-paste from the README table, which is error-prone.
+
+**DocCritic Rating:** 4/10. 
+*The engine is built, but the manual is for a different car.*
