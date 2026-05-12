@@ -1,9 +1,16 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "../../");
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
 
-const readme = fs.readFileSync("README.md", "utf-8");
+const readmePath = path.join(rootDir, "README.md");
+const readme = fs.readFileSync(readmePath, "utf-8");
 
 const prompt = `
 You are DocCritic, a Senior DevOps Auditor for the M3TAL platform.
@@ -46,19 +53,21 @@ async function run() {
       const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(prompt);
       const output = result.response.text();
-      fs.writeFileSync("FIXES.md", output);
+      const fixesPath = path.join(rootDir, "FIXES.md");
+      fs.writeFileSync(fixesPath, output);
 
       console.log("--- DocCritic Audit Report ---");
       console.log(output);
       console.log("------------------------------");
 
       // Log results but do NOT fail CI (per user request: "shouldnt fail if qa has change remendations")
+      const failedPath = path.join(rootDir, ".doc-failed");
       if (output.includes("BLOCKER")) {
         console.warn("DocCritic found BLOCKER issues. Please review FIXES.md and address them when possible.");
-        fs.writeFileSync(".doc-failed", "true");
+        fs.writeFileSync(failedPath, "true");
       } else {
         console.log("DocCritic audit passed (No Blockers).");
-        if (fs.existsSync(".doc-failed")) fs.unlinkSync(".doc-failed");
+        if (fs.existsSync(failedPath)) fs.unlinkSync(failedPath);
       }
 
       console.log(`DocCritic complete using ${modelName}`);
