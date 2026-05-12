@@ -10,13 +10,12 @@ import (
 
 // Server handles API requests
 type Server struct {
-	Manager  *containers.Manager
 	APIToken string
 }
 
 // NewServer creates a new API server
-func NewServer(mgr *containers.Manager, token string) *Server {
-	return &Server{Manager: mgr, APIToken: token}
+func NewServer(token string) *Server {
+	return &Server{APIToken: token}
 }
 
 // AuthMiddleware validates the API token
@@ -37,7 +36,12 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // ListContainers returns all containers
 func (s *Server) ListContainers(w http.ResponseWriter, r *http.Request) {
-	list, err := s.Manager.ListContainers()
+	mgr, err := containers.GetProvider()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	list, err := mgr.ListContainers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -21,12 +21,7 @@ func main() {
 		apiToken = "m3tal-secret-token"
 	}
 
-	mgr, err := containers.NewManager()
-	if err != nil {
-		log.Fatalf("❌ Failed to initialize container manager: %v", err)
-	}
-
-	srv := api.NewServer(mgr, apiToken)
+	srv := api.NewServer(apiToken)
 
 	log.Println("🚀 M3TAL API Interface starting on :5050...")
 
@@ -35,12 +30,15 @@ func main() {
 	http.HandleFunc("/api/metrics", srv.AuthMiddleware(srv.GetStats))
 
 	http.HandleFunc("/api/containers/start", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		mgr, _ := containers.GetProvider()
 		srv.HandleContainerAction(w, r, mgr.StartContainer)
 	}))
 	http.HandleFunc("/api/containers/stop", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		mgr, _ := containers.GetProvider()
 		srv.HandleContainerAction(w, r, mgr.StopContainer)
 	}))
 	http.HandleFunc("/api/containers/restart", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		mgr, _ := containers.GetProvider()
 		srv.HandleContainerAction(w, r, mgr.RestartContainer)
 	}))
 

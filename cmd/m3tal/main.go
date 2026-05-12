@@ -22,7 +22,7 @@ func main() {
 		Use:   "list",
 		Short: "List all containers",
 		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := containers.NewManager()
+			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -39,7 +39,7 @@ func main() {
 		Short: "Start a container",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := containers.NewManager()
+			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -55,7 +55,7 @@ func main() {
 		Short: "Stop a container",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := containers.NewManager()
+			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
 			}
