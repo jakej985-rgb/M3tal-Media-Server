@@ -206,7 +206,73 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd)
+	var configCmd = &cobra.Command{
+		Use:   "config",
+		Short: "Manage M3TAL environment variables",
+	}
+
+	var configListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List all configuration variables",
+		Run: func(cmd *cobra.Command, args []string) {
+			content, err := os.ReadFile(".env")
+			if err != nil {
+				log.Fatal("❌ .env not found. Run 'init' first.")
+			}
+			fmt.Println(string(content))
+		},
+	}
+
+	var configSetCmd = &cobra.Command{
+		Use:   "set [key] [value]",
+		Short: "Set a configuration variable",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			key := args[0]
+			val := args[1]
+			
+			content, err := os.ReadFile(".env")
+			if err != nil {
+				log.Fatal("❌ .env not found. Run 'init' first.")
+			}
+
+			newContent := replaceSecret(string(content), key+"=", val)
+			// If not found, append
+			if !strings.Contains(newContent, key+"=") {
+				newContent += fmt.Sprintf("\n%s=%s", key, val)
+			}
+
+			if err := os.WriteFile(".env", []byte(newContent), 0600); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("✅ Config updated: %s=%s\n", key, val)
+		},
+	}
+
+	var configGetCmd = &cobra.Command{
+		Use:   "get [key]",
+		Short: "Get a configuration variable",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			key := args[0]
+			content, err := os.ReadFile(".env")
+			if err != nil {
+				log.Fatal("❌ .env not found. Run 'init' first.")
+			}
+
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, key+"=") {
+					fmt.Println(strings.TrimPrefix(line, key+"="))
+					return
+				}
+			}
+			fmt.Printf("❌ Key '%s' not found.\n", key)
+		},
+	}
+
+	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd)
+	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, configCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

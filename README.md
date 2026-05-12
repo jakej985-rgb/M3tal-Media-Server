@@ -105,6 +105,19 @@ Run the following to set your admin password:
 ./m3tal dashpass admin yourpassword
 ```
 
+### Configuration Management
+Manage your `.env` variables directly via the CLI:
+```bash
+# List all variables
+./m3tal config list
+
+# Set a variable (e.g., your domain)
+./m3tal config set DOMAIN mydomain.com
+
+# Get a specific value
+./m3tal config get API_PORT
+```
+
 ---
 
 ## 🧭 Troubleshooting
