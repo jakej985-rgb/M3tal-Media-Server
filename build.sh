@@ -29,14 +29,25 @@ if [ -z "$GO_CMD" ]; then
     exit 1
 fi
 
+# 1. Dependency Management
+# This ensures all Go modules are downloaded and verified before compilation.
+echo "📥 Downloading dependencies..."
+$GO_CMD mod download
+$GO_CMD mod tidy
+
+# 2. Build M3TAL CLI
+# Compiles the main orchestration binary.
 echo "🚀 Building M3TAL CLI..."
 $GO_CMD build -o m3tal ./cmd/m3tal
 
+# 3. Build M3TAL API
+# Compiles the backend API service.
 echo "🚀 Building M3TAL API..."
 $GO_CMD build -o m3tal-api ./cmd/api
 
 if [ $? -eq 0 ]; then
-    echo "✅ Build complete."
+    chmod +x m3tal m3tal-api
+    echo "✅ Build complete. Binaries: ./m3tal, ./m3tal-api"
 else
     echo "❌ Build failed."
     exit 1
