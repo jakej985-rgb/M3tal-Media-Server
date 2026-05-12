@@ -33,7 +33,7 @@ func main() {
 	http.HandleFunc("/api/containers", srv.AuthMiddleware(srv.ListContainers))
 	http.HandleFunc("/api/containers/list", srv.AuthMiddleware(srv.ListContainers))
 	http.HandleFunc("/api/metrics", srv.AuthMiddleware(srv.GetStats))
-	
+
 	http.HandleFunc("/api/containers/start", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		srv.HandleContainerAction(w, r, mgr.StartContainer)
 	}))

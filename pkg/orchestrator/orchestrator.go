@@ -28,13 +28,13 @@ func (s *Stack) Run(action string, args ...string) error {
 		if _, err := os.Stat(file); os.IsNotExist(err) {
 			continue
 		}
-		
+
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
 		cmdArgs := append([]string{"compose", "-f", file, action}, args...)
 		cmd := exec.Command("docker", cmdArgs...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		
+
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to run %s on %s: %w", action, file, err)
 		}
