@@ -183,9 +183,6 @@ func main() {
 			_ = os.MkdirAll("./data", 0755)
 			
 			// Generate secrets
-			secret := make([]byte, 32)
-			_, _ = os.ReadDir(".") // Just to check
-			
 			if _, err := os.Stat(".env"); err == nil {
 				fmt.Println("⚠️  .env already exists. Skipping secret generation.")
 				return

@@ -13,9 +13,9 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 ## 🛠️ Prerequisites
 
 1. **Docker Engine**: v20.10+ (Ensure your user is in the `docker` group).
-2. **Go 1.26+**: Required to build the core binaries.
-3. **Python 3.10+**: Required for the dashboard runtime.
-4. **Storage**: A mount point for media.
+2. **Go 1.26+**: Required to build the core binaries (`m3tal`, `m3tal-api`). 
+   - *Tip*: If you see `go: No such file or directory`, ensure Go is in your `$PATH`.
+3. **Storage**: A mount point for media.
    - Default: `./data` (Portable, user-local).
    - Override: Set `BASE_STORAGE_PATH` in your `.env`.
 
@@ -24,26 +24,50 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 ## 🚀 Quick Start (Linux/WSL)
 
 ### 1. Build the Platform
-Use the provided `Makefile` to automate compilation:
+Standardize your binaries by building the CLI and the API.
+
+**Linux/WSL (with make):**
 ```bash
 make build
 ```
 
+**Windows (PowerShell):**
+```powershell
+./build.ps1
+```
+
+**Manual (No make/script):**
+```bash
+go build -o m3tal ./cmd/m3tal
+go build -o m3tal-api ./cmd/api
+```
+
 ### 2. Initialize Environment
 Prepare the environment and generate secure secrets automatically:
-```bash
-# Setup Dashboard dependencies
-pip install -r source/dashboard/requirements.txt
 
-# Initialize .env with fresh secrets
+**Linux/WSL:**
+```bash
 ./m3tal init
+```
+
+**Windows:**
+```powershell
+.\m3tal.exe init
 ```
 
 ### 3. Start the Stack
 Initialize the orchestrator and launch all services (including Dashboard):
+
+**Linux/WSL:**
 ```bash
 ./m3tal pull
 make up
+```
+
+**Windows:**
+```powershell
+.\m3tal.exe pull
+.\m3tal.exe up
 ```
 
 ---
@@ -83,6 +107,11 @@ Run the following to set your admin password:
 - **Logs**: Always check the orchestrator logs first: `./m3tal list`
 - **Manual Debug**: If necessary, check container logs directly: `docker logs m3tal-dashboard`
 - **Clean-up**: To stop the entire stack, run `make down` or `./m3tal down`.
+- **Docker on Windows (WSL)**: If you see `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`:
+  1. Ensure **Docker Desktop** is running.
+  2. Check "Settings > General > Use the WSL 2 based engine".
+  3. Verify "Settings > Resources > WSL Integration" is enabled for your distribution.
+  4. Try restarting Docker Desktop.
 
 ---
 
