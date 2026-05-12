@@ -4,9 +4,9 @@ M3TAL is a high-performance media server control plane built with **Go 1.26** an
 
 ## 🧠 Architecture: The M3TAL Orchestrator
 
-The `./m3tal` binary is more than a CLI; it is a **native Go orchestrator**. When you run `./m3tal up`, the following happens:
-1. It imports `pkg/orchestrator`.
-2. It programmatically executes `docker compose` across three specialized stacks:
+The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
+- **Important**: Do **not** run `docker compose` commands manually unless debugging. Interacting directly with the compose files may cause state desync with the Go Orchestrator.
+- The orchestrator programmatically manages:
    - `network-compose.yml`: Virtual networking and DNS.
    - `routing-compose.yml`: Traefik gateway and SSL.
    - `m3tal-compose.yml`: Core API, Dashboard, and Agents.
@@ -15,35 +15,39 @@ The `./m3tal` binary is more than a CLI; it is a **native Go orchestrator**. Whe
 
 ## 🛠️ Prerequisites
 
-1. **Docker Engine**: v20.10+
-2. **Docker Compose**: v2.0+
-3. **Go 1.26+**: Required to build the core binaries.
-4. **Storage**: A mount point for media (Default: `/mnt`). 
-   - *Note*: Ensure this directory exists: `sudo mkdir -p /mnt && sudo chown $USER:$USER /mnt`.
+1. **Docker Engine**: v20.10+ (Ensure your user is in the `docker` group).
+2. **Go 1.26+**: Required to build the core binaries.
+3. **Python 3.10+**: Required for the dashboard runtime.
+4. **Storage**: A mount point for media.
+   - Default: `/mnt`. 
+   - Override: Set `BASE_STORAGE_PATH` in your `.env`.
+   - *Pre-flight*: `mkdir -p /your/path && sudo chown $USER:$USER /your/path`.
 
 ---
 
 ## 🚀 Quick Start (Linux/WSL)
 
 ### 1. Build the Platform
-Standardize your binaries by building the CLI and the API:
+Use the provided `Makefile` to automate compilation:
 ```bash
-go build -o m3tal ./cmd/m3tal
-go build -o m3tal-api ./cmd/api
+make build
 ```
 
 ### 2. Initialize Environment
-Prepare the directory structure and generate your secret keys:
+Prepare dependencies and configuration:
 ```bash
+# Setup Dashboard dependencies
+pip install -r source/dashboard/requirements.txt
+
+# Initialize .env
 cp .env.example .env
-# Edit .env with your domain and storage paths
 ```
 
 ### 3. Start the Stack
-Initialize the orchestrator and pull images:
+Initialize the orchestrator and launch services:
 ```bash
 ./m3tal pull
-./m3tal up
+make up
 ```
 
 ---
@@ -62,11 +66,13 @@ Initialize the orchestrator and pull images:
 
 ## ✅ Verification & Access
 
-Once the orchestrator reports success, verify your deployment:
-
-1. **Dashboard**: Access at [http://localhost:8082](http://localhost:8082)
-2. **API Health**: `curl http://localhost:5050/api/metrics`
-3. **Container Status**: `./m3tal list` or `docker compose ps`
+### Service Endpoints & Firewall
+| Service | Local URL | Port | Firewall Required |
+| :--- | :--- | :--- | :--- |
+| **Dashboard** | `http://localhost:8082` | `8082` | **Yes** (External Access) |
+| **Backend API** | `http://localhost:5050` | `5050` | **No** (Internal Only) |
+| **Traefik Web** | `http://localhost:80` | `80` | **Yes** (HTTP) |
+| **Traefik SSL** | `http://localhost:443` | `443` | **Yes** (HTTPS) |
 
 ### Initial Login
 Run the following to set your admin password:
@@ -78,9 +84,9 @@ Run the following to set your admin password:
 
 ## 🧭 Troubleshooting
 
-- **Permissions**: If the stack fails to start, verify that your user is in the `docker` group.
-- **Port Conflicts**: Ensure ports `80`, `443`, `8082`, and `5050` are not in use.
-- **Logs**: View real-time logs with `docker compose -f source/m3tal-stack/m3tal-compose.yml logs -f`.
+- **Logs**: Always check the orchestrator logs first: `./m3tal list`
+- **Manual Debug**: If necessary, check container logs directly: `docker logs m3tal-dashboard`
+- **Reverse Proxy**: Traefik is included by default. For custom domains, ensure your `DOMAIN` variable in `.env` matches your DNS records.
 
 ---
 

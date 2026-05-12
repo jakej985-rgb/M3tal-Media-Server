@@ -1,29 +1,33 @@
-# M3TAL Core Makefile
+# M3TAL Platform Makefile
 
-BINARY_NAME=m3tal
-API_NAME=m3tal-api
+.PHONY: build clean up down status help
 
-.PHONY: all build build-linux clean fmt tidy vendor
-
-all: build
+help:
+	@echo "M3TAL Management Utility"
+	@echo "Usage:"
+	@echo "  make build    - Compile CLI and API binaries"
+	@echo "  make clean    - Remove compiled binaries"
+	@echo "  make up       - Start the M3TAL stack using the Go orchestrator"
+	@echo "  make down     - Stop the M3TAL stack"
+	@echo "  make status   - List container status"
 
 build:
-	go build -o $(BINARY_NAME) ./cmd/m3tal
-	go build -o $(API_NAME) ./cmd/api
-
-build-linux:
-	GOOS=linux GOARCH=amd64 go build -o $(BINARY_NAME)-linux ./cmd/m3tal
-	GOOS=linux GOARCH=amd64 go build -o $(API_NAME)-linux ./cmd/api
+	@echo "🚀 Building M3TAL CLI..."
+	go build -o m3tal ./cmd/m3tal
+	@echo "🚀 Building M3TAL API..."
+	go build -o m3tal-api ./cmd/api
+	@echo "✅ Build complete."
 
 clean:
-	rm -f $(BINARY_NAME) $(API_NAME) $(BINARY_NAME)-linux $(API_NAME)-linux
-	rm -f *.exe
+	@echo "🧹 Cleaning binaries..."
+	rm -f m3tal m3tal-api
+	@echo "✅ Cleanup complete."
 
-fmt:
-	gofmt -s -w .
+up: build
+	./m3tal up
 
-tidy:
-	go mod tidy
+down:
+	./m3tal down
 
-vendor:
-	go mod vendor
+status:
+	./m3tal list
