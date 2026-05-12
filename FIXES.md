@@ -1,62 +1,36 @@
-As **DocCritic**, I have performed a rigorous audit of the M3TAL Control Plane v1.4.0.3 documentation. My verdict: **FAIL**. 
+### **DocCritic Audit Report: M3TAL Control Plane (v1.4.0.3)**
 
-The documentation assumes the user is already an engineer familiar with your specific infrastructure quirks. It lacks critical instructions for setting up the Python runtime, compiling the Go backend, and reconciling the `.env` file between different sub-directories.
-
----
-
-### **Verdict: FAILED**
-*The current documentation acts more like a reference for the author than an installation manual for a new user. Without clear instructions on how to bridge the Go backend, the Python dashboard, and the Docker stack, the project is currently "dead on arrival" for a clean-install user.*
+**Verdict:** ❌ **REJECTED**
+The current documentation is an "insider-only" document. It assumes the user has deep knowledge of the project's internal directory structure and hidden dependencies. A new user will fail at Step 4 due to missing runtime context and environment variables.
 
 ---
 
 ### **Detailed Issue List**
 
-| ID | Type | Description |
-| :--- | :--- | :--- |
-| 1 | **BLOCKER** | **Missing Python Dependencies:** No `requirements.txt` or `pip install` instruction provided for the Flask dashboard. |
-| 2 | **BLOCKER** | **Missing Build/Execution steps:** The Go-native backend is mentioned but there are no instructions to compile/run it. |
-| 3 | **WARNING** | **.env Scope Confusion:** You have one `.env` at the root, but the dashboard and stack are in sub-directories. Do they read the root file, or do I need to copy it? |
-| 4 | **WARNING** | **Hardcoded Path Assumption:** The docs assume `/mnt` exists. This will fail on macOS/Windows and specific Linux distros without manual `mkdir` commands. |
-| 5 | **WARNING** | **Missing Port Mapping/Traefik:** The service map mentions a port, but the `docker-compose.yml` logic for the Dashboard is never explicitly started or verified. |
-| 6 | **SUGGESTION** | **No Health Check:** No command provided to verify if the connection between the Dashboard, Go-Backend, and Docker is actually working. |
+#### **BLOCKER**
+1.  **Missing `m3tal.py` / Orchestrator Context:** Step 4 runs `./m3tal`. Is this the Go binary, or is it a wrapper? The `m3tal.py` mentioned in my instructions is absent, and the Go build instructions for `m3tal-api` are provided but never utilized in a startup command.
+2.  **Environment Variable Omission:** The `.env.example` file structure is not documented. If `BASE_STORAGE_PATH` is required, what are the *other* required keys? The deployment will crash if a user leaves the default `.env.example` as-is.
+3.  **Missing Docker-Compose Entry:** Step 4 calls `./m3tal up`, but nowhere does it explain how `m3tal` interacts with `source/m3tal-stack/docker-compose.yml`. Does the binary auto-generate a compose file? Run it directly? This is a "black box" that will result in a deployment failure.
+4.  **Missing Port/Gateway Documentation:** There is zero mention of ports (e.g., 80, 443, 8080) or Traefik/Reverse Proxy integration. A user will have no idea which URL to hit to verify the deployment.
+
+#### **WARNING**
+5.  **Host Dependency Assumption:** The documentation assumes `/mnt` exists or is the correct target. On many systems (e.g., standard Debian/Ubuntu), `/mnt` is empty and requires root permissions or specific mounting.
+6.  **"Go-Native" Confusion:** The stack involves Go binaries *and* a Python/Flask dashboard. The instructions do not explain how the Python dashboard dependencies (pip install) are handled or if they are containerized within the stack.
+
+#### **SUGGESTION**
+7.  **Service Connectivity Table:** The current table is useless for a user; it lists file paths, not endpoints (e.g., `http://localhost:8080`).
+8.  **Setup Script Transparency:** `scripts/setup.sh` is a "blind execution." The README should document what this script modifies (e.g., does it install Docker? Does it edit fstab?).
 
 ---
 
 ### **Suggested Fixes**
 
-#### 1. Add Environment Setup (Fixes Blocker 1 & 2)
-Add an initialization section after cloning:
-```bash
-# Setup Dashboard environment
-cd source/dashboard
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Start Backend (Assume binary or run command)
-# Example: go build -o m3tal-backend ./main.go && ./m3tal-backend &
-```
-
-#### 2. Standardize Configuration (Fixes Warning 3)
-Clarify in the documentation: 
-*"The M3TAL platform expects the root `.env` file to be symlinked or accessible to both the `source/dashboard` and `source/m3tal-stack` directories. Please ensure you have configured all required keys before launching."*
-
-#### 3. Formalize Path Requirements (Fixes Warning 4)
-Change the Prerequisite section to include:
-*   **Storage Setup**: Ensure your host machine has a designated media directory. If you are not using `/mnt`, update `BASE_STORAGE_PATH` in your `.env` *before* running `docker-compose`. 
-*   *Command:* `sudo mkdir -p /mnt && sudo chown $USER:$USER /mnt`
-
-#### 4. Add a "Verification" Section (Fixes Suggestion 6)
-Add a "Post-Deployment Verification" step:
-*   Check Docker: `docker-compose ps` (All services should be `Up`).
-*   Check API: `curl -H "Authorization: Bearer <API_TOKEN>" http://localhost:<BACKEND_PORT>/health`.
-*   Check Dashboard: Access at `http://localhost:8082`.
-
-#### 5. Documentation Layout
-You refer to `m3tal.py` in your prompt requirements but it is absent from the README. **Include a CLI helper.** If `m3tal.py` is intended to be an entry point for users, document it:
-```bash
-python3 m3tal.py setup --storage /your/path
-python3 m3tal.py start
-```
-
-**DocCritic Note:** *Fix these items, and the project becomes deployable. Right now, a developer will spend 2 hours debugging your missing dependency chain.*
+*   **For Blocker 1 & 3:** Explicitly state: "The `m3tal` binary acts as a wrapper for `docker compose`. Ensure your Docker daemon is running, as the binary calls `docker compose -f source/m3tal-stack/docker-compose.yml up -d` internally."
+*   **For Blocker 2:** Provide a table of required `.env` variables:
+    *   `BASE_STORAGE_PATH`: (e.g., `/mnt/m3tal_data`)
+    *   `API_PORT`: (e.g., `8080`)
+    *   `DASHBOARD_PORT`: (e.g., `5000`)
+*   **For Blocker 4:** Add a "Verification" section: "Once deployed, access your dashboard at `http://<YOUR_HOST_IP>:5000`."
+*   **For Warning 5:** Add a pre-flight check: "Ensure `/mnt` is writable by your user or adjust `BASE_STORAGE_PATH` to a directory you own (e.g., `/home/user/m3tal`). Run `mkdir -p $BASE_STORAGE_PATH` before proceeding."
+*   **For Warning 6:** Clarify if the Python dashboard is built via Dockerfile. If so, add `docker compose build` to the deployment steps. If not, add a `pip install -r requirements.txt` step.
+*   **General:** Add a "Quick Start" diagram or a command-line tree showing exactly where `m3tal` and `m3tal-api` binaries should be placed after compilation.
