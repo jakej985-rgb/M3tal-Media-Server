@@ -1,4 +1,4 @@
-# 🚀 M3TAL Media Server (v1.4)
+# 🚀 M3TAL Media Server (v1.5)
 
 M3TAL is a high-performance media server control plane built with **Go 1.26** and **Python 3.10**. It features a native Go orchestrator that manages a multi-stack Docker environment for media services, routing, and system monitoring.
 
@@ -18,6 +18,12 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 3. **Storage**: A mount point for media.
    - Default: `./data` (Portable, user-local).
    - Override: Set `BASE_STORAGE_PATH` in your `.env`.
+
+### 🚦 Pre-flight Check
+Before starting, ensure the following:
+*   **Port Availability**: Ports `80`, `443`, `8080`, and `5050` must not be in use by other services (like Nginx or Apache).
+*   **Permissions**: If you are not in the `docker` group, prefix commands with `sudo` or run `sudo usermod -aG docker $USER`.
+*   **Source of Truth**: The orchestrator manages files in `source/m3tal-stack/`. For system-wide installs, these reside in `/usr/share/m3tal/stack/`.
 
 ---
 
@@ -98,6 +104,23 @@ make up
 | **Backend API** | `http://localhost:5050` | `5050` | **No** (Internal Only) |
 | **Traefik Web** | `http://localhost:8080` | `8080` | **Yes** (HTTP) |
 | **Traefik SSL** | `http://localhost:443` | `443` | **Yes** (HTTPS) |
+
+---
+
+## 🌐 Networking & SSL
+
+M3TAL uses **Traefik** as a local gateway and **Cloudflare Tunnel (`cloudflared`)** for secure external access.
+
+### SSL Termination
+*   **Internal**: Traffic within your LAN is served over plain HTTP via Traefik on port `8080` (or `80`).
+*   **External**: SSL is terminated at the Cloudflare edge. The `cloudflared` container securely tunnels traffic to Traefik, meaning you do **not** need to open ports on your router or manage Let's Encrypt certificates locally.
+
+### Custom Domains
+To expose a service (e.g., `qbittorrent`), update the `DOMAIN` variable via the CLI:
+```bash
+./m3tal config set DOMAIN yourdomain.com
+```
+Traefik will automatically pick up the new labels and route `qbittorrent.yourdomain.com` to the correct container.
 
 ### Initial Login
 Run the following to set your admin password:
