@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
+	"github.com/jakej985-rgb/m3tal-core/pkg/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -108,7 +108,10 @@ func main() {
 		Use:   "up",
 		Short: "Initialize and start the M3TAL environment",
 		Run: func(cmd *cobra.Command, args []string) {
-			runCompose("up", "-d")
+			stack := orchestrator.NewStack()
+			if err := stack.Run("up", "-d"); err != nil {
+				log.Fatal(err)
+			}
 		},
 	}
 
@@ -116,7 +119,10 @@ func main() {
 		Use:   "down",
 		Short: "Stop all M3TAL stacks",
 		Run: func(cmd *cobra.Command, args []string) {
-			runCompose("down")
+			stack := orchestrator.NewStack()
+			if err := stack.Run("down"); err != nil {
+				log.Fatal(err)
+			}
 		},
 	}
 
@@ -124,7 +130,10 @@ func main() {
 		Use:   "pull",
 		Short: "Pull latest images",
 		Run: func(cmd *cobra.Command, args []string) {
-			runCompose("pull")
+			stack := orchestrator.NewStack()
+			if err := stack.Run("pull"); err != nil {
+				log.Fatal(err)
+			}
 		},
 	}
 
@@ -142,14 +151,11 @@ func main() {
 				fmt.Scanln(&password)
 			}
 
-			hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			fmt.Printf("✅ Updating user %s...\n", username)
 			usersFile := "source/m3tal-stack/users.json"
-			updateUser(usersFile, username, string(hash))
+			if err := auth.UpdateUser(usersFile, username, password); err != nil {
+				log.Fatal(err)
+			}
 		},
 	}
 
@@ -169,54 +175,4 @@ func main() {
 func printJSON(v interface{}) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Println(string(data))
-}
-
-func runCompose(args ...string) {
-	stacks := []string{
-		"source/m3tal-stack/network-compose.yml",
-		"source/m3tal-stack/routing-compose.yml",
-		"source/m3tal-stack/m3tal-compose.yml",
-	}
-
-	for _, stack := range stacks {
-		if _, err := os.Stat(stack); os.IsNotExist(err) {
-			continue
-		}
-		fmt.Printf("🚀 Running docker compose %v on %s...\n", args, stack)
-		cmdArgs := append([]string{"compose", "-f", stack}, args...)
-		c := exec.Command("docker", cmdArgs...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if err := c.Run(); err != nil {
-			fmt.Printf("❌ Failed to run compose on %s: %v\n", stack, err)
-		}
-	}
-}
-
-func updateUser(filePath, username, hash string) {
-	type User struct {
-		Username string `json:"username"`
-		Hash     string `json:"token_hash"`
-		Role     string `json:"role"`
-	}
-	var users []User
-	data, err := os.ReadFile(filePath)
-	if err == nil {
-		json.Unmarshal(data, &users)
-	}
-
-	found := false
-	for i, u := range users {
-		if u.Username == username {
-			users[i].Hash = hash
-			found = true
-			break
-		}
-	}
-	if !found {
-		users = append(users, User{Username: username, Hash: hash, Role: "admin"})
-	}
-
-	newData, _ := json.MarshalIndent(users, "", "  ")
-	os.WriteFile(filePath, newData, 0644)
 }
