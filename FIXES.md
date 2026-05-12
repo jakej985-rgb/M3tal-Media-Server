@@ -1,47 +1,42 @@
-### **DocCritic Audit Report**
-**Platform:** M3TAL v1.4
-**Auditor:** Senior DevOps Auditor
-**Status:** **FAILED**
+**Verdict:** **FAILED (DEPLOYMENT BLOCKED)**
+
+As a new user, I attempted to stand up this stack. I hit a hard wall at Step 2. The documentation assumes a level of pre-existing environment configuration that is not documented, provides no path for error recovery, and lacks critical network access information. This project is currently unusable for anyone not already on your development team.
 
 ---
 
-### **Verdict**
-The current documentation is a "death trap" for new users. It assumes prior knowledge of the internal directory structure, neglects critical environment variable instantiation, and fails to define the entry point for the dashboard service. **Deployment is currently impossible for a fresh user.**
-
----
-
-### **Issue List**
+### Detailed Issue List
 
 #### **BLOCKER**
-1.  **Missing `m3tal.py` initialization:** The architecture claims a Python-based dashboard exists, but there is no instruction on how to run/start the Python process. `m3tal up` only starts the Go orchestrator/containers.
-2.  **Unconfigured `.env` variables:** The `API_TOKEN` is listed as "(Generated)" in the table but no instructions are provided on *how* to generate it, nor is there a script to initialize it. The app will likely crash on boot without a secret.
-3.  **Pathing/Permissions Enforced at Root:** You require `/mnt/m3tal`. This is a massive "dev-only" anti-pattern. Requiring root-level directory creation (`/mnt`) on a Linux machine often requires `sudo` and can collide with existing mount points.
+*   **Missing `.env` Template:** The docs mention a `.env` file, but there is no `cp .env.example .env` step. The Orchestrator (`./m3tal init`) fails immediately if these variables aren't defined, but the user is never told what to put in them.
+*   **Undefined `make` targets:** The instructions call for `make build`, but there is no `Makefile` mentioned or provided in the repo structure. If I don't have a `Makefile` in the root, the process dies at Step 1.
+*   **Environment Initialization Failure:** The instruction `./m3tal init` implies it creates secrets, but provides no feedback on where these secrets are stored or if the user needs to manually create the `./data` directory first.
 
 #### **WARNING**
-1.  **Ambiguous CLI usage:** You warn against using `docker compose` directly, but don't explain how the orchestrator maps to `source/m3tal-stack`. Does the orchestrator look into that specific folder by default? What if the user moves the binary?
-2.  **Dashboard/API decoupling:** The dashboard is Python, the Backend is Go. Are these orchestrated by the binary? If I run `./m3tal up`, does the Python dashboard process spawn, or do I need to run it separately? (Documentation is silent).
+*   **Ambiguous Pathing:** The architecture mentions `/mnt` as the standard, but the Prerequisites suggest `./data`. If a user is on Linux and follows standard practice, does the Orchestrator expect `/mnt/m3tal` or will it try to create directories with root privileges? This is a major security/permissions friction point.
+*   **Hidden Port/Gateway Logic:** The documentation states Traefik is used, yet there is no mention of a `traefik.yml` or how the container network maps to `8080`. Users will likely have conflicts if they already run a web server on port 8080.
+*   **Incomplete Security Workflow:** `dashpass` is mentioned, but it is not clear if this must be run *before* or *after* `./m3tal up`. If the container relies on this variable to boot, the order of operations is backwards.
 
 #### **SUGGESTION**
-1.  **Traefik Configuration:** You list Traefik on port `80`. Most local dev environments (and standard Linux distros) have Apache or Nginx occupying port `80`. This will cause an immediate "Address already in use" error.
-2.  **Missing "Clean-up" commands:** There is no `down` or `destroy` command documented for the orchestrator, leaving the user with orphaned containers if things go wrong.
+*   **Dependency Verification:** Add a check for `go` and `python` versions within the `m3tal` binary or a shell script. Just saying "Go 1.26+ required" isn't helpful; tell me how to check if I have it.
+*   **Missing Docker context:** The docs say "Avoid manual Docker commands," but don't explain how to stop, restart, or view logs for the stack via the orchestrator.
 
 ---
 
-### **Suggested Fixes**
+### Suggested Fixes
 
-*   **Fixing Pathing (BLOCKER):**
-    *   Change the default to a user-local directory (e.g., `~/.m3tal/data`).
-    *   Update `BASE_STORAGE_PATH` in `.env.example` to point to `./data`.
-*   **Fixing Orchestrator/Dashboard Startup (BLOCKER):**
-    *   Explicitly state the boot sequence: "After running `./m3tal up`, initialize the Python backend via `python3 source/dashboard/main.py`."
-    *   *Better yet:* Add a start command to the Go binary, e.g., `./m3tal start-dashboard`.
-*   **Fixing API Token (BLOCKER):**
-    *   Add a setup command: `./m3tal init-config` which writes a random hash to `.env`.
-*   **Fixing Port Conflicts (SUGGESTION):**
-    *   Change the default Traefik web-port to `8080` in `m3tal-stack/docker-compose.yml` to avoid standard port 80 conflicts.
-*   **Improving `m3tal.py` usage:**
-    *   Clarify if `m3tal` is a compiled Go binary or a Python script. Your docs say "Go-native" but the file extension used in commands (`./m3tal`) is ambiguous. If it's a binary, remove the `.py` references from the repo structure or explain the relationship.
-
----
-
-**Auditor Note:** *You are forcing the user to be a developer to run the software. An orchestrator should hide the complexity, not add to it. Refactor the `Quick Start` to be a linear, idempotent script execution.*
+1.  **Add a `Setup` Section:**
+    *   Add: `cp .env.example .env`
+    *   Add: `mkdir -p ./data` (ensure the user knows they need write access).
+2.  **Provide the `Makefile`:** Explicitly include the `Makefile` contents in the docs or repo so `make build` actually works.
+3.  **Clarify `/mnt` usage:** Explicitly state if the orchestrator expects a root-level mount point or a relative path. If it requires `/mnt`, provide the `chown` command users need to run to avoid "Permission Denied" errors.
+4.  **Update Quick Start order:**
+    ```bash
+    # Corrected Flow
+    1. cp .env.example .env
+    2. make build
+    3. ./m3tal init --secret-generate
+    4. ./m3tal dashpass admin <pass>
+    5. ./m3tal up
+    ```
+5.  **Access Documentation:** Add a troubleshooting note: "If port 8080 is in use, modify `HTTP_PORT` in `.env` and restart the stack."
+6.  **Add Lifecycle Commands:** Document `./m3tal down` and `./m3tal logs` so users aren't left hunting for container IDs to troubleshoot.
