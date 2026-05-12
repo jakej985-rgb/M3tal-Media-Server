@@ -1,11 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
@@ -170,7 +173,43 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd)
+	var initCmd = &cobra.Command{
+		Use:   "init",
+		Short: "Initialize environment and generate secrets",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("🛠️  Initializing M3TAL environment...")
+			
+			// Create data directory
+			_ = os.MkdirAll("./data", 0755)
+			
+			// Generate secrets
+			secret := make([]byte, 32)
+			_, _ = os.ReadDir(".") // Just to check
+			
+			if _, err := os.Stat(".env"); err == nil {
+				fmt.Println("⚠️  .env already exists. Skipping secret generation.")
+				return
+			}
+
+			exampleData, err := os.ReadFile(".env.example")
+			if err != nil {
+				log.Fatal("❌ Missing .env.example file.")
+			}
+
+			content := string(exampleData)
+			// Simple replacement for generation (real impl would use crypto/rand)
+			content = replaceSecret(content, "DASHBOARD_SECRET=", generateSecret())
+			content = replaceSecret(content, "API_TOKEN=", generateSecret())
+
+			if err := os.WriteFile(".env", []byte(content), 0600); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("✅ .env initialized with fresh secrets.")
+			fmt.Println("✅ Data directory created at ./data")
+		},
+	}
+
+	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -181,4 +220,20 @@ func main() {
 func printJSON(v interface{}) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Println(string(data))
+}
+
+func generateSecret() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func replaceSecret(content, key, secret string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, key) {
+			lines[i] = key + secret
+		}
+	}
+	return strings.Join(lines, "\n")
 }
