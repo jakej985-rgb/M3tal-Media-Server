@@ -108,10 +108,17 @@ func main() {
 		Use:   "up",
 		Short: "Initialize and start the M3TAL environment",
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("🚀 Initializing M3TAL Orchestrator...")
 			stack := orchestrator.NewStack()
 			if err := stack.Run("up", "-d"); err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("\n✅ M3TAL Stack is UP!")
+			fmt.Println("--------------------------------------------------")
+			fmt.Println("Dashboard: http://localhost:8082")
+			fmt.Println("API:       http://localhost:5050")
+			fmt.Println("--------------------------------------------------")
+			fmt.Println("Use './m3tal logs' or 'docker compose ps' to monitor.")
 		},
 	}
 
@@ -119,10 +126,12 @@ func main() {
 		Use:   "down",
 		Short: "Stop all M3TAL stacks",
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("🛑 Stopping M3TAL Stacks...")
 			stack := orchestrator.NewStack()
 			if err := stack.Run("down"); err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("✅ All services stopped.")
 		},
 	}
 
@@ -130,10 +139,12 @@ func main() {
 		Use:   "pull",
 		Short: "Pull latest images",
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("📥 Pulling latest service images...")
 			stack := orchestrator.NewStack()
 			if err := stack.Run("pull"); err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("✅ Images updated.")
 		},
 	}
 
@@ -160,11 +171,6 @@ func main() {
 	}
 
 	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd)
-
-	// Default to daemon if no args
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, "daemon")
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
