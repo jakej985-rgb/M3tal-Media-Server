@@ -14,7 +14,7 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 
 1. **Docker Engine**: v20.10+ (Ensure your user is in the `docker` group).
 2. **Go 1.26+**: Required to build the core binaries (`m3tal`, `m3tal-api`). 
-   - *Tip*: If you see `go: No such file or directory`, ensure Go is in your `$PATH`.
+   - *Linux Tip*: If you see `go: No such file or directory`, run: `export PATH=$PATH:/usr/local/go/bin` (or your Go install path).
 3. **Storage**: A mount point for media.
    - Default: `./data` (Portable, user-local).
    - Override: Set `BASE_STORAGE_PATH` in your `.env`.
@@ -26,8 +26,13 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 ### 1. Build the Platform
 Standardize your binaries by building the CLI and the API.
 
-**Linux/WSL (with make):**
+**Linux/WSL:**
 ```bash
+# Recommended: Automated script
+chmod +x build.sh
+./build.sh
+
+# Alternative: Makefile
 make build
 ```
 
