@@ -19,4 +19,4 @@ jobs:
       - name: Build EXE
         run: |
           mkdir -p dist
-          GOOS=windows GOARCH=amd64 go build -o dist/m3tal.exe ./cmd
+          GOOS=windows GOARCH=amd64 go build -o dist/m3tal.exe ./cmd/m3tal
