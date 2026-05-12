@@ -1,36 +1,43 @@
-### **Audit Report: M3TAL Documentation**
+### **Audit Report: M3TAL Platform Documentation**
 **Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAIL**
+**Status:** **FAILED**
 
-**Verdict:** 
-The current documentation is dangerously incomplete for a "Production-ready" or even a "Developer-ready" platform. It makes significant assumptions about the host environment, fails to document critical security configurations, and leaves a massive technical gap regarding the Traefik/Ingress requirements mentioned in the architecture but omitted from the deployment steps. A user following these steps will end up with a broken, non-functional deployment.
+As a new user attempting to deploy the M3TAL platform, I hit three immediate "dead ends." Your documentation assumes deep internal knowledge of the project's folder structure and lifecycle that is not present in the README. 
 
 ---
 
 ### **Issue List**
 
-#### **BLOCKERS**
-1.  **[BLOCKER] Missing `.env` Creation/Initialization:** The docs list configuration variables but do not explain how or where to create the `.env` file. Does `m3tal init` generate it? If so, the docs don't say. If not, the user is left with a platform that will fail on startup due to missing environment variables.
-2.  **[BLOCKER] Undocumented Traefik/Gateway Configuration:** The documentation mentions a "high-performance media server," but the `docker-compose` logic (presumably inside `source/m3tal-stack`) is invisible. If the stack uses Traefik (implied by the "Gateway" description), there are zero instructions on setting up Traefik entrypoints or certificates.
-3.  **[BLOCKER] Path Assumption Failure:** The documentation assumes `/mnt` exists or implies it is the default. If the user does not have root access or a partitioned drive at `/mnt`, the volume mounts will likely fail or clutter the host root.
-
-#### **WARNINGS**
-4.  **[WARNING] Dependency Version Mismatch:** You require "Go 1.26+". Go 1.26 does not exist (the latest is 1.23 as of current stable release). This is a red flag for a technical document.
-5.  **[WARNING] Missing Prerequisites:** There is no mention of `python3`, `pip`, or `venv` requirements for the `source/dashboard` (Flask) component. Running a Flask app requires more than just a Go binary.
-6.  **[WARNING] Network Conflicts:** The documentation mentions a `m3tal-stack` but provides no info on Docker network conflicts. If port 8082 or 5050 is taken (common on dev machines), the user is not instructed on how to remediate.
-
-#### **SUGGESTIONS**
-7.  **[SUGGESTION] `build.sh` Transparency:** The `build.sh` script is a "black box." Does it download dependencies? Does it build the container images? Document what this script does so users aren't running arbitrary bash scripts blindly.
-8.  **[SUGGESTION] Lack of Cleanup/Uninstallation:** The documentation provides no "Remove/Uninstall" path other than `down`. Users need to know how to purge the generated docker networks, volumes, and credentials.
+1.  **[BLOCKER] Missing Compilation/Environment Requirements:** The Prerequisites mention `Go 1.26+`, but the codebase assumes the existence of the `./m3tal` binary. There is no instruction on how to handle the dependencies or if the binary needs external Go modules initialized before building.
+2.  **[BLOCKER] `.env` File Initialization:** You define an `.env` table, but the `init` command does not explicitly state that it generates a `.env` file from a template. Users don't know if they should create this manually or if the binary handles it.
+3.  **[BLOCKER] `/mnt` Path vs. `./data` Discrepancy:** The architecture section states the system "enforces standard `/mnt` path mapping," yet the Configuration table lists `./data`. This is a critical point of failure for Docker volumes.
+4.  **[WARNING] Missing Service Dependency Instructions:** The `m3tal-stack` is referenced as a folder, but there is no instruction on whether the user needs to `cd` into it, or if `./m3tal up` automatically traverses the repository.
+5.  **[WARNING] Traefik Setup:** You advertise Traefik, but don't mention if it requires specific labels in the stack files or if the orchestrator handles the Traefik configuration dynamically.
+6.  **[SUGGESTION] First-Run Workflow:** The documentation skips the most important step: **Permissions**. Does the user need to `chmod +x m3tal`? Most users on Linux/WSL will get a "Permission Denied" error immediately.
 
 ---
 
 ### **Suggested Fixes**
 
-*   **Fix 1 (.env):** Update Step 2 in "Quick Start" to: "Run `./m3tal init`. This will generate a default `.env` file. Review this file to ensure `BASE_STORAGE_PATH` points to a directory you own."
-*   **Fix 2 (Prereqs):** Correct the Go version to the accurate stable release (e.g., "1.21+"). Explicitly list `python3-venv` as a requirement for the Dashboard.
-*   **Fix 3 (Pathing):** Clarify that `/mnt` is a *convention*, not a hard requirement, and provide the command to create the directory if it is missing: `mkdir -p ./data && chown $USER:$USER ./data`.
-*   **Fix 4 (Gateway):** If Traefik is used, add a "Networking" section explaining if the user needs to modify a `traefik.yml` or if the stack is self-contained. 
-*   **Fix 5 (Structure):** Add an **"Architecture Constraints"** section that defines the host machine requirements (e.g., "Ensure port 8082 is open in your firewall").
+*   **Fix 1 (Initialization):** Add a specific step before building:
+    ```bash
+    # Ensure dependencies are pulled
+    go mod download
+    ```
+*   **Fix 2 (Permissions):** Explicitly add the binary executable step:
+    ```bash
+    chmod +x m3tal
+    ```
+*   **Fix 3 (Configuration):** Clarify the storage path discrepancy. Change the Architecture text to: *"The system maps host storage to internal paths. Ensure the directory defined in `BASE_STORAGE_PATH` (default `./data`) exists on your host before running `up`."*
+*   **Fix 4 (The `.env` file):** Provide a `template.env` file in the repo and update the `init` instructions:
+    ```bash
+    # Initialize config
+    cp template.env .env
+    ./m3tal init # Generates random API_TOKEN inside .env
+    ```
+*   **Fix 5 (Structure):** Clarify the `source/m3tal-stack` usage. Does the user need to manually modify these files? State clearly: *"The orchestrator dynamically mounts configurations from `source/m3tal-stack`. Do not modify these files while the stack is running."*
 
-**DocCritic's Final Note:** *Do not release this documentation to users until you have performed a "clean-room" deployment on a fresh Ubuntu LTS VM. If you hit a wall, so will they.*
+---
+
+### **Verdict**
+**Non-Deployable.** The documentation is written by someone who already knows the system. It assumes the binary works out of the box and fails to warn about directory permissions, path mapping conflicts, and the lifecycle of the `.env` configuration file. **Update the README to bridge the gap between "Cloned Repo" and "Running Service."**
