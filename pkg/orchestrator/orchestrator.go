@@ -32,7 +32,7 @@ func (s *Stack) Run(action string, args ...string) error {
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
 		cmdArgs := append([]string{"compose", "-f", file, action}, args...)
 		cmd := exec.Command("docker", cmdArgs...)
-		
+
 		// Pass current environment + .env file if it exists
 		cmd.Env = os.Environ()
 		if _, err := os.Stat(".env"); err == nil {
@@ -41,7 +41,7 @@ func (s *Stack) Run(action string, args ...string) error {
 			cmdArgs = append([]string{"compose", "--env-file", ".env", "-f", file, action}, args...)
 			cmd = exec.Command("docker", cmdArgs...)
 		}
-		
+
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 

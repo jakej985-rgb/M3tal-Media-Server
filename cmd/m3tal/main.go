@@ -235,7 +235,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			key := args[0]
 			val := args[1]
-			
+
 			content, err := os.ReadFile(".env")
 			if err != nil {
 				log.Fatal("❌ .env not found. Run 'init' first.")
@@ -287,7 +287,7 @@ func main() {
 
 func runWizard(update bool) {
 	fmt.Println("🛠️  M3TAL Configuration Wizard")
-	
+
 	targetFile := ".env"
 	isSystem := false
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
