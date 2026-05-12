@@ -1,36 +1,56 @@
-### **DocCritic Audit Report: M3TAL Control Plane (v1.4.0.3)**
+Hello. I am **DocCritic**, your Senior DevOps Auditor for the M3TAL platform. I’ve attempted to bootstrap this deployment as a fresh user, and frankly, this documentation is currently a "brick-wall" for any operator not already familiar with your private development environment.
 
-**Verdict:** ❌ **REJECTED**
-The current documentation is an "insider-only" document. It assumes the user has deep knowledge of the project's internal directory structure and hidden dependencies. A new user will fail at Step 4 due to missing runtime context and environment variables.
+### **Verdict: FAILED**
+The current documentation is an **"Expert-Only" manual**. It lacks critical configuration instructions, environmental context, and validation steps. A project that requires a user to guess which ports to expose or how to start a Python service is effectively non-functional.
 
 ---
 
-### **Detailed Issue List**
+### **Issue List**
 
-#### **BLOCKER**
-1.  **Missing `m3tal.py` / Orchestrator Context:** Step 4 runs `./m3tal`. Is this the Go binary, or is it a wrapper? The `m3tal.py` mentioned in my instructions is absent, and the Go build instructions for `m3tal-api` are provided but never utilized in a startup command.
-2.  **Environment Variable Omission:** The `.env.example` file structure is not documented. If `BASE_STORAGE_PATH` is required, what are the *other* required keys? The deployment will crash if a user leaves the default `.env.example` as-is.
-3.  **Missing Docker-Compose Entry:** Step 4 calls `./m3tal up`, but nowhere does it explain how `m3tal` interacts with `source/m3tal-stack/docker-compose.yml`. Does the binary auto-generate a compose file? Run it directly? This is a "black box" that will result in a deployment failure.
-4.  **Missing Port/Gateway Documentation:** There is zero mention of ports (e.g., 80, 443, 8080) or Traefik/Reverse Proxy integration. A user will have no idea which URL to hit to verify the deployment.
-
-#### **WARNING**
-5.  **Host Dependency Assumption:** The documentation assumes `/mnt` exists or is the correct target. On many systems (e.g., standard Debian/Ubuntu), `/mnt` is empty and requires root permissions or specific mounting.
-6.  **"Go-Native" Confusion:** The stack involves Go binaries *and* a Python/Flask dashboard. The instructions do not explain how the Python dashboard dependencies (pip install) are handled or if they are containerized within the stack.
-
-#### **SUGGESTION**
-7.  **Service Connectivity Table:** The current table is useless for a user; it lists file paths, not endpoints (e.g., `http://localhost:8080`).
-8.  **Setup Script Transparency:** `scripts/setup.sh` is a "blind execution." The README should document what this script modifies (e.g., does it install Docker? Does it edit fstab?).
+| ID | Severity | Description |
+| :--- | :--- | :--- |
+| 01 | **BLOCKER** | **Missing Python/Dashboard Initialization.** The instructions mention a Flask dashboard but provide no command to actually start/run it. |
+| 02 | **BLOCKER** | **Missing Port/Access Map.** There is zero information on what ports to open in the firewall or which URLs to hit to access the UI. |
+| 03 | **BLOCKER** | **Environment Variable Ambiguity.** `.env.example` is referenced, but there is no documentation on mandatory variables like `API_TOKEN`, `DB_URL`, or `SECRET_KEY`. |
+| 04 | **WARNING** | **Hardcoded Path Assumption.** Assuming `/mnt` exists is a massive leap. This will fail on 90% of cloud/VPS environments or non-root users. |
+| 05 | **WARNING** | **Implicit Binary Dependency.** Does the user need to run `go build` for the backend? The README implies the Go backend is involved, but provides no instructions for compiling or running the orchestrator binary. |
+| 06 | **SUGGESTION** | **Missing `m3tal.py` instructions.** The prompt mentioned `m3tal.py`, yet the README ignores it. Is this the entry point? If so, it needs documentation. |
 
 ---
 
 ### **Suggested Fixes**
 
-*   **For Blocker 1 & 3:** Explicitly state: "The `m3tal` binary acts as a wrapper for `docker compose`. Ensure your Docker daemon is running, as the binary calls `docker compose -f source/m3tal-stack/docker-compose.yml up -d` internally."
-*   **For Blocker 2:** Provide a table of required `.env` variables:
-    *   `BASE_STORAGE_PATH`: (e.g., `/mnt/m3tal_data`)
-    *   `API_PORT`: (e.g., `8080`)
-    *   `DASHBOARD_PORT`: (e.g., `5000`)
-*   **For Blocker 4:** Add a "Verification" section: "Once deployed, access your dashboard at `http://<YOUR_HOST_IP>:5000`."
-*   **For Warning 5:** Add a pre-flight check: "Ensure `/mnt` is writable by your user or adjust `BASE_STORAGE_PATH` to a directory you own (e.g., `/home/user/m3tal`). Run `mkdir -p $BASE_STORAGE_PATH` before proceeding."
-*   **For Warning 6:** Clarify if the Python dashboard is built via Dockerfile. If so, add `docker compose build` to the deployment steps. If not, add a `pip install -r requirements.txt` step.
-*   **General:** Add a "Quick Start" diagram or a command-line tree showing exactly where `m3tal` and `m3tal-api` binaries should be placed after compilation.
+**1. Define the Deployment Workflow (Fixes 01, 05, 06)**
+*   **Clarify the orchestrator:** Is the Go binary the entry point? Add: 
+    `go build -o m3tal-orchestrator ./cmd/main.go` followed by `./m3tal-orchestrator`.
+*   **Dashboard Startup:** Add a specific section for the Flask app:
+    ```bash
+    cd source/dashboard
+    pip install -r requirements.txt
+    python3 app.py
+    ```
+
+**2. Port & Access Table (Fixes 02)**
+*   Provide a standardized access table:
+    | Service | Port | Description |
+    | :--- | :--- | :--- |
+    | Dashboard | 5000 | Web UI |
+    | Backend API | 8080 | Orchestrator REST |
+    | Traefik | 80/443 | Gateway |
+
+**3. Explicit `.env` documentation (Fixes 03)**
+*   Create a "Required Variables" table in the README:
+    *   `BASE_STORAGE_PATH`: Absolute path to mount (e.g., `/home/user/m3tal_data`)
+    *   `JWT_SECRET`: For session security.
+    *   `API_TOKEN`: Internal communication secret.
+
+**4. Storage Path Validation (Fixes 04)**
+*   Update `scripts/setup.sh` to handle path creation dynamically.
+*   Update the README warning: *"Note: If you do not have root access to `/mnt`, change `BASE_STORAGE_PATH` in your `.env` to a directory where your user has write permissions."*
+
+**5. Docker Stack context (Fixes 02)**
+*   Explain if the `m3tal-stack` includes Traefik. If so, users need to know if they need to map ports in the `docker-compose.yml` or if it handles internal routing only.
+
+---
+
+**Auditor's Note:** *Documentation is not a summary of the code; it is a roadmap for the user. Currently, this roadmap leads into a forest. Please rectify the missing runtime instructions immediately.*
