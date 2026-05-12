@@ -13,5 +13,11 @@ contents:
   - src: ./dist/m3tal
     dst: /usr/bin/m3tal
 
+  - src: ./source/m3tal-stack/*.yml
+    dst: /usr/share/m3tal/stack/
+
+  - src: ./source/m3tal-stack/users.json
+    dst: /usr/share/m3tal/stack/users.json
+
 scripts:
   postinstall: ./scripts/postinstall.sh

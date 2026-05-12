@@ -17,7 +17,11 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
+	_ "embed"
 )
+
+//go:embed .env.example
+var envExample string
 
 func main() {
 	// First-run check for Linux system installations
@@ -301,17 +305,26 @@ func runWizard(update bool) {
 	_ = os.MkdirAll("./data", 0755)
 
 	sourceFile := ".env.example"
+	var data []byte
+	var err error
+
 	if update {
-		if _, err := os.Stat(targetFile); err == nil {
+		if _, err = os.Stat(targetFile); err == nil {
 			sourceFile = targetFile
-		} else if _, err := os.Stat(".env"); err == nil {
+			data, err = os.ReadFile(sourceFile)
+		} else if _, err = os.Stat(".env"); err == nil {
 			sourceFile = ".env"
+			data, err = os.ReadFile(sourceFile)
 		}
 	}
 
-	data, err := os.ReadFile(sourceFile)
-	if err != nil {
-		log.Fatalf("❌ Missing %s file.", sourceFile)
+	if data == nil {
+		// Use embedded example if not an update or if update source missing
+		data = []byte(envExample)
+	}
+
+	if err != nil && data == nil {
+		log.Fatalf("❌ Missing configuration source.")
 	}
 
 	lines := strings.Split(string(data), "\n")
