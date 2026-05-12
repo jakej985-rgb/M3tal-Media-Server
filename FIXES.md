@@ -1,56 +1,50 @@
-### **Audit Report: M3TAL Control Plane (v1.4.0.3)**
+# Audit Report: M3TAL Control Plane (v1.4.0.3)
+
 **Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**
+**Verdict:** **NON-COMPLIANT / BLOCKER**
+
+The current documentation assumes a "happy path" environment and fails to address critical security, networking, and environment state requirements. A user attempting to deploy this today will encounter permission errors, container networking failures, and absolute uncertainty regarding reverse proxy configuration.
 
 ---
 
-### **Verdict**
-**Non-Deployable.** As a new user, I cannot successfully deploy this stack. The documentation suffers from "expert bias," assuming the user knows how to build the CLI binary, how to initialize the Docker environment, and where the configuration files actually reside. The relationship between `m3tal.py` (mentioned in my audit requirements but absent in your docs) and the Go binary is opaque.
+### 🔴 BLOCKER Issues
+
+1.  **Hardcoded `/mnt` Path Assumptions:**
+    *   **Issue:** The `scripts/setup.sh` script assumes it has permission to modify `/mnt` (often root-owned or mount points). It also fails to account for existing data in those paths.
+    *   **Fix:** Implement a check in `setup.sh` to verify `BASE_STORAGE_PATH` exists, is writable, and create a nested structure (e.g., `$BASE_STORAGE_PATH/m3tal/data`) instead of assuming the root of a partition.
+2.  **Missing Dashboard/API Python Dependencies:**
+    *   **Issue:** There is zero instruction on how to run the `source/dashboard` (the Python app). Is it inside a container? Is it local? If local, there is no `requirements.txt` execution step.
+    *   **Fix:** Explicitly state if the Dashboard is containerized in the compose stack. If so, document the `Dockerfile` build context. If local, add a step to create a venv and run `pip install -r requirements.txt`.
+3.  **Traefik / Reverse Proxy Gap:**
+    *   **Issue:** The doc mentions Traefik in the notes, but provides no `docker-compose.yaml` labels or network configuration to actually *use* it.
+    *   **Fix:** Provide a "Traefik Example" section in the `m3tal-stack/docker-compose.yml` showing labels for automatic discovery (e.g., `traefik.enable=true`, `traefik.http.routers...`).
 
 ---
 
-### **Issue List**
+### 🟡 WARNING Issues
 
-#### **BLOCKER**
-1. **Missing Build Step for CLI:** The documentation mentions a Go-native CLI (`m3tal`), but never provides a command to build it (e.g., `go build -o m3tal main.go`). The `scripts/setup.sh` is a black box—the user has no idea if it compiles binaries or just creates folders.
-2. **Docker Orchestration Gap:** You reference `source/m3tal-stack`, but never explain how to start it. Does `./m3tal up` automatically trigger `docker-compose -f source/m3tal-stack/docker-compose.yml up`? If the user tries to run `./m3tal up` before the container stack is defined, it will fail silently or crash.
-3. **Missing `.env` Template:** Telling a user to append to a `.env` file that doesn't exist is a failure. There is no `cp .env.example .env` step.
-
-#### **WARNING**
-4. **Hardcoded Path Assumptions:** You mandate `/mnt` on the host. This is a massive "Dev-only" assumption. Many systems (especially macOS or non-root Linux users) cannot write to root `/mnt`. This will cause "Permission Denied" errors immediately.
-5. **Port Exposure Risk:** You list port `5050` (API) as accessible via `http://<HOST_IP>:5050`. Exposing an internal API port without mentioning Traefik or Reverse Proxy requirements is a security risk. Is it meant to be exposed? 
-6. **"m3tal.py" vs "m3tal" CLI:** Your internal notes mention `m3tal.py` setup, but the documentation refers to an `./m3tal` binary. Which one is the entry point?
-
-#### **SUGGESTION**
-7. **Lack of "First Run" Experience:** There is no "How to verify it worked" section other than `./m3tal status`. If the container fails to start, the user has zero debugging steps.
+1.  **Incomplete `.env` instructions:**
+    *   **Issue:** You mention generating tokens with `openssl`, but you do not show the user *where* in the `.env` file to put them.
+    *   **Fix:** Provide a template snippet or a `sed` command to inject the output of `openssl` directly into the `.env` file.
+2.  **Service Access Confusion:**
+    *   **Issue:** The table lists `8082` for the dashboard. If the user is on a remote VPS or a specific LAN IP, `localhost` will fail.
+    *   **Fix:** Advise users to replace `localhost` with their host's static LAN IP and warn that browsers may block insecure connections if they attempt to access via HTTP instead of HTTPS/Traefik.
 
 ---
 
-### **Suggested Fixes**
+### 🔵 SUGGESTION Issues
 
-*   **Fix 1 (Build Process):** Add an explicit compilation step:
-    ```bash
-    # Inside the repo root
-    go build -o m3tal ./cmd/m3tal # (Update path as needed)
-    ```
-*   **Fix 2 (Env Setup):** Add:
-    ```bash
-    cp .env.example .env
-    # Then append your tokens
-    ```
-*   **Fix 3 (Path Flexibility):** Change the documentation to define a `BASE_DIR` environment variable rather than hard-coding `/mnt`.
-    ```bash
-    # Update .env
-    MEDIA_ROOT=/home/user/m3tal-data
-    ```
-*   **Fix 4 (Docker Orchestration):** Clarify the `m3tal up` command.
-    > "Note: Ensure your `docker-compose.yml` is present in `source/m3tal-stack/`. The `m3tal` binary expects the stack to be located at `./source/m3tal-stack/docker-compose.yml`."
-*   **Fix 5 (Networking):** Explicitly state:
-    > "The Backend API (5050) is internal-only. Do not expose this port to the public internet. Use Traefik or Nginx if you require remote dashboard access."
-*   **Fix 6 (Troubleshooting):** Add a "Log Inspection" section:
-    ```bash
-    # To view logs if the system fails:
-    docker logs m3tal-api
-    ```
+1.  **"M3TAL Setup" Command:**
+    *   **Issue:** The project name implies a "Control Plane," yet the setup is fragmented (run script, then cd here, then run docker).
+    *   **Fix:** Create a top-level `Makefile` or `m3tal.sh` wrapper script. One command (`make install` or `./m3tal.sh up`) should handle setup, `.env` generation, and deployment.
+2.  **Missing "Cleanup" documentation:**
+    *   **Issue:** No mention of how to safely stop or purge the stack.
+    *   **Fix:** Add a section for "Maintenance & Cleanup" covering `docker compose down -v` and safe backup of the `BASE_STORAGE_PATH`.
+3.  **Volume Mapping Transparency:**
+    *   **Issue:** Users have no idea what data is stored where.
+    *   **Fix:** Add a small table explaining the bind-mounts: e.g., `/mnt/m3tal/db` -> `/var/lib/postgresql/data`.
 
-**DocCritic’s Final Word:** *Stop assuming your users are psychic. Rewrite the deployment flow as a linear, explicit tutorial from `git clone` to `dashboard login`.*
+---
+
+### Auditor's Final Word
+*The documentation is currently written for the original developer. It assumes the user already knows the relationship between the folders and the container orchestration. **Re-factor to prioritize a single-entry-point setup process.** Without clear instructions on how the Dashboard and API interact via Docker networks, users will report "Connection Refused" errors within 10 minutes of operation.*
