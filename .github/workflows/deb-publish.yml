@@ -20,7 +20,7 @@ jobs:
       - name: Build Binary
         run: |
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/m3tal ./cmd
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/m3tal ./cmd/m3tal
 
       - name: Install nfpm
         run: |
