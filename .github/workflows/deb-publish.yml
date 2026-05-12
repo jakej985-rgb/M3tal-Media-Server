@@ -27,22 +27,8 @@ jobs:
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Create nfpm config
-        run: |
-          cat <<EOF > nfpm.yaml
-          name: m3tal-core
-          arch: amd64
-          platform: linux
-          version: ${VERSION}
-          maintainer: Jake Johnson
-          description: M3tal Core CLI
-          contents:
-            - src: ./dist/m3tal
-              dst: /usr/bin/m3tal
-          EOF
-
       - name: Build .deb
-        run: nfpm package --packager deb --config nfpm.yaml --target dist/
+        run: nfpm package --packager deb --config packaging/nfpm.yaml --target dist/
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2

@@ -14,14 +14,21 @@ command -v python3 >/dev/null 2>&1 || { echo >&2 "❌ Python3 is required but no
 
 # 2. Standardized Storage Setup
 echo "🏗️ Setting up standardized storage paths..."
-STORAGE_PATHS=("/mnt/media" "/mnt/config" "/mnt/downloads")
+# Read from .env if exists, else defaults
+if [ -f ".env" ]; then
+    source .env
+fi
+
+MEDIA_PATH=${MEDIA_PATH:-"./data/media"}
+CONFIG_PATH=${CONFIG_PATH:-"./data/config"}
+DOWNLOADS_PATH=${DOWNLOADS_PATH:-"./data/downloads"}
+
+STORAGE_PATHS=("$MEDIA_PATH" "$CONFIG_PATH" "$DOWNLOADS_PATH")
 
 for path in "${STORAGE_PATHS[@]}"; do
     if [ ! -d "$path" ]; then
         echo "Creating $path..."
-        sudo mkdir -p "$path"
-        sudo chown -R $USER:$USER "$path"
-        sudo chmod -R 775 "$path"
+        mkdir -p "$path"
     else
         echo "✅ $path already exists."
     fi

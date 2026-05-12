@@ -1,0 +1,22 @@
+name: m3tal-core
+arch: amd64
+platform: linux
+version: ${VERSION}
+
+section: utils
+priority: optional
+maintainer: Jake Johnson
+description: M3tal Core CLI
+license: MIT
+
+contents:
+  - src: ./dist/m3tal
+    dst: /usr/bin/m3tal
+
+  - src: ./packaging/config.yaml
+    dst: /etc/m3tal/config.yaml
+    type: config
+
+scripts:
+  postinstall: ./scripts/postinstall.sh
+  postremove: ./scripts/postremove.sh

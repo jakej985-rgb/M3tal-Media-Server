@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -19,6 +20,17 @@ import (
 )
 
 func main() {
+	// First-run check for Linux system installations
+	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
+		if _, err := os.Stat("/etc/m3tal"); os.IsNotExist(err) {
+			// Probably a local/dev run, skip system check
+		} else if _, err := os.Stat("/etc/m3tal/config.yaml"); os.IsNotExist(err) {
+			fmt.Println("⚠️  System configuration not found at /etc/m3tal/config.yaml")
+			fmt.Println("👉 Run: sudo m3tal init")
+			fmt.Println("")
+		}
+	}
+
 	var rootCmd = &cobra.Command{Use: "m3tal"}
 
 	var listCmd = &cobra.Command{
@@ -177,38 +189,31 @@ func main() {
 		Use:   "init",
 		Short: "Initialize environment and generate secrets",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("🛠️  Initializing M3TAL environment...")
-			
-			// Create data directory
-			_ = os.MkdirAll("./data", 0755)
-			
-			// Generate secrets
 			if _, err := os.Stat(".env"); err == nil {
-				fmt.Println("⚠️  .env already exists. Skipping secret generation.")
+				fmt.Println("⚠️  .env already exists. Use 'm3tal config wizard' to update.")
 				return
 			}
-
-			exampleData, err := os.ReadFile(".env.example")
-			if err != nil {
-				log.Fatal("❌ Missing .env.example file.")
-			}
-
-			content := string(exampleData)
-			// Simple replacement for generation (real impl would use crypto/rand)
-			content = replaceSecret(content, "DASHBOARD_SECRET=", generateSecret())
-			content = replaceSecret(content, "API_TOKEN=", generateSecret())
-
-			if err := os.WriteFile(".env", []byte(content), 0600); err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("✅ .env initialized with fresh secrets.")
-			fmt.Println("✅ Data directory created at ./data")
+			runWizard(false)
 		},
 	}
 
 	var configCmd = &cobra.Command{
 		Use:   "config",
 		Short: "Manage M3TAL environment variables",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				runWizard(true)
+				return
+			}
+		},
+	}
+
+	var configWizardCmd = &cobra.Command{
+		Use:   "wizard",
+		Short: "Run the interactive configuration wizard",
+		Run: func(cmd *cobra.Command, args []string) {
+			runWizard(true)
+		},
 	}
 
 	var configListCmd = &cobra.Command{
@@ -271,13 +276,67 @@ func main() {
 		},
 	}
 
-	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd)
+	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configWizardCmd)
 	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, configCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func runWizard(update bool) {
+	fmt.Println("🛠️  M3TAL Configuration Wizard")
+	
+	// Handle system paths if root on Linux
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		_ = os.MkdirAll("/etc/m3tal", 0755)
+		_ = os.MkdirAll("/var/lib/m3tal", 0755)
+		fmt.Println("✅ System directories initialized (/etc/m3tal, /var/lib/m3tal)")
+	}
+
+	_ = os.MkdirAll("./data", 0755)
+
+	sourceFile := ".env.example"
+	if update {
+		if _, err := os.Stat(".env"); err == nil {
+			sourceFile = ".env"
+		}
+	}
+
+	data, err := os.ReadFile(sourceFile)
+	if err != nil {
+		log.Fatalf("❌ Missing %s file.", sourceFile)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "=") && !strings.HasPrefix(line, "#") {
+			parts := strings.SplitN(line, "=", 2)
+			key := parts[0]
+			val := parts[1]
+
+			if (key == "DASHBOARD_SECRET" || key == "API_TOKEN") && !update {
+				newSecret := generateSecret()
+				fmt.Printf("[Auto] %s generated: %s\n", key, newSecret)
+				lines[i] = key + "=" + newSecret
+				continue
+			}
+
+			fmt.Printf("%s [%s]: ", key, val)
+			var input string
+			fmt.Scanln(&input)
+			if input != "" {
+				lines[i] = key + "=" + input
+			}
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	if err := os.WriteFile(".env", []byte(content), 0600); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("\n✅ Configuration saved to .env")
 }
 
 func printJSON(v interface{}) {
