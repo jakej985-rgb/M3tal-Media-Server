@@ -1,68 +1,47 @@
-**To:** Engineering Team / Repository Maintainers
-**From:** DocCritic, Senior DevOps Auditor
-**Subject:** Deployment Readiness Audit: M3TAL Media Server
+### **DocCritic Audit Report: M3TAL Platform**
+**Auditor:** Senior DevOps Auditor  
+**Status:** **REJECTED - DEPLOYMENT NOT POSSIBLE**
 
 ---
 
-### **OVERALL VERDICT: FAIL**
-The documentation is currently **un-deployable** for a new user without internal knowledge. While the architectural overview is excellent, the operational instructions contain "Impossible Prerequisites," contradictory pathing logic, and significant gaps regarding the container lifecycle and environment bootstrap.
+### **Verdict**
+The documentation is highly conceptual and assumes the user is an insider of the project. It fails to account for basic filesystem permissions, binary execution prerequisites, and potential failures during the `init` process. The instructions lead to an immediate `permission denied` or `file not found` error for a clean-state user.
 
 ---
 
-### **DETAILED ISSUE LIST**
+### **Detailed Issue List**
 
-#### 🛑 BLOCKER: Impossible Prerequisite (Go Version)
-*   **Issue:** The README requires **Go 1.26+**. 
-*   **Reasoning:** As of late 2024, the current stable version of Go is 1.23. Go 1.26 does not exist. A new user following this will spend an hour searching for a non-existent SDK.
-*   **Suggested Fix:** Update the prerequisite to a realistic version (e.g., Go 1.21+ or 1.22+) that matches your actual `go.mod` file.
+#### **BLOCKER**
+*   **[BLOCKER] Missing Binary Execution Permission:** The instructions tell the user to run `./m3tal`, but do not instruct them to `chmod +x m3tal`. On Linux/WSL, the compiled binary will not execute by default.
+*   **[BLOCKER] Implicit Directory Assumptions:** The README mentions `/mnt` for internal volumes and `./data` for local storage but provides no instruction to create these directories. If the Docker container attempts to mount a non-existent path, the `m3tal up` command will crash with a mounting error.
+*   **[BLOCKER] Build Path Inaccuracy:** Step 1 uses `go build -o m3tal ./main.go`, but the project architecture section implies the binary is the orchestrator. If the file structure is not flat, `go build` will fail.
+*   **[BLOCKER] Environment File Generation:** `m3tal init` is mentioned, but it is not clear if it creates a `.env` file or if the user must create it manually *before* running `init`.
 
-#### 🛑 BLOCKER: The "Chicken and Egg" Configuration 
-*   **Issue:** The instructions tell the user to run `./m3tal init` in Step 2, but only explain the `.env` file in the "Configuration" section *after* deployment.
-*   **Reasoning:** If `./m3tal init` generates the `.env`, the user needs to know what it’s doing. If the user is supposed to create the `.env` manually first to define `BASE_STORAGE_PATH`, the `init` command will likely fail or use incorrect defaults.
-*   **Suggested Fix:** Move the `.env` table *before* the Deployment section. Explicitly state: "1. Create .env from template, 2. Run build, 3. Run init."
+#### **WARNING**
+*   **[WARNING] Traefik Configuration:** The documentation claims `Traefik` is the gateway but provides no information on how Traefik handles configuration, SSL, or if it expects a `traefik.yml` file to exist in a specific directory.
+*   **[WARNING] Dependency Management:** There is no mention of `go mod download` or `go mod tidy`. If the user is cloning a fresh repo, the build will likely fail due to missing dependencies in `go.mod`.
 
-#### ⚠️ WARNING: Contradictory Pathing Logic
-*   **Issue:** The "M3TAL Ecosystem Integration" section claims the system "Emphasizes the use of a consistent `/mnt` path," but the Configuration table lists the default `BASE_STORAGE_PATH` as `./data`.
-*   **Reasoning:** This is a classic "Dev-only" assumption. If the production standard is `/mnt/m3tal`, the default in the `.env` should reflect that, or the documentation should explain why it differs.
-*   **Suggested Fix:** Align the documentation. If `/mnt` is the standard, provide the command `sudo mkdir -p /mnt/m3tal && sudo chown $USER /mnt/m3tal`.
-
-#### ⚠️ WARNING: Missing Binary Permissions
-*   **Issue:** You mention `chmod +x build.sh`, but you do not mention `chmod +x m3tal` after the build is complete.
-*   **Reasoning:** On many Linux distributions, a newly compiled binary may not have execution bits set depending on the umask. A new user will get `Permission Denied` and stall.
-*   **Suggested Fix:** Add `chmod +x m3tal m3tal-api` to the build instructions.
-
-#### ⚠️ WARNING: Dashboard Build Ambiguity
-*   **Issue:** The "Build the Platform" section only covers Go binaries. It mentions the Dashboard is Python/Flask.
-*   **Reasoning:** Does the user need `pip install`? Is there a `requirements.txt`? Or is the Dashboard *only* built via Docker? If it's the latter, the "Build" section should explicitly state: "Go binaries are built locally; the Dashboard is handled via Docker."
-*   **Suggested Fix:** Clarify the build scope. Add a "Dashboard" subsection under Build if local Python dependencies are required for development.
-
-#### ⚠️ WARNING: Network Ingress Confusion (Traefik)
-*   **Issue:** The port table lists Traefik on 8080/443 and Dashboard on 8082.
-*   **Reasoning:** If Traefik is the "Primary HTTP ingress," users should be accessing the services via Traefik (likely using hostnames like `dashboard.local`). If they access `localhost:8082` directly, they are bypassing the Orchestrator's gateway, which often breaks headers, SSL, and authentication.
-*   **Suggested Fix:** Clarify the "Recommended Access Method." Should they use the Traefik port or the direct service port? If Traefik is used, provide a sample `/etc/hosts` entry.
-
-#### 💡 SUGGESTION: Missing "Source" Context
-*   **Issue:** You mention `source/m3tal-stack`, but the CLI commands are run from the root.
-*   **Reasoning:** A user might try to `cd` into `source` to run Docker commands. 
-*   **Suggested Fix:** Explicitly state that all `./m3tal` commands must be run from the repository root.
+#### **SUGGESTION**
+*   **[SUGGESTION] Verbose Logs:** Add a standard instruction on how to view *Docker* logs, not just *orchestrator* logs (e.g., `docker compose -f source/m3tal-stack/docker-compose.yml logs`).
+*   **[SUGGESTION] Python/Go Environment Confusion:** The docs mention Python (Flask) and Go simultaneously. If the Python dashboard requires `pip install` or a virtual environment, that is missing.
 
 ---
 
-### **REQUIRED FIXES SUMMARY**
+### **Required Fixes**
 
-1.  **Correct Go Version:** Change 1.26+ to 1.21+ (or current).
-2.  **Order of Operations:** 
-    *   1. Build Binaries.
-    *   2. Configure `.env` (Define storage and ports).
-    *   3. `init` (Generate keys).
-    *   4. `up` (Deploy).
-3.  **Storage Setup:** Add a "Storage Preparation" step:
+1.  **Correct the Build Sequence:**
     ```bash
-    # Ensure storage directory exists
-    mkdir -p ./data
+    go mod download
+    go build -o m3tal main.go
+    chmod +x m3tal
     ```
-4.  **CLI Verification:** Add a step to verify the build: `./m3tal --version`.
-5.  **Environment Template:** Mention if a `.env.example` exists. If not, the user has to copy-paste from the README table, which is error-prone.
+2.  **Add Setup Hooks:** Before the "Start" section, add:
+    ```bash
+    mkdir -p data
+    # Ensure Docker daemon is running
+    ```
+3.  **Clarify `.env` Requirements:** Explicitly state: "The `init` command generates a default `.env` file. Do not edit this file manually until after the first `init` execution."
+4.  **Fix Path Documentation:** Clarify exactly where `m3tal-stack` lives relative to the binary. Is it `source/m3tal-stack` or does the binary need to be in the root?
+5.  **Expand Verification:** Add a check to ensure `docker-compose` plugin is installed, as many modern Docker installations treat it as `docker compose` (no hyphen), which may cause the orchestrator's internal calls to fail if not handled by the Go code.
 
-**DocCritic Rating:** 4/10. 
-*The engine is built, but the manual is for a different car.*
+**Auditor Note:** *A system is only as secure as its deployment path. If a user has to guess the filesystem requirements, they will inevitably run your containers as root to "fix" the permission errors. Fix the directory creation steps immediately.*
