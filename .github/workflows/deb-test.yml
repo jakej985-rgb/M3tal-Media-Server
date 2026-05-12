@@ -1,25 +1,37 @@
-name: DEB Test Build
+name: DEB Test
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
-  pull_request:
+    branches: [ main ]
 
 jobs:
-  deb-test:
+  test-deb:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout core repo
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Checkout deb repo
+        uses: actions/checkout@v4
+        with:
+          repository: jakej985-rgb/m3tal-deb
+          token: ${{ secrets.GH_PAT }}
+          path: deb-repo
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+
+      - name: Set Version
+        run: echo "VERSION=test-${{ github.run_number }}" >> $GITHUB_ENV
 
       - name: Build Binary
         run: |
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -o dist/m3tal ./cmd/m3tal
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/m3tal ./cmd/m3tal
 
       - name: Install nfpm
         run: |
@@ -32,13 +44,33 @@ jobs:
           name: m3tal-core
           arch: amd64
           platform: linux
-          version: 0.0.0-test
+          version: ${VERSION}
           maintainer: Jake Johnson
-          description: Test build
+          description: M3tal Core CLI (Test)
           contents:
             - src: ./dist/m3tal
               dst: /usr/bin/m3tal
           EOF
 
-      - name: Build .deb
+      - name: Build DEB
         run: nfpm package --packager deb --config nfpm.yaml --target dist/
+
+      - name: Move to deb repo
+        run: |
+          mkdir -p deb-repo/test
+          mv dist/*.deb deb-repo/test/m3tal-core-${{ github.run_number }}.deb
+
+      - name: Keep only latest 15
+        run: |
+          cd deb-repo/test
+          ls -tp *.deb | tail -n +16 | xargs -r rm --
+
+      - name: Commit + push
+        run: |
+          cd deb-repo
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add .
+          git commit -m "test: add build ${{ github.run_number }}" || echo "no changes"
+          git push
