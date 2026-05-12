@@ -24,7 +24,7 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 ## 🚀 Quick Start (Linux/WSL)
 
 ### 1. Build the Platform
-Standardize your binaries by building the CLI and the API.
+Standardize your binaries by building the CLI and the API. These scripts will offer to **automatically install Go** if it is missing from your system.
 
 **Linux/WSL:**
 ```bash

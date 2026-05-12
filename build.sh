@@ -6,7 +6,25 @@
 GO_CMD=$(which go 2>/dev/null)
 if [ -z "$GO_CMD" ]; then
     echo "❌ Go not found in PATH."
-    echo "Try: export PATH=\$PATH:/usr/local/go/bin"
+    read -p "Would you like to attempt to install Go now? (y/n): " confirm
+    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+        if [ -x "$(command -v apt)" ]; then
+            echo "📦 Detected apt. Installing golang..."
+            sudo apt update && sudo apt install -y golang
+            GO_CMD=$(which go 2>/dev/null)
+        else
+            echo "⚠️  Package manager not supported for auto-install."
+            echo "Please install Go manually: https://go.dev/doc/install"
+            exit 1
+        fi
+    else
+        echo "Try: export PATH=\$PATH:/usr/local/go/bin"
+        exit 1
+    fi
+fi
+
+if [ -z "$GO_CMD" ]; then
+    echo "❌ Go installation failed or not found in PATH."
     exit 1
 fi
 
