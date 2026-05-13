@@ -1,4 +1,4 @@
-# 🚀 M3TAL Media Server (v1.5)
+# 🚀 M3TAL Media Server (v1.7)
 
 M3TAL is a high-performance media server control plane built with **Go 1.26** and **Python 3.10**. It features a native Go orchestrator that manages a multi-stack Docker environment for media services, routing, and system monitoring.
 
@@ -13,9 +13,15 @@ The `./m3tal` binary is the **Source of Truth** for the M3TAL lifecycle.
 ## 🛠️ Prerequisites
 
 1. **Docker Engine**: v20.10+ (Ensure your user is in the `docker` group).
-2. **Go 1.26+**: Required to build the core binaries (`m3tal`, `m3tal-api`). 
-   - *Linux Tip*: If you see `go: No such file or directory`, run: `export PATH=$PATH:/usr/local/go/bin` (or your Go install path).
-3. **Storage**: A mount point for media.
+2. **Build Dependencies**: Required if compiling from source.
+   - `golang-go` (v1.26+)
+   - `build-essential` / `make`
+   - `git`
+3. **DNS / Hosts**: For local service discovery, you **must** add the following to your `/etc/hosts` file:
+   ```text
+   127.0.0.1 m3tal.localhost api.localhost traefik.localhost
+   ```
+4. **Storage**: A mount point for media.
    - Default: `./data` (Portable, user-local).
    - Override: Set `BASE_STORAGE_PATH` in your `.env`.
 
@@ -60,7 +66,9 @@ The `./build.sh` script (or `build.ps1` for Windows) handles dependency download
 | `BASE_STORAGE_PATH` | **Host Path** for all media data | `./data` |
 | `HTTP_PORT` | Traefik web entrypoint | `8080` |
 | `DASHBOARD_PORT` | Port for the web interface | `8082` |
-| `API_PORT` | Port for the Go-native API | `5050` |
+| `API_PORT` | **Internal** Go-native API port | `5050` |
+
+> **IMPORTANT**: All services are served externally via the **Traefik Gateway on Port 8080**. Do not attempt to bind the Dashboard or API directly to 8080; the Orchestrator handles the routing via Host headers (e.g., `m3tal.localhost`).
 
 ### 📂 Storage Mapping Logic
 M3TAL uses a **Consistency Model** for storage paths. 
@@ -86,15 +94,14 @@ Once the stack is up, use these local URLs (via Traefik):
 ---
 
 ## ✅ Verification & Access
-## ✅ Verification & Access
 
-### Service Endpoints & Firewall
-| Service | Local URL | Port | Firewall Required |
-| :--- | :--- | :--- | :--- |
-| **Dashboard** | `http://m3tal.localhost:8080` | `8080` | **Yes** (External Access) |
-| **Backend API** | `http://api.localhost:8080` | `8080` | **No** (Internal Only) |
-| **Traefik Web** | `http://localhost:8080` | `8080` | **Yes** (HTTP) |
-| **Traefik SSL** | `http://localhost:443` | `443` | **Yes** (HTTPS) |
+### Service Endpoints & Routing
+| Service | External URL (Recommended) | Internal Container Port |
+| :--- | :--- | :--- |
+| **Traefik Gateway** | `http://localhost:8080` | `8080` (Host Bind) |
+| **Dashboard** | `http://m3tal.localhost:8080` | `8082` |
+| **Backend API** | `http://api.localhost:8080` | `5050` |
+| **Traefik Admin** | `http://traefik.localhost:8080` | `8080` |
 
 ### SSL & External Access
 M3TAL uses **Cloudflare Tunnel (`cloudflared`)** for secure external access.
