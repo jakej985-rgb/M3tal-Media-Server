@@ -60,15 +60,16 @@ jobs:
             git add FIXES.md
           fi
 
-          # Only push README if it passed the DocCritic check
+          # Add README if it exists
+          if [[ -f README.md ]]; then
+            git add README.md
+          fi
+
           if [[ ! -f .doc-failed ]]; then
-            if [[ `git status --porcelain README.md` ]]; then
-              git add README.md
-              git commit -m "docs: auto-update from system state [skip ci]" || true
-            fi
+            git commit -m "docs: auto-update from system state [skip ci]" || true
           else
-            echo "[!] DocCritic BLOCKERS found. Skipping README update, but pushing FIXES.md."
-            git commit -m "docs: update audit report (blockers detected) [skip ci]" || true
+            echo "[!] DocCritic BLOCKERS found. Pushing both README and FIXES per user instructions."
+            git commit -m "docs: update audit report and README (blockers detected) [skip ci]" || true
           fi
 
           git push
