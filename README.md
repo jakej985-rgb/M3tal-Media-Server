@@ -11,24 +11,24 @@ M3TAL is a high-performance media server control plane engineered for lifecycle 
 
 ## 🧠 Architecture: The M3TAL Ecosystem
 
-The `m3tal` binary is the **sole orchestration entry point**. You interact only with this CLI tool; the Python dashboard runs **containerized** inside Docker, and the Go binary manages it automatically.
+The `m3tal` binary acts as the **primary Orchestrator/Core**. It provides the interface for lifecycle management, while the `m3tal-stack` provides the containerized foundation.
 
 ### System Components
 
-* **Orchestrator (`m3tal-core`)**: The Go-native binary acting as the primary control plane. It interfaces with the Docker socket to manage lifecycle, network configuration, and volume mapping.
-* **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. The `init` command generates these from templates in this directory.
+* **Orchestrator (`m3tal-core`)**: The Go-native binary acting as the control plane. It interfaces with the Docker socket to manage lifecycle, network configuration, and volume mapping.
+* **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. These are managed via the orchestrator to ensure strict networking and storage compliance.
 * **Dashboard (`source/dashboard/`)**: The current web interface. Containerized via its own `Dockerfile` (Python/Flask) and managed by the Go orchestrator.
 
 ### Relationship Mapping
 
 ```mermaid
 graph TD
-    CLI[./m3tal CLI] -->|Executes| Compose[Docker Compose]
+    CLI[./m3tal CLI] -->|Executes/Manages| Compose[Docker Compose Stack]
     Compose -->|Deploys| Traefik[Traefik Gateway]
     Compose -->|Deploys| Dash[Dashboard Container]
-    Dash -.->|API Calls| m3tal-goback
+    Dash -.->|API Requests| m3tal-goback
     Traefik -->|Routes| Dash
-    Traefik -->|Routes| API
+    Traefik -->|Routes| BackendAPI
 ```
 
 > **Note on Go-Native Migration**: M3TAL is currently undergoing a structural evolution. While the `dashboard` remains Python-based for legacy compatibility, all orchestration, infrastructure management, and API-interfacing logic are transitioning to Go-native modules to ensure memory safety and sub-millisecond execution.
@@ -44,7 +44,7 @@ graph TD
 
 ## 📄 Environment Configuration
 
-All configuration lives in `.env`. See [Environment Variables](docs/ENVIRONMENT_VARIABLES.md) for full details.
+All configuration resides in the root `.env` file. See [Environment Variables](docs/ENVIRONMENT_VARIABLES.md) for full details.
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
@@ -57,15 +57,13 @@ All configuration lives in `.env`. See [Environment Variables](docs/ENVIRONMENT_
 ## 🛠️ Quick Start
 
 ```bash
-# 1. Clone & Build
-git clone https://github.com/jakej985-rgb/m3tal-core.git
-cd m3tal-core
-go build -o m3tal main.go # Compile orchestrator
+# 1. Compile orchestrator
+go build -o m3tal main.go 
 
-# 2. Initialize
+# 2. Initialize Infrastructure
 ./m3tal init
 
-# 3. Launch
+# 3. Launch stack
 ./m3tal up
 ```
 
