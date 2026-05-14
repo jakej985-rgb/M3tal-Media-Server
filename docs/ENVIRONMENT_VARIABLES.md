@@ -9,6 +9,8 @@ This document provides a complete reference for all environment variables used b
 
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `BASE_STORAGE_PATH` | **YES** | - | Base path for media and configs (Critical) |
+| `CF_TUNNEL_TOKEN` | **YES** | - | Cloudflare tunnel token (Critical for Proxy) |
 | `DASHBOARD_PORT` | No | `8082` | Port for the web dashboard |
 | `HTTP_PORT` | No | `8080` | Port for HTTP traffic (Traefik entrypoint) |
 | `STATE_DIR` | No | `./state` | Directory for state files |
@@ -21,11 +23,9 @@ This document provides a complete reference for all environment variables used b
 | `DOMAIN` | No | `localhost` | Root domain for service discovery |
 | `VPN_USER` | No | - | VPN username (optional) |
 | `VPN_PASSWORD` | No | - | VPN password (optional) |
-| `BASE_STORAGE_PATH` | No | `./data` | Base path for media and configs |
 | `MEDIA_PATH` | No | `./data/media` | Media storage path |
 | `CONFIG_PATH` | No | `./data/config` | Configuration storage path |
 | `DOWNLOADS_PATH` | No | `./data/downloads` | Downloads storage path |
-| `CF_TUNNEL_TOKEN` | Yes | - | Cloudflare tunnel token (required for reverse proxy) |
 
 ---
 

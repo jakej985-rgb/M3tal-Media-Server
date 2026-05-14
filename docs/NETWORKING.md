@@ -19,6 +19,24 @@ M3TAL uses a multi-network Docker architecture to separate concerns:
 
 ---
 
+## 🚦 Ingress & Traefik Configuration
+
+The `m3tal` binary automatically orchestrates the Traefik gateway.
+
+### Configuration Loading
+
+* **Static Config**: Managed via `source/m3tal-stack/routing-compose.yml`.
+* **Dynamic Config**: The orchestrator scans `source/m3tal-stack/traefik/` for any `.yml` or `.toml` files and mounts them as dynamic configurations.
+* **Provider**: Uses the Docker Provider to automatically discover services with the `traefik.enable=true` label.
+
+### Connectivity Check
+
+* If you encounter a 404 or 503 error:
+    1. Verify the container is on the `proxy` network: `docker inspect <container> | grep proxy`.
+    2. Check the Traefik dashboard at `traefik.localhost:8080` (Internal only).
+
+---
+
 ## 🏗️ Architecture
 
 ```text
@@ -95,8 +113,8 @@ docker network ls
 
 Expected networks:
 
-- `m3tal` (internal services)
-- `proxy` (Traefik routing)
+* `m3tal` (internal services)
+* `proxy` (Traefik routing)
 
 ### 2. Check Network Connectivity
 
@@ -242,9 +260,10 @@ curl http://localhost
 
 Ensure **ALL externally routed services** are reachable by Traefik via a **single shared Docker network (`proxy`)**, eliminating:
 
-- `unable to find IP address`
-- `server is ignored`
-- Traefik 404 errors
+* `unable to find IP address`
+* `unable to find the IP address`
+* `server is ignored`
+* Traefik 404 errors
 
 ---
 
@@ -252,14 +271,14 @@ Ensure **ALL externally routed services** are reachable by Traefik via a **singl
 
 Docker Compose creates **default networks per stack**:
 
-- `media_default`
-- `control-plane_default`
-- `app_default`
+* `media_default`
+* `control-plane_default`
+* `app_default`
 
 Even when `proxy` is added, services remain attached to these defaults, causing:
 
-- Traefik selecting wrong network OR
-- No usable IP on `proxy`
+* Traefik selecting wrong network OR
+* No usable IP on `proxy`
 
 ---
 
@@ -387,10 +406,8 @@ docker inspect radarr | grep -A5 Networks
 
 ---
 
-### ❌ MUST NOT see
-
-- `media_default`
-- `control-plane_default`
+* `media_default`
+* `control-plane_default`
 
 ---
 
@@ -417,8 +434,8 @@ curl -H "Host: radarr.${DOMAIN}" http://localhost
 
 **Expected:**
 
-- HTML response OR redirect
-- NOT `404 page not found`
+* HTML response OR redirect
+* NOT `404 page not found`
 
 ---
 
@@ -430,10 +447,10 @@ curl -H "Host: radarr.${DOMAIN}" http://localhost
 
 In `audit.py`:
 
-- FAIL if service:
+* FAIL if service:
 
-  - is NOT on proxy
-  - OR has NO IP on proxy
+  * is NOT on proxy
+  * OR has NO IP on proxy
 
 ---
 
@@ -468,7 +485,7 @@ if "proxy" not in container_networks:
 
 ## ✅ Definition of Done
 
-- All routed containers attached to `proxy`
-- No Traefik IP errors
-- `curl Host` test passes
-- Domain resolves externally
+* All routed containers attached to `proxy`
+* No Traefik IP errors
+* `curl Host` test passes
+* Domain resolves externally
