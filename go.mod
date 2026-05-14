@@ -1,6 +1,6 @@
 module github.com/jakej985-rgb/m3tal-core
 
-go 1.18
+go 1.26
 
 require (
 	github.com/moby/moby/client v0.4.1

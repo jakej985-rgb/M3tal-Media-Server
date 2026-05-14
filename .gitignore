@@ -38,3 +38,4 @@ vulture_results.txt
 
 # Binary archives (L6)
 *.rar
+.go_dist/*
