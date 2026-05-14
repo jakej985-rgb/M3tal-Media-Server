@@ -6,18 +6,39 @@ version: ${VERSION}
 section: utils
 priority: optional
 maintainer: Jake Johnson
-description: Lightweight M3tal Core CLI
+description: |
+  M3TAL Core — Lightweight orchestration platform.
+  Includes CLI (m3tal) and API backend (m3tal-api).
+  GUI dashboard available as separate Docker image.
 license: MIT
 
 contents:
-  - src: ./dist/m3tal
+  # CLI & API binaries
+  - src: ./m3tal
     dst: /usr/bin/m3tal
 
+  - src: ./m3tal-api
+    dst: /usr/bin/m3tal-api
+
+  # Systemd service files
+  - src: ./packaging/m3tal.service
+    dst: /lib/systemd/system/m3tal.service
+
+  - src: ./packaging/m3tal-api.service
+    dst: /lib/systemd/system/m3tal-api.service
+
+  # Docker Compose stack files
   - src: ./source/m3tal-stack/*.yml
     dst: /usr/share/m3tal/stack/
 
   - src: ./source/m3tal-stack/users.json
     dst: /usr/share/m3tal/stack/users.json
 
+  # Default configuration
+  - src: ./packaging/config.yaml
+    dst: /etc/m3tal/config.yaml
+    type: config
+
 scripts:
   postinstall: ./scripts/postinstall.sh
+  postremove: ./scripts/postremove.sh
