@@ -1,22 +1,26 @@
 # 🚀 M3TAL Media Server (v1.7)
 
+**DocSmith Status:** *Architecture Scan Complete. Schema Validated.*
+
 M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. Built with **Go 1.26** (Core Orchestrator) and **Python 3.10** (Dashboard Service), it provides a unified interface for managing complex media service stacks.
+
+---
 
 ## 🧠 Architecture: The M3TAL Ecosystem
 
 The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It abstracts the container lifecycle, ensuring that the Go-native orchestrator manages the state of the infrastructure defined in `source/m3tal-stack/`.
 
 ### System Components
-*   **Orchestrator (`./m3tal`)**: A Go-native binary that handles lifecycle management, network configuration, and volume mapping.
-*   **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests that define the containerized environment.
-*   **Dashboard (`source/dashboard`)**: A Flask-based web interface providing user-facing controls and system status.
+*   **Orchestrator (`./m3tal`)**: The Go-native binary acting as the primary control plane for lifecycle management, network configuration, and volume mapping.
+*   **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests governing the containerized environment.
+*   **Dashboard (`source/dashboard`)**: The legacy-compatible Python/Flask web interface. Note: This service is currently being phased out in favor of `m3tal-godash`.
 
 > **Note on Migration**: We are currently in a Go-native migration phase. While the Dashboard remains Python-based for flexibility, all system-level orchestration, networking, and API interactions have been transitioned to Go to ensure memory safety and sub-millisecond execution times.
 
 ---
 
 ## 🔗 Related Projects
-*   [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): High-performance dashboard rewrite.
+*   [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): High-performance, Go-native dashboard rewrite.
 *   [m3tal-goback](https://github.com/jakej985-rgb/m3tal-goback): The evolving Go-native backend API implementation.
 
 ---
