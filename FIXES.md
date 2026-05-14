@@ -1,62 +1,49 @@
-### **DocCritic Audit Report: M3TAL Core v1.7**
+## DocCritic Audit Report: M3TAL Platform (v1.7)
 
-**Audit Status:** FAILED
-**Verdict:** **BLOCKER.** The documentation assumes a level of prior domain knowledge and environmental state that does not exist for a fresh user. The "Quick Start" is currently a path to a broken deployment.
-
----
-
-### **Issue List**
-
-#### **BLOCKER**
-1.  **Missing `.env` Validation/Configuration:** The user is told to `cp template.env .env`, but there is zero instruction on what variables *must* be changed (specifically `BASE_STORAGE_PATH`). If the user runs `./m3tal up` without configuring the storage path, the container will likely crash or mount nothing.
-2.  **Implicit Host Requirement:** The instruction "Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt`" implies that the directory must exist on the host before running `./m3tal up`. If it doesn't exist, Docker will create a root-owned directory, causing permission issues.
-3.  **Missing `m3tal` Binary Context:** The instructions jump from `build.sh` to `./m3tal init`. It is not explicitly stated that `build.sh` produces the `m3tal` binary, nor what the user should do if that binary fails to generate (e.g., Go dependency errors).
-
-#### **WARNING**
-4.  **Incomplete Networking Instructions:** While the `/etc/hosts` file is mentioned, the Traefik configuration dependency is not. If Traefik requires a specific network name or certificate setup to bind to those hosts, the user is left guessing.
-5.  **Ambiguous Dashboard Status:** You mention the legacy Dashboard is being phased out, yet you provide it as a main access point in the routing table. A new user will be confused about whether they should use `m3tal-godash` or the legacy dashboard.
-
-#### **SUGGESTION**
-6.  **CLI Help Accessibility:** The documentation should explicitly mention `./m3tal --help` as a way to verify the binary is functional after the build step.
-7.  **Dependency Verification:** Add a step to check for the Docker Socket permissions. `docker` group membership is mentioned, but a new user often forgets to log out/in to apply group changes.
+**Verdict:** **REJECTED.**
+The current documentation assumes an "expert-in-the-room" level of knowledge and leaves critical operational gaps that will cause a new user's first deployment to fail immediately. The orchestration logic (Go vs. Bash vs. Docker Compose) is opaque, and the path/permission requirements are brittle.
 
 ---
 
-### **Suggested Fixes**
+### 🚨 Issue List
 
-#### **1. Improve `Prerequisites` section:**
-Add a "Host Preparation" step:
-```bash
-# Verify Docker socket permissions
-groups | grep docker || echo "WARNING: User not in docker group. Please add user and restart session."
+#### 1. BLOCKER: Missing `.env` Variable Definition
+The `template.env` is mentioned but not documented. A user has no idea what `BASE_STORAGE_PATH` or other required keys are supposed to look like.
+*   **Fix:** Include a table in `README.md` or a link to a completed `example.env` explaining every required key (e.g., `BASE_STORAGE_PATH`, `API_KEY`, `DB_PASSWORD`).
 
-# Prepare Storage
-mkdir -p /path/to/your/media
-# Ensure your .env BASE_STORAGE_PATH points to this directory
-```
+#### 2. BLOCKER: Ambiguous `m3tal.py` vs Binary usage
+The intro mentions a "Python 3.10 Legacy Dashboard" but the Quick Start uses a Go binary `./m3tal`. Is the Python service managed by the Go binary? Does the user need to run `pip install` for the legacy service?
+*   **Fix:** Clarify the dependency chain. If the Go binary handles the Python service, state it clearly. If manual intervention is needed, provide the `pip install -r requirements.txt` steps.
 
-#### **2. Update `Quick Start` to be "Configuration-First":**
-```bash
-# 1. Setup
-git clone ...
-cp template.env .env
-# IMPORTANT: Edit .env and set BASE_STORAGE_PATH to your absolute media directory.
-nano .env
+#### 3. BLOCKER: The `/mnt` Directory Assumption
+The documentation mandates an absolute path for `BASE_STORAGE_PATH` but warns that an empty `/mnt` inside the container causes failure. It does not explain how the `m3tal` binary validates this path or what error message the user should expect.
+*   **Fix:** Add a validation step in the CLI. The `m3tal init` command should perform a pre-flight check: "Does `BASE_STORAGE_PATH` exist? Is it writable? If not, throw a clean error and exit."
 
-# 2. Build & Verify
-chmod +x build.sh
-./build.sh
-./m3tal --version # Verify binary is executable
-```
+#### 4. WARNING: Traefik Network Configuration
+You specify `traefik.localhost` and `m3tal.localhost`, but you don't explain *how* the Traefik container actually binds to the host ports. Does the user need to open ports 80/443 on the host? What if they are already in use (e.g., by Apache or Nginx)?
+*   **Fix:** Document the required Host Ports (80/443/8080) and advise on potential port conflicts.
 
-#### **3. Clarify the Storage/Pathing behavior:**
-Add a warning to the `Troubleshooting` section:
-> **Crucial:** M3TAL expects `BASE_STORAGE_PATH` to be an absolute path. If the directory does not exist, the orchestrator will fail to bind mount, resulting in an empty `/mnt` inside your containers. 
+#### 5. WARNING: Build Process Ambiguity
+`./build.sh` is a "black box." Does it compile the Go binary only? Does it pull Docker images? Does it build the Python dashboard?
+*   **Fix:** Document the output of `build.sh`. What should the user see if it succeeds? Where is the resulting binary placed?
 
-#### **4. Address the Dashboard confusion:**
-Add a note under "Service Routing":
-> **Note:** The legacy Dashboard (`m3tal.localhost`) is included for v1.7. If you are deploying for the first time, we recommend checking the [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash) repository for the modern replacement.
+#### 6. SUGGESTION: "Clean Room" Initialization
+The "Quick Start" assumes the user can just run `./m3tal init`. It does not explicitly mention that this generates the underlying Docker Compose files in `source/m3tal-stack/`.
+*   **Fix:** Add a "What to expect" section. Explain that `init` generates `docker-compose.yml` from a template.
 
 ---
-**Auditor Signature:** *DocCritic*
-*M3TAL Platform Audit Division*
+
+### 📝 Recommended Immediate Actions for Authors:
+
+1.  **Refine the `template.env`**: Add comments to every line in the file. A user shouldn't have to guess what `API_KEY` is for.
+2.  **Explicit Path Instructions**: Change the instruction:
+    *   *From:* `mkdir -p /path/to/your/media`
+    *   *To:* "Create a folder (e.g., `/home/user/media`), then set `BASE_STORAGE_PATH=/home/user/media` in your `.env` file."
+3.  **Add a Pre-Flight Command**: Add a `./m3tal doctor` command. This is standard in modern CLI tools. It should print:
+    *   Docker: [OK]
+    *   .env: [OK]
+    *   /mnt access: [OK]
+    *   Traefik Ports: [80: Available]
+4.  **Clarify Ingress**: Explicitly state: "Ensure ports 80 and 443 are not currently occupied by another web server."
+
+**DocCritic Note:** *You have a powerful project, but your current README expects the user to be a mind-reader. Fix the installation path and environment configuration documentation, or you will spend all your time answering "Why is my container empty?" issues.*

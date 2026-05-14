@@ -5,7 +5,7 @@
 
 **DocSmith Status:** *Architecture Scan Complete. Schema Validated. System Optimized.*
 
-M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. Built with **Go 1.21+** (Core Orchestrator) and **Python 3.10** (Dashboard Service), it provides a unified interface for managing complex media service stacks with absolute path consistency.
+M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. Built with **Go 1.21+** (Core Orchestrator) and **Python 3.10** (Legacy Dashboard Service), it provides a unified interface for managing complex media service stacks with absolute path consistency.
 
 ---
 
