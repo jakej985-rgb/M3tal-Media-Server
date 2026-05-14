@@ -1,41 +1,51 @@
-# Audit Report: M3TAL Core Documentation
+### **Audit Report: M3TAL Core Documentation**
 **Auditor:** DocCritic, Senior DevOps Auditor  
-**Date:** 2023-10-27  
-**Status:** **FAILED**
+**Date:** October 26, 2023  
+**Verdict:** **FAILED - NON-DEPLOYABLE**
 
----
-
-### **Verdict**
-**Non-Deployable.** The documentation suffers from "developer myopia." It assumes the user has existing knowledge of the `m3tal` binary's internal dependencies, storage requirements, and environment variable schema. A new user following these instructions will encounter multiple runtime failures immediately after the `up` command.
+The documentation suffers from "expert bias." It assumes the user already knows how to configure the `BASE_STORAGE_PATH` and ignores critical runtime dependencies (e.g., Traefik dynamic configuration, network initialization). A "Quick Start" that results in a silent failure or a permission error is unacceptable for a high-performance orchestration tool.
 
 ---
 
 ### **Issue List**
 
 #### **BLOCKER**
-1.  **Missing `.env` schema validation:** The documentation tells me to `cp template.env .env`, but there is zero documentation on *what* keys are mandatory, especially regarding `BASE_STORAGE_PATH` or external API keys.
-2.  **Missing `/mnt` initialization:** The requirement "`/mnt` Directory Writable" is a manual step. If a user on macOS or a restricted Linux distro runs `mkdir /mnt`, they will face permission issues or file system conflicts.
-3.  **Port Conflicts/Permissions:** The documentation mandates ports 80 and 443. On Linux, these are privileged ports. The documentation fails to mention that `sudo` or specific `setcap` configurations may be required to bind the Traefik ingress.
+*   **Missing `.env` schema validation:** The `template.env` exists, but there is no documentation on *required* variables (e.g., `BASE_STORAGE_PATH`, API keys, or secret tokens). Users will execute `./m3tal up` only to have it fail with a cryptic `nil` pointer or config error.
+*   **Implicit `/mnt` dependency:** You mandate `/mnt` but do not provide a script to check if this directory exists or if the user has permissions. On macOS/Windows, this will fail instantly.
+*   **Traefik Gateway dependency:** The documentation mentions Traefik but doesn't explain how to ensure the `traefik.yml` or `config.yml` is loaded by the `m3tal` orchestrator. The user will be left with a 404 or 503 error on the ingress.
 
 #### **WARNING**
-4.  **Implicit Build Tooling:** `./build.sh` is invoked, but we don't know what it does. Does it fetch Go dependencies? Does it install Docker SDKs? Does it require `go mod download` first?
-5.  **Environment Variable Persistence:** The CLI `config set` is mentioned, but where is it writing to? Does the user need to manually edit `.env` or does the CLI handle it? This is ambiguous.
-6.  **"Legacy" Dashboard confusion:** You state the Python dashboard is being phased out, yet you provide instructions for it. Which one should a new user start with?
+*   **Go 1.26+ Requirement:** Go 1.26 does not exist (Current latest is 1.23). This undermines the technical credibility of the project immediately. 
+*   **Network Namespace assumptions:** You claim Traefik handles ingress, but you haven't specified if the `m3tal` binary creates a Docker network bridge. If the containers are not on the same network, they cannot communicate despite your claims of an "API-Only Communication model."
 
 #### **SUGGESTION**
-7.  **DNS Mapping:** Expecting a new user to manually edit `/etc/hosts` is brittle. Consider suggesting a tool like `dnsmasq` or providing a warning about `sudo` requirements for file edits.
-8.  **Orchestrator feedback:** The `init` command is mysterious. What state is it creating? Does it check for the existence of `BASE_STORAGE_PATH` before running?
+*   **CLI Setup wizard:** Instead of manual `cp template.env`, provide a `./m3tal setup` command that detects system paths and writes the `.env` file automatically.
+*   **Dependency Verification:** Add a `./m3tal doctor` command that verifies the Docker socket, Go version, and path permissions.
 
 ---
 
 ### **Suggested Fixes**
 
-*   **For `.env`:** Include a table in the README detailing: `KEY`, `REQUIRED (Y/N)`, `DESCRIPTION`, and `EXAMPLE`. 
-*   **For `/mnt`:** Update the instructions to allow configuration of the base path via an environment variable that *doesn't* require writing to root-owned directories. If you *must* use `/mnt`, provide a script: `sudo mkdir -p /mnt/m3tal && sudo chown $USER:$USER /mnt/m3tal`.
-*   **For Port 80/443:** Clearly state: *"Note: Binding to ports 80/443 requires root privileges or explicit capability assignment. If running without root, change the ports in your `.env` file to 8080/8443."*
-*   **For `build.sh`:** Replace `./build.sh` with a standard `go build -o m3tal ./cmd/main.go` or document what the script handles to ensure the user isn't blindly executing unknown scripts.
-*   **For Service Selection:** Clearly label the `m3tal-godash` as the recommended path for new users and explicitly mark the Python dashboard as "Deprecated/Legacy."
+1.  **Fix Versioning:** Correct Go requirements to `1.21+` (or latest stable).
+2.  **Enhance `.env` Logic:** 
+    *   Add a section: *Required Environment Variables*.
+    *   Add a warning block: "Ensure `BASE_STORAGE_PATH` is an existing, absolute path on your host, or `./m3tal up` will exit with an error."
+3.  **Update "Quick Start":**
+    ```bash
+    # Updated Quick Start
+    git clone ...
+    cp template.env .env
+    # ADD: Prompt user to edit .env
+    nano .env 
+    # ADD: Run a health check
+    ./m3tal doctor 
+    ./build.sh
+    ./m3tal up
+    ```
+4.  **Networking Clarity:** Add a brief note under "Networking": *"The M3TAL orchestrator automatically creates a Docker bridge network named `m3tal_net`. Ensure your firewall allows internal traffic on this interface."*
+5.  **Host Path Documentation:** Provide a concrete example for `BASE_STORAGE_PATH`. 
+    *   *Correction:* "If you are on Linux, set `BASE_STORAGE_PATH=/home/user/media`. If on macOS, use `/Users/user/media`."
 
 ---
 
-**Auditor Note:** *I cannot recommend this project for production or even lab deployment until the bootstrap process is automated and the environment constraints are explicitly documented. The current README assumes the user is the original developer.*
+**Auditor Note:** *M3TAL looks like a powerful tool, but documentation gaps are the graveyard of open-source projects. Fix these blockers, or you will spend 90% of your time answering "Why is my stack failing?" in GitHub Issues.*

@@ -14,7 +14,7 @@ M3TAL is a high-performance media server control plane engineered for lifecycle 
 The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It abstracts the container lifecycle, ensuring that the Go-native orchestrator manages the state of the infrastructure defined in `source/m3tal-stack/`.
 
 ### System Components
-*   **Orchestrator (`./m3tal`)**: The Go-native binary acting as the primary control plane for lifecycle management, network configuration, and volume mapping.
+*   **Orchestrator (`m3tal` CLI)**: The Go-native binary acting as the primary control plane. It interfaces with the Docker socket to manage lifecycle, network configuration, and volume mapping for the stack.
 *   **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests governing the containerized environment.
 *   **Dashboard (`source/dashboard`)**: The legacy-compatible Python/Flask web interface. Note: This service is currently being phased out in favor of `m3tal-godash`.
 
