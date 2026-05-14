@@ -11,15 +11,15 @@ M3TAL is a high-performance media server control plane engineered for lifecycle 
 
 ## 🧠 Architecture: The M3TAL Ecosystem
 
-The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It abstracts the container lifecycle, ensuring that the Go-native orchestrator manages the state of the infrastructure defined in `source/m3tal-stack/`.
+The `m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It abstracts the container lifecycle, ensuring that the Go-native orchestrator manages the state of the infrastructure defined in `source/m3tal-stack/`.
 
 ### System Components
 
-* **Orchestrator (`m3tal` CLI)**: The Go-native binary acting as the primary control plane. It interfaces with the Docker socket to manage lifecycle, network configuration, and volume mapping for the stack.
+* **Orchestrator (CLI)**: The Go-native binary acting as the primary control plane. It interfaces with the Docker socket to manage lifecycle, network configuration, and volume mapping for the stack.
 * **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests governing the containerized environment.
 * **Dashboard (`source/dashboard`)**: The legacy-compatible Python/Flask web interface. Note: This service is currently being phased out in favor of `m3tal-godash`.
 
-> **Note on Migration**: We are currently in a Go-native migration phase. While the Dashboard remains Python-based for flexibility, all system-level orchestration, networking, and API interactions have been transitioned to Go to ensure memory safety and sub-millisecond execution times.
+> **Note on Go-Native Migration**: M3TAL is currently undergoing a structural evolution. While the `dashboard` remains Python-based for legacy compatibility, all core orchestration, infrastructure management, and API-interfacing logic have been fully transitioned to Go-native modules to ensure memory safety and sub-millisecond execution times.
 
 ---
 
@@ -41,8 +41,6 @@ The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. I
 ```
 
 1. **Storage Logic**: M3TAL enforces a strict `/mnt` mapping. Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt` inside containers, ensuring absolute path consistency across all microservices.
-    * **Permission Check**: Ensure the user running Docker has `read/write` access to `BASE_STORAGE_PATH`.
-    * **Path Validation**: If `BASE_STORAGE_PATH` is not set or invalid, `./m3tal` will fail with a configuration error.
 
 ---
 
@@ -63,42 +61,11 @@ chmod +x build.sh
 ./m3tal up
 ```
 
-### Pre-flight Checklist
-
-| Requirement | Status |
-| :--- | :--- |
-| Docker Engine 20.10+ | ✅ Required |
-| Go 1.21+ | ✅ Required for build.sh |
-| Ports 80, 443, 8080, 8082 Free | ✅ Required |
-| `/mnt` Directory Writable | ✅ Required |
-
-### 🛠️ Pre-flight Validation
-
-Before running `./m3tal up`, execute these checks to avoid silent failures:
-
-1. **Storage Readiness**: Ensure `BASE_STORAGE_PATH` exists:
-
-   ```bash
-   ls -d $BASE_STORAGE_PATH || mkdir -p $BASE_STORAGE_PATH
-   ```
-
-2. **Network Conflict Check**: Ensure ports 80/443 are not occupied by other web servers:
-
-   ```bash
-   sudo netstat -tulpn | grep -E ':80|:443'
-   ```
-
-3. **Docker Connectivity**: Verify you can reach the Docker socket:
-
-   ```bash
-   docker ps
-   ```
-
 ---
 
 ## ⚙️ Service Routing & Communication
 
-M3TAL uses an **API-Only Communication** model. The Frontend (Dashboard) communicates with the Backend via internal Docker networks, while all traffic is ingress-filtered through the **Traefik Gateway**.
+M3TAL utilizes an **API-Only Communication** model. The Frontend (Dashboard) communicates with the backend via internal Docker networks, while all traffic is ingress-filtered through the **Traefik Gateway**.
 
 | Service | Host Header | Internal Port |
 | :--- | :--- | :--- |
@@ -110,7 +77,7 @@ M3TAL uses an **API-Only Communication** model. The Frontend (Dashboard) communi
 
 ## 🛠️ CLI Command Reference
 
-The `m3tal` binary provides a "Mission Control" interface:
+The `m3tal` binary provides a "Mission Control" interface for ecosystem management:
 
 * `./m3tal up`: Boots the defined stack via Go-orchestrated Docker Compose.
 * `./m3tal down`: Graceful shutdown of all services.

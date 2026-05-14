@@ -1,50 +1,62 @@
-### **DocCritic Audit Report: M3TAL Core**
+### **DocCritic Audit Report: M3TAL Core v1.7**
 
-**Verdict:** **FAILED**. As a new user, I cannot successfully deploy this stack. The documentation assumes a "perfect" environment and fails to provide critical implementation details regarding file system dependencies and binary initialization.
+**Audit Status:** FAILED
+**Verdict:** **BLOCKER.** The documentation assumes a level of prior domain knowledge and environmental state that does not exist for a fresh user. The "Quick Start" is currently a path to a broken deployment.
 
 ---
 
-## Issue List
+### **Issue List**
 
 #### **BLOCKER**
-*   **[BLOCKER] `/mnt` Dependency:** The docs state `/mnt` is a "Required" directory. On macOS or Windows (Docker Desktop), the `/mnt` root path does not exist and cannot be created by the user. If the Go orchestrator blindly expects `/mnt` to exist on the host, the `m3tal up` command will crash or fail to mount volumes.
-*   **[BLOCKER] Missing `m3tal.py` initialization:** The architecture section mentions a Python/Flask dashboard, but there is no instruction on how to install Python dependencies (`pip install -r requirements.txt`) or if the orchestrator handles this. I don't know if I need to run a `venv` or if it's containerized.
-*   **[BLOCKER] `.env` Variable Blindness:** The `cp template.env .env` command is provided, but there is no instruction to actually *edit* the file. The orchestrator will likely fail if `BASE_STORAGE_PATH` points to a non-existent or default location.
+1.  **Missing `.env` Validation/Configuration:** The user is told to `cp template.env .env`, but there is zero instruction on what variables *must* be changed (specifically `BASE_STORAGE_PATH`). If the user runs `./m3tal up` without configuring the storage path, the container will likely crash or mount nothing.
+2.  **Implicit Host Requirement:** The instruction "Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt`" implies that the directory must exist on the host before running `./m3tal up`. If it doesn't exist, Docker will create a root-owned directory, causing permission issues.
+3.  **Missing `m3tal` Binary Context:** The instructions jump from `build.sh` to `./m3tal init`. It is not explicitly stated that `build.sh` produces the `m3tal` binary, nor what the user should do if that binary fails to generate (e.g., Go dependency errors).
 
 #### **WARNING**
-*   **[WARNING] Port Conflict Potential:** The "Pre-flight Checklist" notes ports 80/443 must be free. On most Linux distributions, these are protected ports requiring `sudo` or have existing services (Apache/Nginx). The documentation ignores the `sudo` requirement or capability mapping.
-*   **[WARNING] Binary Compilation:** `build.sh` is invoked, but there is no mention of Go dependency management (`go mod download`). If the environment isn't pre-warmed, the build will fail.
+4.  **Incomplete Networking Instructions:** While the `/etc/hosts` file is mentioned, the Traefik configuration dependency is not. If Traefik requires a specific network name or certificate setup to bind to those hosts, the user is left guessing.
+5.  **Ambiguous Dashboard Status:** You mention the legacy Dashboard is being phased out, yet you provide it as a main access point in the routing table. A new user will be confused about whether they should use `m3tal-godash` or the legacy dashboard.
 
 #### **SUGGESTION**
-*   **[SUGGESTION] Traefik Gateway Config:** There is no mention of how the Traefik configuration in `source/m3tal-stack/` expects the network to be defined. If a user tries to run this on a host with an existing Traefik instance, it will collide.
-*   **[SUGGESTION] CLI "Help" command:** The CLI reference is good, but `m3tal` is a new tool. Please add `./m3tal --help` or `--version` verification steps for initial smoke testing.
+6.  **CLI Help Accessibility:** The documentation should explicitly mention `./m3tal --help` as a way to verify the binary is functional after the build step.
+7.  **Dependency Verification:** Add a step to check for the Docker Socket permissions. `docker` group membership is mentioned, but a new user often forgets to log out/in to apply group changes.
 
 ---
 
 ### **Suggested Fixes**
 
-1.  **Resolve `/mnt` Issue:** 
-    *   **Fix:** Update the documentation to allow a custom `BASE_STORAGE_PATH` that defaults to a local subdirectory (e.g., `./data`) rather than the system root `/mnt`. 
-    *   *Documentation:* "Ensure `BASE_STORAGE_PATH` is set to an absolute path. If on macOS/Windows, avoid root-level paths like `/mnt` and use your user home directory."
+#### **1. Improve `Prerequisites` section:**
+Add a "Host Preparation" step:
+```bash
+# Verify Docker socket permissions
+groups | grep docker || echo "WARNING: User not in docker group. Please add user and restart session."
 
-2.  **Explicit `.env` Configuration:**
-    *   **Fix:** Change the quickstart to:
-        ```bash
-        cp template.env .env
-        nano .env  # Update BASE_STORAGE_PATH and any API keys
-        ```
+# Prepare Storage
+mkdir -p /path/to/your/media
+# Ensure your .env BASE_STORAGE_PATH points to this directory
+```
 
-3.  **Dependency Initialization:**
-    *   **Fix:** Add a dedicated "System Preparation" step:
-        ```bash
-        # Initialize Go dependencies
-        go mod tidy
-        # If the dashboard is not containerized, instructions for the Python environment:
-        cd source/dashboard && pip install -r requirements.txt
-        ```
+#### **2. Update `Quick Start` to be "Configuration-First":**
+```bash
+# 1. Setup
+git clone ...
+cp template.env .env
+# IMPORTANT: Edit .env and set BASE_STORAGE_PATH to your absolute media directory.
+nano .env
 
-4.  **Networking/Privilege Warning:**
-    *   **Fix:** Add a "Pro-tip" to the Networking section: "If you cannot bind to ports 80/443, update `docker-compose.yml` to map these to high-range ports (e.g., 8080:80)."
+# 2. Build & Verify
+chmod +x build.sh
+./build.sh
+./m3tal --version # Verify binary is executable
+```
 
-5.  **Build Safety:**
-    *   **Fix:** Ensure `build.sh` performs a `go mod vendor` or `go mod download` check to prevent confusing "module not found" errors during compilation.
+#### **3. Clarify the Storage/Pathing behavior:**
+Add a warning to the `Troubleshooting` section:
+> **Crucial:** M3TAL expects `BASE_STORAGE_PATH` to be an absolute path. If the directory does not exist, the orchestrator will fail to bind mount, resulting in an empty `/mnt` inside your containers. 
+
+#### **4. Address the Dashboard confusion:**
+Add a note under "Service Routing":
+> **Note:** The legacy Dashboard (`m3tal.localhost`) is included for v1.7. If you are deploying for the first time, we recommend checking the [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash) repository for the modern replacement.
+
+---
+**Auditor Signature:** *DocCritic*
+*M3TAL Platform Audit Division*
