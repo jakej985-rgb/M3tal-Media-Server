@@ -17,10 +17,10 @@ jobs:
       - name: Set Version
         run: echo "VERSION=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
 
-      - name: Build Binary
+      - name: Build Binaries
         run: |
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/m3tal ./cmd/m3tal
+          go build -ldflags="-s -w" -o ./m3tal ./cmd/m3tal
+          go build -ldflags="-s -w" -o ./m3tal-api ./cmd/api
 
       - name: Install nfpm
         run: |

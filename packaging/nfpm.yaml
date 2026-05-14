@@ -28,9 +28,6 @@ contents:
     dst: /lib/systemd/system/m3tal-api.service
 
   # Docker Compose stack files
-  - src: ./source/m3tal-stack/*.yml
-    dst: /usr/share/m3tal/stack/
-
   - src: ./source/m3tal-stack/users.json
     dst: /usr/share/m3tal/stack/users.json
 
