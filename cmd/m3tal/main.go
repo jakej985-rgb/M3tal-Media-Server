@@ -12,11 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jakej985-rgb/m3tal-core/pkg/api"
 	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
 	"github.com/jakej985-rgb/m3tal-core/pkg/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
+	"io"
+	"net/http"
+	"bytes"
 	_ "embed"
 )
 
@@ -36,11 +40,21 @@ func main() {
 	}
 
 	var rootCmd = &cobra.Command{Use: "m3tal"}
+	rootCmd.PersistentFlags().String("api-url", "http://localhost:8080", "M3TAL API URL")
+	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
+	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
 
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List all containers",
 		Run: func(cmd *cobra.Command, args []string) {
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				if resp, err := callAPI(cmd, "GET", "/api/containers", nil); err == nil {
+					fmt.Println(resp)
+					return
+				}
+			}
+
 			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
@@ -53,11 +67,25 @@ func main() {
 		},
 	}
 
+	var psCmd = &cobra.Command{
+		Use:   "ps",
+		Short: "List all containers (alias for list)",
+		Run:   listCmd.Run,
+	}
+
 	var startCmd = &cobra.Command{
 		Use:   "start [name]",
 		Short: "Start a container",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				body := map[string]string{"name": args[0]}
+				if _, err := callAPI(cmd, "POST", "/api/containers/start", body); err == nil {
+					fmt.Printf("Started %s (via API)\n", args[0])
+					return
+				}
+			}
+
 			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
@@ -74,6 +102,14 @@ func main() {
 		Short: "Stop a container",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				body := map[string]string{"name": args[0]}
+				if _, err := callAPI(cmd, "POST", "/api/containers/stop", body); err == nil {
+					fmt.Printf("Stopped %s (via API)\n", args[0])
+					return
+				}
+			}
+
 			mgr, err := containers.GetProvider()
 			if err != nil {
 				log.Fatal(err)
@@ -89,6 +125,13 @@ func main() {
 		Use:   "stats",
 		Short: "Show system stats",
 		Run: func(cmd *cobra.Command, args []string) {
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				if resp, err := callAPI(cmd, "GET", "/api/metrics", nil); err == nil {
+					fmt.Println(resp)
+					return
+				}
+			}
+
 			s, err := system.GetStats()
 			if err != nil {
 				log.Fatal(err)
@@ -122,6 +165,22 @@ func main() {
 			select {}
 		},
 	}
+
+	var apiCmd = &cobra.Command{
+		Use:   "api",
+		Short: "Run the M3TAL API server",
+		Run: func(cmd *cobra.Command, args []string) {
+			port, _ := cmd.Flags().GetString("port")
+			token := os.Getenv("API_TOKEN")
+			if token == "" {
+				token = "m3tal-secret-token"
+			}
+			if err := api.StartServer(port, token); err != nil {
+				log.Fatalf("❌ API server failed: %v", err)
+			}
+		},
+	}
+	apiCmd.Flags().String("port", "8080", "Port to listen on")
 
 	var upCmd = &cobra.Command{
 		Use:   "up",
@@ -281,7 +340,7 @@ func main() {
 	}
 
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, startCmd, stopCmd, statsCmd, daemonCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, configCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, configCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -379,4 +438,43 @@ func replaceSecret(content, key, secret string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func callAPI(cmd *cobra.Command, method, path string, body interface{}) (string, error) {
+	apiURL, _ := cmd.Flags().GetString("api-url")
+	apiToken, _ := cmd.Flags().GetString("api-token")
+
+	var bodyReader io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		bodyReader = bytes.NewBuffer(data)
+	}
+
+	req, err := http.NewRequest(method, apiURL+path, bodyReader)
+	if err != nil {
+		return "", err
+	}
+
+	if apiToken != "" {
+		req.Header.Set("X-API-Token", apiToken)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
 }
