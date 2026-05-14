@@ -1,55 +1,56 @@
-## Auditor Report: M3TAL Platform Documentation
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Date:** 2023-10-27  
-**Verdict:** **FAILED - DEPLOYMENT NOT POSSIBLE**
+As a Senior DevOps Auditor, I have reviewed your documentation. My verdict is: **UNUSABLE**.
 
-As a new user, I attempted to stand up this infrastructure. I failed immediately. The documentation assumes a "happy path" that does not exist in reality. You have provided a skeleton, not a roadmap.
+The current documentation treats the user as if they already possess tribal knowledge of the system. You have provided a CLI tool that manages infrastructure but failed to define the prerequisites for that infrastructure to actually function.
 
----
-
-### 🚨 Issue List
-
-#### 1. BLOCKER: Missing `.env` Initialization
-The documentation refers to a `.env` file, but there is no instruction on how to create one. Does `m3tal init` create a template? Is there a `.env.example`? A user cannot guess the format or necessary keys beyond the table provided.
-*   **Fix:** Add a step to run `cp .env.example .env` or specify that `m3tal config` generates the file. Explicitly document the mandatory `.env` structure.
-
-#### 2. BLOCKER: `m3tal.py` Ghosting
-The prompt intro mentions `m3tal.py setup`, but the README makes no mention of a Python script. If the system requires a Python setup phase, it is missing from the "Quick Start." 
-*   **Fix:** Clarify if `m3tal.py` is deprecated, required, or a hidden utility. If required, add it to the "Quick Start" sequence.
-
-#### 3. BLOCKER: Host-Path Dependency ("The /mnt Trap")
-The README mandates `BASE_STORAGE_PATH` be mounted to `/mnt`. It fails to mention that `/mnt` must exist on the **host machine** or be created. If I point `BASE_STORAGE_PATH` to `/home/user/media`, but the logic hardcodes a `/mnt` mount point, the container will likely crash or show empty directories.
-*   **Fix:** Include a "Prerequisites" section. Provide a command to ensure the storage directory is prepared and explain if the user needs to manually create mount points.
-
-#### 4. WARNING: Traefik Access & Networking
-You mention "Traefik Gateway," but there is zero information on how to actually access the dashboard once it is "Up." What port is Traefik listening on (80/443)? Does it require a specific URL format? How do I verify the Traefik dashboard?
-*   **Fix:** Create a "How to Access Your Dashboard" section detailing the default port (e.g., `http://localhost:8080`) and required local DNS mappings.
-
-#### 5. WARNING: Missing `source/m3tal-stack` instructions
-You mention `source/m3tal-stack` contains "Standardized Docker Compose manifests." Does the user need to manually move files here? Does the Go binary automatically inject them? The interaction between the binary and the `source` folder is opaque.
-*   **Fix:** Clarify the automation level. Does `./m3tal init` copy these files to a hidden directory, or does it run them in place?
-
-#### 6. SUGGESTION: Dev-Only Assumption
-The `build.sh` script is referenced but its dependencies are not. Does it require `go` installed on the host? Does it require `docker-compose`?
-*   **Fix:** Add a "System Requirements" section:
-    *   Go 1.21+
-    *   Docker & Docker Compose (v2.x)
-    *   `make` or `bash` for build scripts.
+### Verdict: BLOCKER
+The documentation fails to provide a path to a successful deployment. A user following this guide will encounter multiple crashes, permission errors, and "not found" exceptions because you have abstracted the "setup" phase into a black box.
 
 ---
 
-### 📝 Auditor’s Final Recommendation
-The project documentation is currently written for the **author**, not the **user**. It skips the "how" in favor of the "what." 
+### Detailed Issue List
 
-**Immediate Action Plan:**
-1.  **Draft a `.env.example`** and commit it to the repo.
-2.  **Explicitly define the "Quick Start" flow:**
-    *   Clone repo.
-    *   Install Go/Docker.
-    *   Copy `.env.example` to `.env` and fill values.
-    *   Run `./build.sh`.
-    *   Run `./m3tal init`.
-    *   Run `./m3tal up`.
-3.  **Document the access URL** for the dashboard so a user doesn't have to hunt through Traefik logs to find where their service landed.
+*   **[BLOCKER] Missing `.env` Generation Logic**: The documentation mentions the `.env` file is required, but provides no instruction on *creating* it. Does `m3tal init` generate a sample? Does the user have to touch a file manually?
+*   **[BLOCKER] Hardware Assumption (Mount Point)**: You mandate `BASE_STORAGE_PATH` mounts to `/mnt` inside the container. You do not check if `/mnt` exists or if the user has read/write permissions to the path provided in their own config.
+*   **[BLOCKER] Docker Dependency/Configuration**: The guide assumes the Docker socket is accessible without explanation. It does not mention that the user must be in the `docker` group or that the Go binary might require elevated privileges to manage the socket.
+*   **[WARNING] Traefik/Networking Ambiguity**: You mention "Traefik Gateway" but never state which ports are required (80, 443, 8080). A user trying to run this on a host with an existing web server will have port conflicts with zero guidance on how to change them.
+*   **[WARNING] Dependency Management**: You tell the user to `go build`, but you don't list Go modules or dependencies. Does the repo have a `go.mod`? Is a `go mod download` step required before the build?
+*   **[SUGGESTION] `m3tal init` is a Black Box**: There is no documentation on what `init` actually *does*. Does it pull Docker images? Does it create a `docker-compose.yaml`? If it fails, the user is blind.
 
-**Do not deploy until these gaps are closed.**
+---
+
+### Suggested Fixes
+
+#### 1. Fix the Environment Setup
+Change the "Quick Start" section to include an explicit initialization of the environment:
+```bash
+# Explicitly guide the user
+cp .env.example .env
+nano .env # Edit BASE_STORAGE_PATH, API_TOKEN, DASHBOARD_SECRET
+```
+
+#### 2. Pre-flight Checks (The "Doctor" Pattern)
+Update the `m3tal doctor` command description to include:
+*   Verification of `BASE_STORAGE_PATH` existence and write permissions.
+*   Verification of Docker socket connectivity.
+*   Check for required port availability (80/443).
+
+#### 3. Define Networking Requirements
+Add a "Network Requirements" section to `docs/NETWORKING.md`:
+*   **Required Ports**: 80 (HTTP), 443 (HTTPS), 8080 (Traefik Dashboard).
+*   Add a troubleshooting tip: "If port 80/443 are in use, modify `traefik.yml` in `source/m3tal-stack/`."
+
+#### 4. Clarify the Build Process
+Add to the build instructions:
+```bash
+go mod download
+go build -o m3tal main.go
+```
+
+#### 5. User Permission Notice
+Add a warning: *"Ensure your user is part of the `docker` group. The `m3tal` binary requires read/write access to `/var/run/docker.sock` to orchestrate services."*
+
+#### 6. Improve the "Path Consistency" warning
+Instead of a stern warning, provide a helper:
+*   *Action:* "The `m3tal doctor` command will automatically verify if your `BASE_STORAGE_PATH` is correctly mapped. If your media is located at `/media/data`, set `BASE_STORAGE_PATH=/media/data` in `.env`."
+
+**Summary**: Stop assuming the user knows how to "fix" the orchestration layer. Documentation must be idiot-proof, especially when handling filesystem mounts and network gateways.
