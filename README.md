@@ -30,7 +30,7 @@ The `m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It 
 
 ---
 
-## 🛠️ Prerequisites
+### 🛠️ Prerequisites
 
 1. **Docker Engine**: v20.10+ (Ensure `docker` group membership).
 1. **Go Environment**: v1.21+ (Required for binary compilation).
@@ -40,7 +40,21 @@ The `m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It 
 127.0.0.1 m3tal.localhost api.localhost traefik.localhost
 ```
 
+### 🖥️ Host Preparation
+Before deployment, verify your environment:
+
+```bash
+# 1. Verify Docker permissions
+groups | grep docker || echo "WARNING: User not in docker group. Add user and restart session."
+
+# 2. Prepare Storage
+mkdir -p /path/to/your/media
+# Note: BASE_STORAGE_PATH in your .env MUST point to this absolute path.
+```
+
 1. **Storage Logic**: M3TAL enforces a strict `/mnt` mapping. Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt` inside containers, ensuring absolute path consistency across all microservices.
+    * **Permission Check**: Ensure the user running Docker has `read/write` access to `BASE_STORAGE_PATH`.
+    * **Path Validation**: **M3TAL expects an absolute path.** If the directory does not exist, the orchestrator will fail to bind mount, resulting in an empty `/mnt` inside your containers.
 
 ---
 
@@ -67,11 +81,13 @@ chmod +x build.sh
 
 M3TAL utilizes an **API-Only Communication** model. The Frontend (Dashboard) communicates with the backend via internal Docker networks, while all traffic is ingress-filtered through the **Traefik Gateway**.
 
-| Service | Host Header | Internal Port |
-| :--- | :--- | :--- |
-| **Dashboard** | `m3tal.localhost` | 8082 |
-| **Backend API** | `api.localhost` | 5050 |
-| **Traefik Admin** | `traefik.localhost` | 8080 |
+| Service | Host Header | Internal Port | Status |
+| :--- | :--- | :--- | :--- |
+| **M3TAL Dashboard** | `m3tal.localhost` | Port 8082 | Proxy/Internal |
+| **Backend API** | `api.localhost` | Port 5050 | Proxy/Internal |
+| **Traefik Admin** | `traefik.localhost` | Port 8080 | Localhost Only |
+
+> **Note on Dashboards**: The legacy Dashboard (`m3tal.localhost`) is included for v1.7 stability. If you are deploying for the first time, we recommend checking the [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash) repository for the modern replacement.
 
 ---
 
