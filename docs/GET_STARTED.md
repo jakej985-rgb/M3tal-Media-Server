@@ -10,6 +10,69 @@ Think of M3TAL as your server's **robot brain**. Instead of you checking every d
 
 ---
 
+## ⚠️ Pre-flight Checklist
+
+Before you begin, please verify the following to ensure a successful installation:
+
+### ✅ System Requirements
+- **OS**: Linux (Ubuntu 22.04+ recommended) or macOS
+- **Docker**: Docker Engine 20.10+ or Docker Desktop
+- **Memory**: At least 4GB RAM (8GB recommended)
+- **Disk Space**: 20GB+ available for data and configurations
+
+### ✅ Port Availability
+
+M3TAL requires the following ports to be **free** on your host:
+
+| Port | Service | Purpose |
+|------|---------|---------|
+| `80` | Traefik | HTTP entrypoint (required) |
+| `443` | Traefik | HTTPS entrypoint (optional, for Cloudflare tunnel) |
+| `8080` | Traefik Dashboard | Internal networking |
+| `8082` | M3TAL Dashboard | User web interface |
+
+**Check if ports are available** (Linux/macOS):
+```bash
+# Check port 80
+lsof -i :80
+
+# Check port 443
+lsof -i :443
+
+# Check port 8080
+lsof -i :8080
+```
+
+**If a port is in use**, either stop the conflicting service or configure M3TAL to use different ports via `m3tal config wizard`.
+
+### ✅ Path Requirements
+
+**`/mnt` Directory**: M3TAL expects a data directory at `/mnt` by default. If you're on macOS or Windows, or want to use a different path:
+
+1. Set `BASE_STORAGE_PATH` in your `.env` file
+2. Ensure the directory exists and is writable:
+   ```bash
+   mkdir -p /mnt/media
+   chmod 755 /mnt
+   ```
+
+### ✅ Docker Permissions
+
+M3TAL requires Docker API access. Ensure your user can run Docker commands:
+
+```bash
+# Test Docker access
+docker ps
+
+# If this requires sudo, add your user to the docker group:
+sudo usermod -aG docker $USER
+# Then log out and back in for changes to take effect
+```
+
+For more information, see [Environment Variables](ENVIRONMENT_VARIABLES.md) or [Port Configuration](PORT_CONFIGURATION.md).
+
+---
+
 ## 🛠️ Step 1: Preparation
 
 You will need a Linux server (Ubuntu is recommended) and basic command line access (SSH).

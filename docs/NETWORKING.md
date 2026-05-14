@@ -1,6 +1,225 @@
-# Implementation Plan — Universal Proxy Network Enforcement (V1)
+# M3TAL Networking Guide
 
-Fix Traefik routing failures by eliminating Docker network fragmentation and enforcing a single shared ingress network (`proxy`) across all routed services.
+This guide explains the M3TAL network architecture, Docker Compose networking, and how to debug network issues.
+
+---
+
+## 📋 Overview
+
+M3TAL uses a multi-network Docker architecture to separate concerns:
+
+| Network | Purpose | Isolation Level |
+|---------|---------|-----------------|
+| `m3tal` | Internal control plane | All M3TAL services |
+| `proxy` | External traffic routing | Traefik + services |
+| `api_internal` | Backend API communication | Dashboard + API server |
+
+---
+
+## 🏗️ Architecture
+
+```
+[ Internet ]
+     ↓
+[ Cloudflare Tunnel ] (cloudflared)
+     ↓
+[ Traefik ] (Port 80, 443)
+     ↓
+[ Services on `proxy` network ]
+```
+
+Internal services communicate over the `m3tal` network:
+```
+[ Dashboard (m3tal) ] ←→ [ API Server (m3tal) ]
+     ↓
+[ Container Orchestrator (m3tal) ]
+```
+
+---
+
+## 🔧 Docker Compose Network Configuration
+
+### Default Networks
+
+M3TAL creates the following Docker networks automatically:
+
+| Network Name | Driver | Compose File |
+|--------------|--------|--------------|
+| `m3tal` | bridge | network-compose.yml |
+| `proxy` | bridge | routing-compose.yml |
+| `api_internal` | bridge | api.yml |
+
+### Network Names in Docker Compose
+
+Each docker-compose.yml file uses these networks:
+
+**network-compose.yml**:
+```yaml
+networks:
+  m3tal:
+    driver: bridge
+```
+
+**routing-compose.yml**:
+```yaml
+networks:
+  proxy:
+    external: true
+```
+
+**api.yml**:
+```yaml
+networks:
+  api_internal:
+    driver: bridge
+```
+
+---
+
+## 🛠️ Troubleshooting Network Issues
+
+### 1. Check Docker Networks
+
+List all networks:
+```bash
+docker network ls
+```
+
+Expected networks:
+- `m3tal` (internal services)
+- `proxy` (Traefik routing)
+
+### 2. Check Network Connectivity
+
+Test if a container is on the correct network:
+```bash
+# Check Radarr's networks
+docker inspect radarr | grep -A5 '"Networks"'
+
+# Check Traefik's networks
+docker inspect traefik | grep -A5 '"Networks"'
+```
+
+### 3. Debug Traefik Routing
+
+Traefik requires services to be on the `proxy` network. Check logs:
+```bash
+# Check Traefik logs for network errors
+docker logs traefik --tail 100 | grep -E "(IP address|network|404)"
+```
+
+### 4. Test Service Accessibility
+
+From the host, test if a service is reachable:
+```bash
+# Test Radarr on proxy network
+curl -H "Host: radarr.${DOMAIN}" http://radarr:7878
+
+# Test Traefik directly
+curl -H "Host: ${DOMAIN}" http://localhost:8080
+```
+
+### 5. Inspect Container Network Settings
+
+```bash
+# Get container IP on each network
+docker inspect <container_name> --format='{{range $key, $value := .NetworkSettings.Networks}}{{$key}}={{$value.IPAddress}} {{end}}'
+```
+
+---
+
+## 🐛 Common Network Errors
+
+### Error: "unable to find IP address"
+
+**Cause**: Container is not on the `proxy` network or has no IP assigned.
+
+**Solution**:
+1. Ensure the service is attached to the `proxy` network in docker-compose.yml
+2. Restart the container: `docker-compose restart <service>`
+
+### Error: "server is ignored" in Traefik logs
+
+**Cause**: Traefik cannot reach the container on the specified port.
+
+**Solution**:
+1. Verify the service port matches the Traefik label: `traefik.http.services.<name>.loadbalancer.server.port=<port>`
+2. Ensure the service exposes the port in docker-compose
+
+### Error: 404 Page Not Found
+
+**Cause**: Traefik routing rule doesn't match the Host header.
+
+**Solution**:
+1. Check your `DOMAIN` environment variable
+2. Verify the Host header: `curl -H "Host: yourdomain.com" http://localhost`
+
+---
+
+## 🔐 Internal Network Communication
+
+The dashboard talks to the backend via the `m3tal` network:
+
+```
+[ Dashboard ] (port 8082) 
+     ↓ HTTP (internal)
+[ API Server ] (port 8090) on `m3tal` network
+     ↓ 
+[ Orchestrator ] on `m3tal` network
+```
+
+### Debugging Internal API Communication
+
+```bash
+# Test API server is reachable from dashboard
+docker exec -it m3tal-dashboard curl -s http://api:8090/health
+
+# Test orchestrator is reachable
+docker exec -it m3tal-dashboard curl -s http://orchestrator:8091/status
+```
+
+---
+
+## 🚀 Network Configuration Reference
+
+### Port Mappings
+
+| Host Port | Container Port | Service | Network |
+|-----------|----------------|---------|---------|
+| 80 | 80 | Traefik | proxy |
+| 443 | 443 | Traefik (HTTPS) | proxy |
+| 8080 | 8080 | Traefik Dashboard | proxy |
+| 8082 | 8082 | M3TAL Dashboard | m3tal |
+| 8090 | 8090 | API Server | m3tal |
+| 8091 | 8091 | Orchestrator | m3tal |
+
+---
+
+## ✅ Verification Checklist
+
+Run these commands after starting M3TAL:
+
+```bash
+# 1. Check all networks exist
+docker network ls | grep -E "(m3tal|proxy|api_internal)"
+
+# 2. Verify Traefik is on proxy network
+docker inspect traefik | grep -A5 '"proxy"'
+
+# 3. Test dashboard can reach API
+docker exec -it m3tal-dashboard curl -s http://api:8090/health
+
+# 4. Test routing works
+curl http://localhost
+```
+
+---
+
+## 📝 Network Security Notes
+
+- The `m3tal` network is isolated from `proxy` - internal services cannot be accessed externally
+- The API server (8090) is only accessible from within the `m3tal` network
+- Traefik (8080) is exposed to the host but not the internet unless configured
 
 ---
 

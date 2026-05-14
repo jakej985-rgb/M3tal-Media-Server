@@ -37,13 +37,14 @@ The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. I
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (10 Minutes)
 
 ```bash
-# 1. Clone & Bootstrap
+# 1. Clone & Setup
 git clone https://github.com/jakej985-rgb/m3tal-core.git
 cd m3tal-core
 cp template.env .env
+# Edit .env with your configuration (see Environment Variables below)
 
 # 2. Build & Compile Orchestrator
 chmod +x build.sh
@@ -52,6 +53,77 @@ chmod +x build.sh
 # 3. Initialize Environment
 ./m3tal init
 ./m3tal up
+```
+
+### Pre-flight Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| Docker Engine 20.10+ | ✅ Required |
+| Go 1.21+ | ✅ Required for build.sh |
+| Ports 80, 443, 8080, 8082 Free | ✅ Required |
+| `/mnt` Directory Writable | ✅ Required |
+
+### Platform-Specific Setup
+
+**Linux (Ubuntu/Debian)**:
+```bash
+# Add user to docker group (avoid sudo for docker)
+sudo usermod -aG docker $USER
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Verify Docker access (log out and back in after adding to group)
+docker ps
+```
+
+**macOS**:
+```bash
+# Install Docker Desktop
+brew install --cask docker
+
+# Start Docker Desktop and wait for it to be ready
+# M3TAL will use Docker Desktop networking
+```
+
+**Windows**:
+```bash
+# Install Docker Desktop for Windows
+# Ensure WSL2 backend is enabled
+# M3TAL supports Linux containers on WSL2
+```
+
+---
+
+## 📋 Environment Variables
+
+The `.env` file requires the following variables:
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `BASE_STORAGE_PATH` | Absolute path to media directory | `/mnt/media` or `/home/user/media` | Yes |
+| `DOMAIN` | Your domain for Traefik routing | `m3tal.local` | Yes |
+| `TZ` | Timezone for container clocks | `America/Denver` | Yes |
+| `PUID` | User ID for file permissions | `1000` | Yes |
+| `PGID` | Group ID for file permissions | `1000` | Yes |
+| `DASHBOARD_PORT` | Dashboard web port | `8082` | No (default: 8082) |
+
+### Quick .env Setup
+
+```bash
+# Create .env from template
+cp template.env .env
+
+# Edit with your values
+nano .env  # or vi, vim, code, etc.
+
+# Example minimal .env:
+BASE_STORAGE_PATH=/mnt/media
+DOMAIN=m3tal.local
+TZ=America/Denver
+PUID=1000
+PGID=1000
 ```
 
 ---
