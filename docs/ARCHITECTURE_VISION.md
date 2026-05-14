@@ -1,60 +1,49 @@
-# 🤖 M3TAL Media Server — Production Agent Plan (v1.2.0)
+# 🤖 M3TAL Media Server — Production Architecture Vision (v1.7.0)
+
+| [🚀 Overview](../README.md) | [⚙️ Environment](ENVIRONMENT_VARIABLES.md) | [🛠️ Build](BUILD_CONFIGURATION.md) | [🌐 Networking](NETWORKING.md) | [🤖 Architecture](ARCHITECTURE_VISION.md) |
+| :---: | :---: | :---: | :---: | :---: |
 
 ## 🎯 Objective
 
-Transform the M3TAL Media Server from a fragile container stack into a **Fully Autonomous, Self-Healing Cloud-Native Orchestration Plane**.
+Transform the M3TAL Media Server into a **High-Performance, Go-Native Orchestration Plane**. 
 
-The system now operates on a distributed state-machine model where intelligence is decoupled from enforcement, and reliability is ensured via atomic JSON contracts.
-
----
-
-## 🏛️ CORE ARCHITECTURE
-
-### 🌏 Distributed Leadership
-
-* **Agent**: `leader.py`
-* **Logic**: Uses a priority-based election model (defined in `cluster.yml`) and unique node identity (Host+IP) to ensure only one node acts as the **Active Primary**.
-* **Enforcement**: All agents use `utils/guards.py` to check `leader.txt` before execution.
-
-### 💾 Atomic State Management
-
-* **Path**: `control-plane/state/`
-* **Access**: All agents use `utils/state.py` for atomic "write-then-rename" operations to prevent JSON corruption during crashes.
-* **Isolation**: No agent shares an output file (Single Writer Pattern).
-
-### 👮 Standardized Supervisor
-
-* **Agent**: `run.sh`
-* **Logic**: Continuous background supervisor with **exponential backoff** crash protection.
-* **Reliability**: Signals and exit codes (0/1) are used to distinguish between healthy Standby (Follower) and actual process failure.
+The system has transitioned from a collection of fragmented Python/Bash agents into a unified, statically-linked Go binary (`./m3tal`) that serves as the **Source of Truth** for infrastructure lifecycle, health monitoring, and system reconciliation.
 
 ---
 
-## ⚙️ IMPLEMENTATION STATUS
+## 🏛️ CORE ARCHITECTURE (GO-NATIVE)
 
-### ✅ PHASE 1 — FOUNDATION (COMPLETE)
+### 🌏 Unified Orchestrator
+*   **Component**: `pkg/orchestrator`
+*   **Logic**: Manages the multi-compose stack (`source/m3tal-stack/`) using native Docker API interactions and standardized execution paths.
+*   **Safety**: Replaces the legacy `reconcile.py` with type-safe execution and atomic state transitions.
 
-* **[COMPLETED]** `init.sh`: Self-healing state scaffolding with interactive admin credential setup and managed password reset support.
-* **[COMPLETED]** `utils/paths.py`: Absolute path determinism (AUTO-ROOT pattern).
-* **[COMPLETED]** `utils/logger.py`: Standardized logging with 10MB/3-file rotation.
+### 💾 Atomic State & Configuration
+*   **Path**: `state/` and `.env`
+*   **Logic**: Uses a centralized environment configuration model. The Go binary enforces absolute path consistency (`/mnt` mapping) across all managed services.
+*   **Persistence**: All system state is stored in standardized JSON/YAML formats, accessible via the `pkg/system` layer.
 
-### ✅ PHASE 2 — PERCEPTION & INTELLIGENCE (COMPLETE)
+### 👮 Health & Observability
+*   **Component**: `pkg/health`
+*   **Logic**: Implements sub-millisecond HTTP and Socket-based health polling.
+*   **Metrics**: Real-time telemetry is collected by the Go backend and served via the internal API for the dashboard.
 
-* **[COMPLETED]** `registry.py`: Dynamic discovery. Scans `docker/` for compose files; no manual container lists.
-* **[COMPLETED]** `monitor.py`: High-frequency health polling into segmented state files.
-* **[COMPLETED]** `metrics.py`: Deep telemetry (CPU, Mem, Net I/O, Block I/O) for system and containers.
+---
 
-### ✅ PHASE 3 — COGNITION & DECISION (COMPLETE)
+## ⚙️ IMPLEMENTATION STATUS (v1.7)
 
-* **[COMPLETED]** `anomaly.py`: Classification logic using deep metrics and health feedback.
-* **[COMPLETED]** `scaling.py`: Autonomous horizontal scaling based on CPU thresholds with persistent 5m cooldowns.
-* **[COMPLETED]** `decision.py`: Action planning with stateful cooldowns to prevent "flapping" or restart storms.
+### ✅ PHASE 1 — GO CORE (COMPLETE)
+*   **[COMPLETED]** `./m3tal` CLI: Unified command interface for `up`, `down`, `init`, and `config`.
+*   **[COMPLETED]** `pkg/orchestrator`: Multi-stack compose management logic.
+*   **[COMPLETED]** `build.sh`: Standardized compilation pipeline for Go 1.26+.
 
-### ✅ PHASE 4 — ENFORCEMENT & HARDENING (COMPLETE)
+### ✅ PHASE 2 — INFRASTRUCTURE (COMPLETE)
+*   **[COMPLETED]** `source/m3tal-stack/`: Standardized Docker manifests for Network, Routing, and Media services.
+*   **[COMPLETED]** Traefik Integration: Dynamic host-level routing for `api.localhost` and `m3tal.localhost`.
 
-* **[COMPLETED]** `reconcile.py`: Enforcer agent for `start/stop/restart/scale` actions + Dependency Enforcement.
-* **[COMPLETED]** `health_score.py`: Consolidated aggregator that calculates stability scores and TTR (Time-To-Recovery).
-* **[COMPLETED]** `chaos_test.py`: Destructive resilience tester that logs events for TTR analysis.
+### 🚧 PHASE 3 — DASHBOARD MIGRATION (IN PROGRESS)
+*   **[IN PROGRESS]** `m3tal-godash`: Transitioning from Flask/HTML to a high-performance Go-native frontend.
+*   **[PLANNED]** WebSocket Integration: Real-time metric streaming from the Go orchestrator to the UI.
 
 ---
 
@@ -62,30 +51,23 @@ The system now operates on a distributed state-machine model where intelligence 
 
 | Feature | Protection |
 | :--- | :--- |
-| **Credential Scrub** | 100% of historical leaked passwords removed via destructive rewrite. |
-| **Auth** | Dashboard uses BCrypt token-based authentication (Role: admin, operator, viewer). |
-| **Shell Hardening** | Removed `shell=True` and implemented strict `ALLOWED_IMAGES` allowlisting. |
-| **Disk Safety** | Automatic log rotation and idempotent `backup.sh` with retention logic. |
-| **Path Safety** | No hardcoded paths; all components resolve relative to git toplevel. |
+| **Type Safety** | Go's compiler ensures memory safety and prevents runtime nil-pointer crashes common in Python. |
+| **Static Linking** | The orchestrator is a single binary with zero runtime dependencies (no `pip install` required). |
+| **Path Enforcement** | Strict `/mnt` mapping ensures that media data is always where it's expected to be. |
+| **Ingress Filter** | All external traffic is routed through Traefik with internal Docker networking isolation. |
 
 ---
 
-## 🔮 FUTURE ROADMAP (PHASE 11+)
+## 🔮 FUTURE ROADMAP (PHASE 20+)
 
-### 📡 Phase 11: Global Distributed Registry
+### 📡 Phase 20: Global Cluster Synchronization
+*   Implement a lightweight gossip protocol within the Go binary for multi-node state sharing without external databases.
 
-* **Implement Gossip protocol** (e.g., Memberlist) for agents to share `registry.json` across nodes without a central DB.
-* **Broadcast node heartbeats** to the Dashboard in real-time.
+### 🧠 Phase 21: Predictive Resource Allocation
+*   Integrate Go-native resource analysis to dynamically adjust container limits based on historical usage patterns.
 
-### 🧠 Phase 12: Predictable Scaling (AI Feedback)
-
-* **Integrate simple linear regression** to predict scaling needs *before* the threshold is hit (Predictive Scaling).
-* **Implement "Global Load Balancing"** — if one node is saturated, `decision.py` moves workload metadata to another.
-
-### 🎨 Phase 13: Dashboard Evolution
-
-* **Move from Flask/HTML** to a React/Next.js "Admin Center" with real-time WebSocket metrics visualization.
-* **Add a "Chaos Center" UI** to trigger specific file corruptions for live resilience training.
+### 🎨 Phase 22: Unified Command Center
+*   Finalize the `m3tal-godash` ecosystem, providing a single-pane-of-glass for both infrastructure management and media consumption.
 
 ---
 
@@ -93,8 +75,8 @@ The system now operates on a distributed state-machine model where intelligence 
 
 The system is considered healthy if:
 
-1. **Registry** reflects all active Docker volumes and containers.
-2. **Leader** is established and visible in `leader.txt`.
-3. **Health Score** is > 85% with no persistent "Stalled" agents.
-4. **TTR** for container restarts is < 15 seconds.
-5. **Scaling** occurs within 60s of sustained high load.
+1.  **Binary Integrity**: `./m3tal` compiles and executes on the target architecture (amd64/arm64).
+2.  **Stack Health**: All services in `source/m3tal-stack/` report "Healthy" via `pkg/health`.
+3.  **Routing**: `m3tal.localhost` and `api.localhost` resolve and serve traffic correctly.
+4.  **Persistence**: Configuration changes via `./m3tal config` persist across service restarts.
+5.  **Recovery**: Services automatically recover from host reboots via Docker restart policies managed by the orchestrator.

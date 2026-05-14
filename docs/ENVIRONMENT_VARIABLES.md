@@ -1,5 +1,8 @@
 # Environment Variables Reference
 
+| [🚀 Overview](../README.md) | [⚙️ Environment](ENVIRONMENT_VARIABLES.md) | [🛠️ Build](BUILD_CONFIGURATION.md) | [🌐 Networking](NETWORKING.md) | [🤖 Architecture](ARCHITECTURE_VISION.md) |
+| :---: | :---: | :---: | :---: | :---: |
+
 This document provides a complete reference for all environment variables used by the M3TAL stack.
 
 ## Quick Reference

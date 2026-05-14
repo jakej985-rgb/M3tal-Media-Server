@@ -1,5 +1,8 @@
 # 🚀 M3TAL Media Server (v1.7)
 
+| [🚀 Overview](README.md) | [⚙️ Environment](docs/ENVIRONMENT_VARIABLES.md) | [🛠️ Build](docs/BUILD_CONFIGURATION.md) | [🌐 Networking](docs/NETWORKING.md) | [🤖 Architecture](docs/ARCHITECTURE_VISION.md) |
+| :---: | :---: | :---: | :---: | :---: |
+
 **DocSmith Status:** *Architecture Scan Complete. Schema Validated. System Optimized.*
 
 M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. Built with **Go 1.26** (Core Orchestrator) and **Python 3.10** (Dashboard Service), it provides a unified interface for managing complex media service stacks with absolute path consistency.

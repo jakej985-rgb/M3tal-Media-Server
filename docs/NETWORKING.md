@@ -1,5 +1,8 @@
 # M3TAL Networking Guide
 
+| [🚀 Overview](../README.md) | [⚙️ Environment](ENVIRONMENT_VARIABLES.md) | [🛠️ Build](BUILD_CONFIGURATION.md) | [🌐 Networking](NETWORKING.md) | [🤖 Architecture](ARCHITECTURE_VISION.md) |
+| :---: | :---: | :---: | :---: | :---: |
+
 This guide explains the M3TAL network architecture, Docker Compose networking, and how to debug network issues.
 
 ---
