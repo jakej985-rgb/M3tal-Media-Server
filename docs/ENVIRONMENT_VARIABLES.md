@@ -9,21 +9,21 @@ This document provides a complete reference for all environment variables used b
 
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `BASE_STORAGE_PATH` | **YES** | - | Base path for media and configs (Critical) |
-| `CF_TUNNEL_TOKEN` | **YES** | - | Cloudflare tunnel token (Critical for Proxy) |
+| `BASE_STORAGE_PATH` | **YES** | `./data` | Host path for media + config (mounted to `/mnt` in containers) |
+| `DASHBOARD_SECRET` | **YES** | `change_me_immediately` | Session signing key (run `openssl rand -hex 32`) |
+| `API_TOKEN` | **YES** | `change_me_api_token` | Dashboard-to-backend auth token |
+| `ADMIN_PASSWORD` | **YES** | `admin_pass` | Initial dashboard login password |
+| `CF_TUNNEL_TOKEN` | Conditional | - | Required only if using Cloudflare Tunnel for internet access |
 | `DASHBOARD_PORT` | No | `8082` | Port for the web dashboard |
 | `HTTP_PORT` | No | `8080` | Port for HTTP traffic (Traefik entrypoint) |
 | `STATE_DIR` | No | `./state` | Directory for state files |
 | `LOG_LEVEL` | No | `info` | Logging level (debug, info, warn, error) |
-| `DASHBOARD_SECRET` | No | Generated | Secret for dashboard session management |
-| `API_TOKEN` | No | Generated | Token for dashboard-to-backend communication |
-| `ADMIN_PASSWORD` | No | `admin_pass` | Initial admin password for dashboard |
 | `NETWORK_NAME` | No | `m3tal` | Docker network name for services |
 | `LOCAL_IP` | No | `127.0.0.1` | Local IP for internal routing |
 | `DOMAIN` | No | `localhost` | Root domain for service discovery |
-| `VPN_USER` | No | - | VPN username (optional) |
-| `VPN_PASSWORD` | No | - | VPN password (optional) |
-| `MEDIA_PATH` | No | `./data/media` | Media storage path |
+| `VPN_USER` | No | `user` | VPN username (optional) |
+| `VPN_PASSWORD` | No | `password` | VPN password (optional) |
+| `MEDIA_PATH` | No | `./data/media` | Media storage path (relative to `BASE_STORAGE_PATH`) |
 | `CONFIG_PATH` | No | `./data/config` | Configuration storage path |
 | `DOWNLOADS_PATH` | No | `./data/downloads` | Downloads storage path |
 
@@ -279,4 +279,4 @@ Before running `m3tal up`, verify:
    docker ps  # Should work without sudo
    ```
 
-   If it requires sudo, add user to docker group: `sudo usermod -aG docker $USER`
+   If it requires sudo, add user to docker group: `sudo usermod -aG docker $USER`

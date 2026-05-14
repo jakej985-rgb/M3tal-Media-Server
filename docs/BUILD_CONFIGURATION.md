@@ -99,16 +99,20 @@ A successful build looks like:
 
 ```bash
 $ ./build.sh
-[INFO] Starting M3TAL build...
-[INFO] Go version: go1.21.5
-[INFO] Checking dependencies...
-[INFO] Dependencies up to date
-[INFO] Building binary...
-[INFO] Build completed successfully
-[INFO] Binary: ./m3tal
-[INFO] Size: 14.8 MB
-[INFO] Built: 2024-01-15 14:30:45 UTC
+📥 Downloading dependencies...
+🚀 Building M3TAL CLI...
+     → Writes: ./m3tal (the main CLI binary)
+🚀 Building M3TAL API...
+     → Writes: ./m3tal-api (the backend API binary)
+✅ Build complete. Binaries: ./m3tal, ./m3tal-api
 ```
+
+The build produces two binaries:
+
+| Binary | Purpose | Size (approx) |
+| :--- | :--- | :--- |
+| `./m3tal` | Main CLI orchestrator | ~14-16 MB |
+| `./m3tal-api` | Backend API server | ~12-14 MB |
 
 ## 🔍 Build Logs
 
@@ -273,4 +277,4 @@ After successful build:
 - The binary is **statically linked** - no external dependencies needed
 - Build time: ~10-30 seconds (depends on CPU)
 - Binary size: ~14-16 MB after stripping
-- Debug builds: Remove `-ldflags "-s -w"` for debugging info
+- Debug builds: Remove `-ldflags "-s -w"` for debugging info

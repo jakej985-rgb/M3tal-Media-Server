@@ -16,6 +16,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
 	"github.com/jakej985-rgb/m3tal-core/pkg/orchestrator"
+	"github.com/jakej985-rgb/m3tal-core/pkg/preflight"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
 	"io"
@@ -248,6 +249,23 @@ func main() {
 		},
 	}
 
+	var docCmd = &cobra.Command{
+		Use:   "doctor",
+		Short: "Run comprehensive pre-flight health check",
+		Long: `Checks Docker daemon connectivity, .env file validity,
+storage path accessibility, port availability, and system configuration.
+Run this before 'm3tal up' to diagnose potential issues.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			envPath := ".env"
+			baseStoragePath := ""
+			if data, err := os.ReadFile(envPath); err == nil {
+				baseStoragePath = getEnvValue(string(data), "BASE_STORAGE_PATH")
+			}
+			results := preflight.RunAll(envPath, baseStoragePath)
+			preflight.PrintResults(results)
+		},
+	}
+
 	var initCmd = &cobra.Command{
 		Use:   "init",
 		Short: "Initialize environment and generate secrets",
@@ -257,6 +275,22 @@ func main() {
 				return
 			}
 			runWizard(false)
+
+			// Post-init storage path validation
+			envData, err := os.ReadFile(".env")
+			if err == nil {
+				basePath := getEnvValue(string(envData), "BASE_STORAGE_PATH")
+				if basePath != "" {
+					if err := preflight.ValidateStoragePath(basePath); err != nil {
+						fmt.Printf("\n⚠️  Storage path validation:\n    %v\n", err)
+						fmt.Println("\n👉 Set a valid BASE_STORAGE_PATH in .env, then run:")
+						fmt.Println("   mkdir -p /path/to/your/m3tal-data")
+						fmt.Println("   ./m3tal config set BASE_STORAGE_PATH /path/to/your/m3tal-data")
+					} else {
+						fmt.Printf("✅ Storage path validated: %s\n", basePath)
+					}
+				}
+			}
 		},
 	}
 
@@ -340,7 +374,7 @@ func main() {
 	}
 
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, configCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -422,6 +456,20 @@ func runWizard(update bool) {
 func printJSON(v interface{}) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Println(string(data))
+}
+
+func getEnvValue(content, key string) string {
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, key+"=") && !strings.HasPrefix(trimmed, "#") {
+			parts := strings.SplitN(trimmed, "=", 2)
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		}
+	}
+	return ""
 }
 
 func generateSecret() string {
