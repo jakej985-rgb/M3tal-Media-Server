@@ -19,5 +19,10 @@
     ],
     "github-actions.workflows.pinned.workflows": [
         "source/go-backend/.github/workflows/docs-agent.yml"
-    ]
+    ],
+    "go.alternateTools": {
+        "go": "/home/m3tal/sdk/go/bin/go"
+    },
+    "go.toolsManagement.autoUpdate": true,
+    "go.gopath": "/home/m3tal/go"
 }
