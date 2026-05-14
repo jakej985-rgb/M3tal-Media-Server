@@ -14,29 +14,33 @@ M3TAL is a high-performance media server control plane engineered for lifecycle 
 The `./m3tal` binary acts as the **Source of Truth** for the entire ecosystem. It abstracts the container lifecycle, ensuring that the Go-native orchestrator manages the state of the infrastructure defined in `source/m3tal-stack/`.
 
 ### System Components
-*   **Orchestrator (`./m3tal`)**: The Go-native binary acting as the primary control plane for lifecycle management, network configuration, and volume mapping.
-*   **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests governing the containerized environment.
-*   **Dashboard (`source/dashboard`)**: The legacy-compatible Python/Flask web interface. Note: This service is currently being phased out in favor of `m3tal-godash`.
+
+* **Orchestrator (`./m3tal`)**: The Go-native binary acting as the primary control plane for lifecycle management, network configuration, and volume mapping.
+* **Infrastructure (`source/m3tal-stack`)**: The standardized Docker Compose manifests governing the containerized environment.
+* **Dashboard (`source/dashboard`)**: The legacy-compatible Python/Flask web interface. Note: This service is currently being phased out in favor of `m3tal-godash`.
 
 > **Note on Migration**: We are currently in a Go-native migration phase. While the Dashboard remains Python-based for flexibility, all system-level orchestration, networking, and API interactions have been transitioned to Go to ensure memory safety and sub-millisecond execution times.
 
 ---
 
 ## 🔗 Related Projects
-*   [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): High-performance, Go-native dashboard rewrite.
-*   [m3tal-goback](https://github.com/jakej985-rgb/m3tal-goback): The evolving Go-native backend API implementation.
+
+* [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): High-performance, Go-native dashboard rewrite.
+* [m3tal-goback](https://github.com/jakej985-rgb/m3tal-goback): The evolving Go-native backend API implementation.
 
 ---
 
 ## 🛠️ Prerequisites
 
-1.  **Docker Engine**: v20.10+ (Ensure `docker` group membership).
-2.  **Go Environment**: v1.26+ (Required for binary compilation).
-3.  **DNS Mapping**: Required for local service discovery. Add to `/etc/hosts`:
-    ```text
-    127.0.0.1 m3tal.localhost api.localhost traefik.localhost
-    ```
-4.  **Storage Logic**: M3TAL enforces a strict `/mnt` mapping. Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt` inside containers, ensuring absolute path consistency across all microservices.
+1. **Docker Engine**: v20.10+ (Ensure `docker` group membership).
+1. **Go Environment**: v1.26+ (Required for binary compilation).
+1. **DNS Mapping**: Required for local service discovery. Add to `/etc/hosts`:
+
+```text
+127.0.0.1 m3tal.localhost api.localhost traefik.localhost
+```
+
+1. **Storage Logic**: M3TAL enforces a strict `/mnt` mapping. Your host data at `BASE_STORAGE_PATH` is always mounted to `/mnt` inside containers, ensuring absolute path consistency across all microservices.
 
 ---
 
@@ -60,7 +64,7 @@ chmod +x build.sh
 ### Pre-flight Checklist
 
 | Requirement | Status |
-|-------------|--------|
+| :--- | :--- |
 | Docker Engine 20.10+ | ✅ Required |
 | Go 1.26+ | ✅ Required for build.sh |
 | Ports 80, 443, 8080, 8082 Free | ✅ Required |
@@ -69,6 +73,7 @@ chmod +x build.sh
 ---
 
 ## ⚙️ Service Routing & Communication
+
 M3TAL uses an **API-Only Communication** model. The Frontend (Dashboard) communicates with the Backend via internal Docker networks, while all traffic is ingress-filtered through the **Traefik Gateway**.
 
 | Service | Host Header | Internal Port |
@@ -83,20 +88,20 @@ M3TAL uses an **API-Only Communication** model. The Frontend (Dashboard) communi
 
 The `m3tal` binary provides a "Mission Control" interface:
 
-*   `./m3tal up` : Boots the defined stack via Go-orchestrated Docker Compose.
-*   `./m3tal down` : Graceful shutdown of all services.
-*   `./m3tal config set <key> <val>` : Update environment variables safely.
-*   `./m3tal list` : Displays status of active containers managed by the ecosystem.
-*   `./m3tal dashpass <user> <pass>` : Securely rotates dashboard credentials.
+* `./m3tal up` : Boots the defined stack via Go-orchestrated Docker Compose.
+* `./m3tal down` : Graceful shutdown of all services.
+* `./m3tal config set <key> <val>` : Update environment variables safely.
+* `./m3tal list` : Displays status of active containers managed by the ecosystem.
+* `./m3tal dashpass <user> <pass>` : Securely rotates dashboard credentials.
 
 ---
 
 ## 🧭 Troubleshooting
 
-*   **Orchestrator Desync**: If manual changes occur to the stack files, run `./m3tal init` to re-sync the environment.
-*   **Log Access**: Use `./m3tal list` to identify service names, then `docker logs <service>` for deep inspection.
-*   **Pathing**: If data is unreachable, verify that `BASE_STORAGE_PATH` in your `.env` is an absolute path on your host machine.
+* **Orchestrator Desync**: If manual changes occur to the stack files, run `./m3tal init` to re-sync the environment.
+* **Log Access**: Use `./m3tal list` to identify service names, then `docker logs <service>` for deep inspection.
+* **Pathing**: If data is unreachable, verify that `BASE_STORAGE_PATH` in your `.env` is an absolute path on your host machine.
 
 ---
 
-*M3TAL Core - Precision Media Infrastructure.*
+*M3TAL Core - Precision Media Infrastructure.*

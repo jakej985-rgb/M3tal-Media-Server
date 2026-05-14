@@ -12,7 +12,7 @@ This guide explains the M3TAL network architecture, Docker Compose networking, a
 M3TAL uses a multi-network Docker architecture to separate concerns:
 
 | Network | Purpose | Isolation Level |
-|---------|---------|-----------------|
+| :--- | :--- | :--- |
 | `m3tal` | Internal control plane | All M3TAL services |
 | `proxy` | External traffic routing | Traefik + services |
 | `api_internal` | Backend API communication | Dashboard + API server |
@@ -21,7 +21,7 @@ M3TAL uses a multi-network Docker architecture to separate concerns:
 
 ## 🏗️ Architecture
 
-```
+```text
 [ Internet ]
      ↓
 [ Cloudflare Tunnel ] (cloudflared)
@@ -32,7 +32,8 @@ M3TAL uses a multi-network Docker architecture to separate concerns:
 ```
 
 Internal services communicate over the `m3tal` network:
-```
+
+```text
 [ Dashboard (m3tal) ] ←→ [ API Server (m3tal) ]
      ↓
 [ Container Orchestrator (m3tal) ]
@@ -47,7 +48,7 @@ Internal services communicate over the `m3tal` network:
 M3TAL creates the following Docker networks automatically:
 
 | Network Name | Driver | Compose File |
-|--------------|--------|--------------|
+| :--- | :--- | :--- |
 | `m3tal` | bridge | network-compose.yml |
 | `proxy` | bridge | routing-compose.yml |
 | `api_internal` | bridge | api.yml |
@@ -57,6 +58,7 @@ M3TAL creates the following Docker networks automatically:
 Each docker-compose.yml file uses these networks:
 
 **network-compose.yml**:
+
 ```yaml
 networks:
   m3tal:
@@ -64,6 +66,7 @@ networks:
 ```
 
 **routing-compose.yml**:
+
 ```yaml
 networks:
   proxy:
@@ -71,6 +74,7 @@ networks:
 ```
 
 **api.yml**:
+
 ```yaml
 networks:
   api_internal:
@@ -84,17 +88,20 @@ networks:
 ### 1. Check Docker Networks
 
 List all networks:
+
 ```bash
 docker network ls
 ```
 
 Expected networks:
+
 - `m3tal` (internal services)
 - `proxy` (Traefik routing)
 
 ### 2. Check Network Connectivity
 
 Test if a container is on the correct network:
+
 ```bash
 # Check Radarr's networks
 docker inspect radarr | grep -A5 '"Networks"'
@@ -106,6 +113,7 @@ docker inspect traefik | grep -A5 '"Networks"'
 ### 3. Debug Traefik Routing
 
 Traefik requires services to be on the `proxy` network. Check logs:
+
 ```bash
 # Check Traefik logs for network errors
 docker logs traefik --tail 100 | grep -E "(IP address|network|404)"
@@ -114,6 +122,7 @@ docker logs traefik --tail 100 | grep -E "(IP address|network|404)"
 ### 4. Test Service Accessibility
 
 From the host, test if a service is reachable:
+
 ```bash
 # Test Radarr on proxy network
 curl -H "Host: radarr.${DOMAIN}" http://radarr:7878
@@ -138,6 +147,7 @@ docker inspect <container_name> --format='{{range $key, $value := .NetworkSettin
 **Cause**: Container is not on the `proxy` network or has no IP assigned.
 
 **Solution**:
+
 1. Ensure the service is attached to the `proxy` network in docker-compose.yml
 2. Restart the container: `docker-compose restart <service>`
 
@@ -146,6 +156,7 @@ docker inspect <container_name> --format='{{range $key, $value := .NetworkSettin
 **Cause**: Traefik cannot reach the container on the specified port.
 
 **Solution**:
+
 1. Verify the service port matches the Traefik label: `traefik.http.services.<name>.loadbalancer.server.port=<port>`
 2. Ensure the service exposes the port in docker-compose
 
@@ -154,6 +165,7 @@ docker inspect <container_name> --format='{{range $key, $value := .NetworkSettin
 **Cause**: Traefik routing rule doesn't match the Host header.
 
 **Solution**:
+
 1. Check your `DOMAIN` environment variable
 2. Verify the Host header: `curl -H "Host: yourdomain.com" http://localhost`
 
@@ -163,7 +175,7 @@ docker inspect <container_name> --format='{{range $key, $value := .NetworkSettin
 
 The dashboard talks to the backend via the `m3tal` network:
 
-```
+```text
 [ Dashboard ] (port 8082) 
      ↓ HTTP (internal)
 [ API Server ] (port 8090) on `m3tal` network
@@ -188,7 +200,7 @@ docker exec -it m3tal-dashboard curl -s http://orchestrator:8091/status
 ### Port Mappings
 
 | Host Port | Container Port | Service | Network |
-|-----------|----------------|---------|---------|
+| :--- | :--- | :--- | :--- |
 | 80 | 80 | Traefik | proxy |
 | 443 | 443 | Traefik (HTTPS) | proxy |
 | 8080 | 8080 | Traefik Dashboard | proxy |
@@ -253,7 +265,7 @@ Even when `proxy` is added, services remain attached to these defaults, causing:
 
 ## 🟢 Phase 1 — Define Global Proxy Network
 
-### Create (or verify) external proxy network:
+### Create (or verify) external proxy network
 
 ```bash
 docker network create proxy
@@ -297,7 +309,7 @@ labels:
 
 ## 🟡 Phase 3 — Remove Default Network Leakage
 
-### ❌ Problem:
+### ❌ Problem
 
 Docker auto-attaches `default` network
 
@@ -336,7 +348,7 @@ services:
 
 ---
 
-### 🔥 Rule:
+### 🔥 Rule
 
 | Service Type     | Networks             |
 | ---------------- | -------------------- |
@@ -375,10 +387,10 @@ docker inspect radarr | grep -A5 Networks
 
 ---
 
-### ❌ MUST NOT see:
+### ❌ MUST NOT see
 
-* `media_default`
-* `control-plane_default`
+- `media_default`
+- `control-plane_default`
 
 ---
 
@@ -405,8 +417,8 @@ curl -H "Host: radarr.${DOMAIN}" http://localhost
 
 **Expected:**
 
-* HTML response OR redirect
-* NOT `404 page not found`
+- HTML response OR redirect
+- NOT `404 page not found`
 
 ---
 
@@ -418,14 +430,14 @@ curl -H "Host: radarr.${DOMAIN}" http://localhost
 
 In `audit.py`:
 
-* FAIL if service:
+- FAIL if service:
 
-  * is NOT on proxy
-  * OR has NO IP on proxy
+  - is NOT on proxy
+  - OR has NO IP on proxy
 
 ---
 
-### Add Check:
+### Add Check
 
 ```python
 if "proxy" not in container_networks:
@@ -456,7 +468,7 @@ if "proxy" not in container_networks:
 
 ## ✅ Definition of Done
 
-* All routed containers attached to `proxy`
-* No Traefik IP errors
-* `curl Host` test passes
-* Domain resolves externally
+- All routed containers attached to `proxy`
+- No Traefik IP errors
+- `curl Host` test passes
+- Domain resolves externally

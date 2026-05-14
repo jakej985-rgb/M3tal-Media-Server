@@ -18,7 +18,8 @@ go version
 ```
 
 **Expected output:**
-```
+
+```text
 go version go1.21.x linux/amd64
 ```
 
@@ -48,6 +49,7 @@ brew install go
 M3TAL uses Go modules. All dependencies are listed in `go.mod`.
 
 **Download dependencies:**
+
 ```bash
 go mod download
 go mod tidy
@@ -64,29 +66,28 @@ cd M3tal-Media-Server
 
 ### 2. Build the Binary
 
-**Option A: Using build.sh (Linux/macOS)**
+#### Option A: Using build.sh (Linux/macOS)
 
 ```bash
 chmod +x build.sh
 ./build.sh
 ```
 
-**Option B: Using Makefile**
+#### Option B: Using Makefile
 
 ```bash
 make build
 ```
 
-**Option C: Manual Build**
+#### Option C: Manual Build
 
 ```bash
 go build -o m3tal ./cmd/m3tal/main.go
 ```
 
-### 3. Verify Build
-
 A successful build produces:
-```
+
+```text
 Build completed successfully
 Binary location: ./m3tal
 Binary size: ~15 MB
@@ -130,6 +131,7 @@ ls -la build.log
 **Cause**: Go is not installed or not in PATH.
 
 **Solution**:
+
 ```bash
 # Verify Go installation
 which go
@@ -143,6 +145,7 @@ echo $PATH | grep go
 **Cause**: Go modules not downloaded.
 
 **Solution**:
+
 ```bash
 go mod download
 go mod tidy
@@ -154,6 +157,7 @@ go mod tidy
 **Cause**: File permissions issue.
 
 **Solution**:
+
 ```bash
 chmod +x build.sh
 ./build.sh
@@ -183,21 +187,25 @@ go build \
 ### Build for Different Platforms
 
 **Linux (amd64)**:
+
 ```bash
 GOOS=linux GOARCH=amd64 go build -o m3tal-linux ./cmd/m3tal/main.go
 ```
 
 **macOS (amd64)**:
+
 ```bash
 GOOS=darwin GOARCH=amd64 go build -o m3tal-macos ./cmd/m3tal/main.go
 ```
 
 **macOS (arm64)**:
+
 ```bash
 GOOS=darwin GOARCH=arm64 go build -o m3tal-macos-arm ./cmd/m3tal/main.go
 ```
 
 **Windows**:
+
 ```bash
 GOOS=windows GOARCH=amd64 go build -o m3tal.exe ./cmd/m3tal/main.go
 ```
@@ -205,6 +213,7 @@ GOOS=windows GOARCH=amd64 go build -o m3tal.exe ./cmd/m3tal/main.go
 ### Make Cross-Compile Easy
 
 Add to your `~/.bashrc`:
+
 ```bash
 build-m3tal() {
     local platform=$1
@@ -242,16 +251,19 @@ Before building, verify:
 After successful build:
 
 1. **Verify binary works**:
+
    ```bash
    ./m3tal version
    ```
 
 2. **Check file size** (should be ~15MB):
+
    ```bash
    ls -lh m3tal
    ```
 
 3. **Test basic commands**:
+
    ```bash
    ./m3tal help
    ```
@@ -261,4 +273,4 @@ After successful build:
 - The binary is **statically linked** - no external dependencies needed
 - Build time: ~10-30 seconds (depends on CPU)
 - Binary size: ~14-16 MB after stripping
-- Debug builds: Remove `-ldflags "-s -w"` for debugging info
+- Debug builds: Remove `-ldflags "-s -w"` for debugging info

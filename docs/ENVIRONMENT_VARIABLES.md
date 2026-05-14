@@ -8,7 +8,7 @@ This document provides a complete reference for all environment variables used b
 ## Quick Reference
 
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
+| :--- | :--- | :--- | :--- |
 | `DASHBOARD_PORT` | No | `8082` | Port for the web dashboard |
 | `HTTP_PORT` | No | `8080` | Port for HTTP traffic (Traefik entrypoint) |
 | `STATE_DIR` | No | `./state` | Directory for state files |
@@ -34,6 +34,7 @@ This document provides a complete reference for all environment variables used b
 ### Core Configuration
 
 #### `DASHBOARD_PORT`
+
 - **Required**: No
 - **Default**: `8082`
 - **Description**: The port on which the M3TAL web dashboard will be accessible
@@ -41,6 +42,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and `docker-compose.yml`
 
 #### `HTTP_PORT`
+
 - **Required**: No
 - **Default**: `8080`
 - **Description**: The HTTP port for Traefik entrypoint. **Port 80 must be free** for Traefik to bind.
@@ -48,6 +50,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and Traefik configuration
 
 #### `STATE_DIR`
+
 - **Required**: No
 - **Default**: `./state`
 - **Description**: Directory for persisting M3TAL state (metrics, logs)
@@ -55,6 +58,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and Go daemon
 
 #### `LOG_LEVEL`
+
 - **Required**: No
 - **Default**: `info`
 - **Description**: Logging verbosity level
@@ -67,6 +71,7 @@ This document provides a complete reference for all environment variables used b
 ### Authentication
 
 #### `DASHBOARD_SECRET`
+
 - **Required**: No (auto-generated on init)
 - **Default**: Auto-generated via `crypto/rand`
 - **Description**: Secret key for signing dashboard sessions. **Should be a random hex string**.
@@ -75,6 +80,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env`
 
 #### `API_TOKEN`
+
 - **Required**: No (auto-generated on init)
 - **Default**: Auto-generated
 - **Description**: Token used for secure dashboard-to-backend API communication
@@ -83,6 +89,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and API server
 
 #### `ADMIN_PASSWORD`
+
 - **Required**: No
 - **Default**: `admin_pass`
 - **Description**: Initial password for the admin user in the dashboard
@@ -94,6 +101,7 @@ This document provides a complete reference for all environment variables used b
 ### Network Configuration
 
 #### `NETWORK_NAME`
+
 - **Required**: No
 - **Default**: `m3tal`
 - **Description**: Docker network name used for inter-container communication
@@ -101,6 +109,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and docker-compose files
 
 #### `LOCAL_IP`
+
 - **Required**: No
 - **Default**: `127.0.0.1`
 - **Description**: Local IP address of the host machine (for internal routing)
@@ -108,6 +117,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and Docker Compose
 
 #### `DOMAIN`
+
 - **Required**: No
 - **Default**: `localhost`
 - **Description**: Root domain for service discovery and Traefik routing
@@ -119,6 +129,7 @@ This document provides a complete reference for all environment variables used b
 ### VPN Configuration (Optional)
 
 #### `VPN_USER`
+
 - **Required**: No
 - **Default**: `user`
 - **Description**: VPN username for authenticated media streaming
@@ -126,6 +137,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env`
 
 #### `VPN_PASSWORD`
+
 - **Required**: No
 - **Default**: `password`
 - **Description**: VPN password for authenticated media streaming
@@ -137,6 +149,7 @@ This document provides a complete reference for all environment variables used b
 ### Storage Configuration
 
 #### `BASE_STORAGE_PATH`
+
 - **Required**: No
 - **Default**: `./data`
 - **Description**: **Base path for media and configuration storage**. This directory should exist and be writable.
@@ -148,6 +161,7 @@ This document provides a complete reference for all environment variables used b
 - **Important**: Ensure this directory exists and has proper permissions before starting services
 
 #### `MEDIA_PATH`
+
 - **Required**: No
 - **Default**: `./data/media`
 - **Description**: Path to media files (relative to `BASE_STORAGE_PATH`)
@@ -155,6 +169,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and docker-compose
 
 #### `CONFIG_PATH`
+
 - **Required**: No
 - **Default**: `./data/config`
 - **Description**: Path to configuration files (relative to `BASE_STORAGE_PATH`)
@@ -162,6 +177,7 @@ This document provides a complete reference for all environment variables used b
 - **Usage**: In `.env` and docker-compose
 
 #### `DOWNLOADS_PATH`
+
 - **Required**: No
 - **Default**: `./data/downloads`
 - **Description**: Path for download directory (relative to `BASE_STORAGE_PATH`)
@@ -173,6 +189,7 @@ This document provides a complete reference for all environment variables used b
 ### Required for Cloudflare Tunnel
 
 #### `CF_TUNNEL_TOKEN`
+
 - **Required**: Yes (if using Cloudflare tunnel)
 - **Default**: None
 - **Description**: Cloudflare tunnel token for exposing services to the internet
@@ -184,21 +201,27 @@ This document provides a complete reference for all environment variables used b
 ## Environment Variable Usage by Component
 
 ### Core Services (.env only)
+
 - `DASHBOARD_PORT`, `HTTP_PORT`, `STATE_DIR`, `LOG_LEVEL`
 
 ### Dashboard & API
+
 - `DASHBOARD_SECRET`, `API_TOKEN`, `ADMIN_PASSWORD`
 
 ### Networking
+
 - `NETWORK_NAME`, `LOCAL_IP`, `DOMAIN`
 
 ### Storage
+
 - `BASE_STORAGE_PATH`, `MEDIA_PATH`, `CONFIG_PATH`, `DOWNLOADS_PATH`
 
 ### Cloudflare Tunnel
+
 - `CF_TUNNEL_TOKEN`
 
 ### Optional (VPN)
+
 - `VPN_USER`, `VPN_PASSWORD`
 
 ---
@@ -206,16 +229,19 @@ This document provides a complete reference for all environment variables used b
 ## Setting Environment Variables
 
 ### Option 1: Using the Configuration Wizard
+
 ```bash
 ./m3tal config wizard
 ```
 
 ### Option 2: Manual Edit
+
 1. Copy template: `cp template.env .env`
 2. Edit `.env` with your values
 3. Run: `./m3tal init`
 
 ### Option 3: Environment-Driven
+
 ```bash
 export DASHBOARD_PORT=9000
 export DOMAIN=example.com
@@ -229,15 +255,17 @@ export DOMAIN=example.com
 Before running `m3tal up`, verify:
 
 1. **Base Storage Path Exists**:
+
    ```bash
    # Linux/macOS
    ls -la $BASE_STORAGE_PATH
-   
+
    # Windows PowerShell
    Test-Path $env:BASE_STORAGE_PATH
    ```
 
 2. **Ports Are Free**:
+
    ```bash
    # Check if ports 80, 443, 8080 are free
    netstat -ano | findstr :80
@@ -246,7 +274,9 @@ Before running `m3tal up`, verify:
    ```
 
 3. **Docker Permissions**:
+
    ```bash
    docker ps  # Should work without sudo
    ```
-   If it requires sudo, add user to docker group: `sudo usermod -aG docker $USER`
+
+   If it requires sudo, add user to docker group: `sudo usermod -aG docker $USER`
