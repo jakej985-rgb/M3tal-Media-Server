@@ -1,45 +1,52 @@
 ### **DocCritic Audit Report**
-**Platform:** M3TAL Media Server (v1.7)  
-**Role:** Senior DevOps Auditor  
-**Verdict:** **UNUSABLE / BLOCKER**
-
-As a new user, I am currently stuck. Your documentation treats the project like a black box. You provide a binary (`m3tal`) but offer no source-of-truth for how to create the `.env` file, how to handle the filesystem prerequisites, or how to actually access the service once "up."
+**Platform:** M3TAL Media Server (v1.7)
+**Status:** ❌ FAILED
+**Verdict:** **BLOCKER.** The provided documentation is insufficient for a first-time deployment. It assumes prior knowledge of the internal directory structure and provides zero guidance on critical system-level dependencies. A user attempting this right now will end up with a broken deployment and no path to resolution.
 
 ---
 
 ### **Issue List**
 
 #### **BLOCKER**
-1.  **Missing `.env` Template:** The documentation lists mandatory variables (`BASE_STORAGE_PATH`, `API_TOKEN`, etc.) but provides no `.env.example` file or instructions on how to generate the initial configuration. The user cannot run `./m3tal init` successfully without a pre-existing environment file.
-2.  **Filesystem Blindness:** You explicitly require `BASE_STORAGE_PATH` to exist. If I set this to `/srv/media` and the directory does not exist, the orchestrator has no logic mentioned to create it, nor is there a check to ensure the user has write permissions to that path.
-3.  **Traefik / Port Blindness:** You mention Traefik, but you do not define which ports must be open on the host machine (e.g., 80/443). A user doesn't know where to point their browser to see the dashboard.
+*   **Missing `.env` Template:** The documentation mandates environment variables but provides no `.env.example` file or instructions on *how* to generate the initial file. Users don't know what the valid syntax looks like.
+*   **Host Dependency Assumptions:** The "Path Consistency Rule" mandates mapping to `/mnt`, but there is no instruction to ensure the host directory exists or that the user has the permissions (UID/GID) to mount/write to it.
+*   **External API Dependency:** The documentation mentions `m3tal-goback` as a requirement for the dashboard to function, but there are no installation instructions for this dependency, nor how to link it via the `.env` file (e.g., URL/IP mapping).
+*   **No Port Mapping/Access Info:** The documentation refers to a `Traefik Gateway` but fails to list which ports must be opened on the host firewall or how to access the dashboard once `up` is called (e.g., `http://localhost:8080`).
 
 #### **WARNING**
-4.  **`m3tal.py` ambiguity:** The prompt mentioned a `m3tal.py` setup, but the README only mentions a Go binary. Is there a Python script I should be using for setup, or is the documentation outdated?
-5.  **External Backend Dependency:** You state the Dashboard requires an external `m3tal-goback` service to function. If I follow your "Quick Start," I have a non-functional UI that throws API errors immediately because the backend isn't included in the stack. 
+*   **Ambiguous Initialization:** `./m3tal init` is a black box. Does it create the `.env`? Does it verify the Docker socket? The documentation doesn't explain what "syncs configuration" actually does to the host machine.
+*   **Implicit Docker Requirements:** There is no mention of `docker-compose` or `docker` plugin requirements. If the binary calls `docker compose` internally, the user needs to know this prerequisite.
 
 #### **SUGGESTION**
-6.  **Missing Prerequisites:** Add a "Prerequisites" section listing Docker, Docker Compose, and Go versions required.
-7.  **Diagnostic Feedback:** The `m3tal doctor` command is a great idea—document *what* it checks specifically so users know if they have a permission error or a socket error.
+*   **Version Pinning:** The README references `Go 1.21+`, but adding a `go.mod` check or ensuring the user knows to check `go version` would be safer for novices.
+*   **Help Flag:** The CLI reference table is good, but the documentation should explicitly state that `./m3tal --help` exists to assist the user.
 
 ---
 
 ### **Suggested Fixes**
 
-1.  **Add `.env.example`:** Create a file in the root containing:
+1.  **Add a `setup.sh` or `init.sh` script:** Instead of forcing the user to manually create a `.env`, provide an interactive shell script that checks for the existence of `BASE_STORAGE_PATH` and generates a valid `.env` file.
+2.  **Provide an `.env.example`:**
     ```bash
-    # M3TAL Environment Configuration
-    BASE_STORAGE_PATH=/absolute/path/to/media
-    API_TOKEN=generate_your_secure_token
-    DASHBOARD_SECRET=generate_a_random_string
+    # Copy to .env and configure
+    BASE_STORAGE_PATH=/home/user/media
+    API_TOKEN=your-secure-token
+    DASHBOARD_SECRET=super-secret-key
+    GOBACK_URL=http://<ip-of-goback>:port
     ```
-2.  **Implement/Document Pre-flight Checks:** Add a step in `Quick Start`:
-    *   "Ensure your media storage path exists: `mkdir -p /path/to/your/media`."
-    *   Update `m3tal init` to verify directory existence and user write permissions, failing gracefully with a helpful message if not found.
-3.  **Expose Networking Info:** Add a `Accessing the Dashboard` section:
-    *   "Once running, navigate to `http://localhost` (or your configured domain). Ensure ports 80/443 are not occupied on the host."
-4.  **Clarify Backend Strategy:** In the "Quick Start," add a warning: 
-    *   *"Note: The Dashboard requires an active `m3tal-goback` instance. If you are just testing the UI, ensure you have configured the `API_TOKEN` to point to a valid, reachable backend."*
-5.  **Clean up `m3tal.py` mentions:** If `m3tal.py` is deprecated, remove all references to it to prevent user confusion. If it is still required for setup, provide a `python3 m3tal.py setup` command in the Quick Start guide.
+3.  **Update "Quick Start":**
+    ```bash
+    # 1. Prerequisites: Ensure Docker and Go 1.21+ are installed.
+    # 2. Setup environment:
+    cp .env.example .env
+    nano .env # Edit your storage path and secrets
+    # 3. Build & Deploy:
+    go build -o m3tal main.go
+    ./m3tal init
+    ./m3tal up
+    # 4. Access: Dashboard is available at http://localhost:80 (or your configured Traefik port)
+    ```
+4.  **Add a "Network/Ports" section:** Explicitly state the ports used by Traefik (e.g., 80/443/8080) so users can configure their `ufw` or cloud security groups.
+5.  **Expand "Doctor" command:** Clearly document that `m3tal doctor` should be the first step in troubleshooting any deployment failure, and define the expected output for a "healthy" system.
 
-**DocCritic's Final Note:** *A system is only as robust as the user's ability to deploy it. Without an example configuration and a clear path to accessing the UI, this is currently just a repository of potential, not a functional platform.*
+**DocCritic Note:** *Fix these items, or your users will be flooding your issues queue within 10 minutes of their first attempt.*
