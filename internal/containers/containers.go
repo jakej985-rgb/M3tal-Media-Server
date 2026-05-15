@@ -2,8 +2,11 @@ package containers
 
 import (
 	"context"
-	"github.com/docker/docker/client"
 	"io"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
 // ContainerInfo represents basic container information
@@ -61,19 +64,19 @@ func NewDockerManager() (*DockerManager, error) {
 
 func (m *DockerManager) ListContainers() ([]ContainerInfo, error) {
 	ctx := context.Background()
-	result, err := m.cli.ContainerList(ctx, client.ContainerListOptions{All: true})
+	containers, err := m.cli.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
 		return nil, err
 	}
 
 	var info []ContainerInfo
-	for _, c := range result.Items {
+	for _, c := range containers {
 		info = append(info, ContainerInfo{
 			ID:     c.ID,
 			Names:  c.Names,
 			Image:  c.Image,
 			Status: c.Status,
-			State:  string(c.State),
+			State:  c.State,
 		})
 	}
 	return info, nil
@@ -81,25 +84,22 @@ func (m *DockerManager) ListContainers() ([]ContainerInfo, error) {
 
 func (m *DockerManager) StartContainer(name string) error {
 	ctx := context.Background()
-	_, err := m.cli.ContainerStart(ctx, name, client.ContainerStartOptions{})
-	return err
+	return m.cli.ContainerStart(ctx, name, types.ContainerStartOptions{})
 }
 
 func (m *DockerManager) StopContainer(name string) error {
 	ctx := context.Background()
-	_, err := m.cli.ContainerStop(ctx, name, client.ContainerStopOptions{})
-	return err
+	return m.cli.ContainerStop(ctx, name, container.StopOptions{})
 }
 
 func (m *DockerManager) RestartContainer(name string) error {
 	ctx := context.Background()
-	_, err := m.cli.ContainerRestart(ctx, name, client.ContainerRestartOptions{})
-	return err
+	return m.cli.ContainerRestart(ctx, name, container.StopOptions{})
 }
 
 func (m *DockerManager) Logs(name string, tail string) (string, error) {
 	ctx := context.Background()
-	options := client.ContainerLogsOptions{
+	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Tail:       tail,
