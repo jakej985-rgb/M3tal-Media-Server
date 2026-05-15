@@ -1,40 +1,37 @@
-As a Senior DevOps Auditor, I have completed a dry-run installation of the M3TAL Media Server based on your provided documentation.
+## **DocCritic Audit Report: M3TAL Core Documentation**
 
-### **Verdict: FAILED**
-The current documentation is dangerously incomplete for a production or even a "clean room" deployment. A new user following these instructions will encounter multiple environment-specific failures, permission errors, and missing service configuration steps. The project is effectively "un-deployable" for anyone not already familiar with your specific infrastructure conventions.
+**Verdict:** **FAILED**. As a new user, I cannot successfully deploy this system. The documentation suffers from "developer myopia," assuming local environment configurations (like specific paths, service availability, and network routing) that are not explicitly documented. It fails to bridge the gap between "installing a binary" and "making the system actually functional."
 
 ---
 
 ### **Issue List**
 
 #### **BLOCKER**
-1. **Missing `.env` specification:** The `m3tal-stack` (Docker Compose) relies on environment variables, but the documentation never explicitly states where to create the `.env` file or which variables (other than `API_TOKEN` and `BASE_STORAGE_PATH`) are required by the Compose files themselves.
-2. **Hidden Docker Dependency:** The `m3tal up` command implies it uses `docker-compose`, but the documentation does not state that the repository must be present on the host or where the CLI expects the `deploy/stack/` manifests to reside. If I install via `apt`, where is the stack template?
-3. **Traefik Configuration Gap:** You mention port 80/443, but Traefik requires configuration (certificates, domain names, or internal entry points). A fresh install will result in a connection refused or a 404/Bad Gateway error because the labels aren't defined.
+*   **[BLOCKER] Missing `.env` lifecycle:** The `m3tal up` command implies a Docker Compose deployment, but there is no instruction on how to generate or populate the `.env` file required by Docker Compose stacks. If `m3tal init` generates it, this is not stated.
+*   **[BLOCKER] Traefik Configuration:** The docs mention Traefik exposes 80/443, but provide zero instructions on how to configure Traefik labels, domain names, or SSL/TLS certificates. The system will likely fail to start or remain inaccessible behind an unconfigured proxy.
+*   **[BLOCKER] Dependency Orchestration:** The `m3tal-api` is referenced in the mermaid diagram and the troubleshooting section, but it is **not** defined in the "System Components" or "Quick Start" as a manual install requirement. Is it part of the stack? Does the user have to run it separately?
 
 #### **WARNING**
-4. **Assumption of `/mnt` / Permissions:** You state the orchestrator maps `/data` to `/mnt`. You fail to mention that the host user must have correct UID/GID permissions for these directories. A standard install will result in "Permission Denied" inside the container.
-5. **Missing API Secret generation:** You suggest manually editing `config.yaml` with `API_TOKEN=generate_a_secure_random_string`. This will break the dashboard-to-API handshake. The documentation should provide a command to generate this token correctly.
+*   **[WARNING] Path Assumption:** The documentation states the orchestrator maps storage to `/mnt` inside containers, but it doesn't clarify if the user needs to create `/mnt` on their host or if the `m3tal init` command handles the directory creation/permissioning.
+*   **[WARNING] Binary vs. Source Conflict:** The "Quick Start" uses a Debian package, but the "Development" section implies building from source. There is no warning that mixing these (e.g., global binary vs. local build) will cause version skew or configuration path conflicts.
 
 #### **SUGGESTION**
-6. **Binary vs. Source Path:** If I install via `apt`, where is the template directory? The documentation should explain the relationship between the installed binary path (`/usr/bin/m3tal`) and the data/config templates.
-7. **`m3tal doctor` feedback:** The docs don't show what a "Healthy" output looks like, making it difficult for a user to know if they succeeded.
+*   **[SUGGESTION] Initial Setup Workflow:** Add a "First Run Checklist" section. Currently, the user jumps from `apt install` to `m3tal up` without being told they need to define an `API_TOKEN` or service credentials in a specific file.
+*   **[SUGGESTION] Port Conflict Warning:** If the user has a local Nginx, Apache, or another service on 80/443, `m3tal up` will crash. Add a warning about checking host port availability.
 
 ---
 
 ### **Suggested Fixes**
 
-*   **For Blocker 1 & 5 (Env/Auth):** 
-    Provide a `m3tal setup` command that creates the `/etc/m3tal/` directory, initializes the config, and auto-generates a secure `API_TOKEN` using `openssl rand -hex 32`.
-*   **For Blocker 2 (Templates):** 
-    Explicitly define that `m3tal` expects the compose manifests to exist at a specific directory (e.g., `/usr/share/m3tal/stack`). Add a `m3tal install-templates` step to the "Quick Start" if they aren't bundled in the deb package.
-*   **For Blocker 3 (Traefik):** 
-    Include a `traefik.yaml` boilerplate section in the documentation. Explain that the user must define a domain or IP for the Traefik `Host` rule.
-*   **For Warning 4 (Permissions):** 
-    Add a section titled **"Storage Requirements"**:
-    > "Ensure your `BASE_STORAGE_PATH` is owned by the user running the orchestrator. If using Docker, ensure the media path has `755` permissions so the container user can read the content."
-*   **General Documentation Polish:**
-    *   Add a "Prerequisites Checklist" section (e.g., "Are ports 80/443 open? Is the Docker daemon running as non-root with sudo access?").
-    *   Include a table of required environment variables for the `.env` file used by the stack.
-
-**DocCritic Note:** *Do not push this to production docs until the gap between the `apt` installation and the `deploy/stack` directory structure is bridged. A user should not have to manually locate your GitHub repo files to make the `apt`-installed binary work.*
+1.  **Deployment Pre-flight:**
+    *   Add a step: `m3tal config setup`. Clearly document that this creates `/etc/m3tal/config.yaml` AND the necessary `.env` files for the Docker stack.
+2.  **Explicit Proxy Instructions:**
+    *   Add a section: `🌐 Configuring Traefik`. Explain that users must define their domain in the config or provide an example `docker-compose.override.yml` for users who want to use a specific local domain.
+3.  **Component Clarification:**
+    *   Update "System Components" to clarify: *"The `m3tal-api` is automatically managed by the `m3tal up` command via the underlying Docker stack; no manual installation is required."*
+4.  **Path Resolution Logic:**
+    *   Explicitly state: *"Run `m3tal init` with sudo permissions. It will ensure the host directory specified in `BASE_STORAGE_PATH` exists and is accessible to the Docker user."*
+5.  **Environment Isolation:**
+    *   Add a bold note: **"Important: Choose one installation method. Do not mix the Debian-packaged binary with custom-compiled binaries from the source root to avoid configuration drift."**
+6.  **Configuration Example:**
+    *   Provide a full `config.yaml` example in the documentation, including the `API_TOKEN` field, to prevent users from guessing the required keys.
