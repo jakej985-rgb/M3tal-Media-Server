@@ -379,6 +379,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Scan available Docker stacks",
 		Run: func(cmd *cobra.Command, args []string) {
 			stackDir := "/usr/share/m3tal/docker"
+			if _, err := os.Stat(stackDir); os.IsNotExist(err) {
+				stackDir = "source/m3tal-stack"
+			}
 			entries, err := os.ReadDir(stackDir)
 			if err != nil {
 				fmt.Println("❌ Unable to read docker directory:", err)

@@ -21,6 +21,19 @@ jobs:
       - name: Set Version
         run: echo "VERSION=v0.2.0-alpha-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
+      - name: Bump version
+        id: bump
+        run: |
+          # Get last tag
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.2.0-alpha)
+          TAG=${TAG#v}
+          IFS='-' read -r base suffix <<< "$TAG"
+          IFS='.' read -r major minor patch <<< "$base"
+          patch=$((patch+1))
+          NEW="v${major}.${minor}.${patch}-alpha"
+          echo "new_tag=${NEW}" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Build Binaries
         run: |
           mkdir -p dist
@@ -95,8 +108,8 @@ jobs:
       - name: Publish Release (Artifacts)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.0-alpha
-          name: Latest Build
+          tag_name: ${{ steps.bump.outputs.new_tag }}
+          name: ${{ steps.bump.outputs.new_tag }}
           files: dist/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
