@@ -19,7 +19,7 @@ jobs:
           cache: false
 
       - name: Set Version
-        run: echo "VERSION=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+        run: echo "VERSION=v0.2.0-alpha-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
       - name: Build Binaries
         run: |
@@ -95,7 +95,7 @@ jobs:
       - name: Publish Release (Artifacts)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
+          tag_name: v0.2.0-alpha-$(date +'%Y%m%d%H%M%S')
           name: Latest Build
           files: dist/*.deb
         env:
