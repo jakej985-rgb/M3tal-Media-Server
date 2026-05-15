@@ -11,29 +11,29 @@ M3TAL is a high-performance media server control plane engineered for lifecycle 
 
 ## 🧠 Architecture: The M3TAL Ecosystem
 
-The `m3tal` binary acts as the **primary Orchestrator/Core**. It manages the lifecycle and configuration of the infrastructure defined by the `m3tal-stack`, ensuring absolute control over the deployed services.
+The repository functions as the `M3TAL-Media-Server`, acting as the primary Orchestrator/Core. It manages the lifecycle and configuration of the infrastructure defined by the `m3tal-stack`, ensuring absolute control over deployed services.
 
 ### System Components
 
-*   **Orchestrator (`m3tal` CLI)**: The Go-native binary compiled from the repository root. It serves as the control plane, interfacing directly with the Docker socket to manage container lifecycles, network configurations, and volume mappings for the `m3tal-stack`.
-*   **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. These define the deployment of critical services, including the Traefik proxy and the `dashboard` container, all managed by the `m3tal` orchestrator to ensure strict networking and storage compliance.
-*   **Dashboard (`source/dashboard/`)**: The web interface for the M3TAL system. Built as a Python/Flask application, it is containerized and deployed as a core component of the `m3tal-stack`.
+*   **Orchestrator (CLI)**: A Go-native binary compiled from the repository root. It serves as the primary control plane, interfacing directly with the Docker socket to orchestrate container lifecycles, network configurations, and volume mappings.
+*   **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. These define the deployment of critical services, including the Traefik proxy and the dashboard container, managed by the CLI to ensure strict networking and storage compliance.
+*   **Dashboard (`source/dashboard/`)**: The web-based management interface. Built as a Python/Flask application, it is containerized and deployed as a core service within the `m3tal-stack`.
 
 ### Relationship Mapping
 
 ```mermaid
 graph TD
-    A[M3TAL CLI ./m3tal] -->|Manages Lifecycle & Configuration| B[m3tal-stack Docker Compose]
+    A[M3TAL CLI ./m3tal] -->|Manages Lifecycle & Configuration| B[source/m3tal-stack Docker Compose]
     B -->|Deploys| C[Traefik Gateway]
-    B -->|Deploys| D[Dashboard Container]
+    B -->|Deploys| D[source/dashboard Python/Flask]
     C -->|Routes Traffic To| D
     D -.->|API Requests To| E[m3tal-goback Remote]
 ```
 
 **Operational Flow:**
-The `M3TAL CLI` is the primary interface for managing the system. It interacts with `m3tal-stack` (Docker Compose definitions) to deploy and orchestrate containers. The `Traefik Gateway` routes external traffic to the `Dashboard`. The `Dashboard` communicates exclusively via API with the `m3tal-goback` service—an external, dedicated M3TAL Backend API—to execute business logic.
+The `M3TAL CLI` is the primary interface for system management. It interacts with `source/m3tal-stack` to deploy containers. The `Traefik Gateway` routes external traffic to the `dashboard`. The `dashboard` communicates exclusively via API with the `m3tal-goback` service—an external, dedicated M3TAL Backend API—to execute business logic.
 
-> **Go-Native Migration Status**: The Orchestrator is now fully Go-native, providing memory safety and peak performance for all control plane operations. While the `dashboard` remains Python-based for legacy support, the ecosystem is rapidly migrating to Go-native modules.
+> **Go-Native Migration Status**: The Orchestrator is fully Go-native, providing memory safety and peak performance for all control plane operations. While the `dashboard` remains Python-based for legacy compatibility, the ecosystem is actively migrating toward Go-native microservices.
 
 ---
 
@@ -60,7 +60,7 @@ go build -o m3tal main.go
 ```
 
 ### Path Consistency Rule
-The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt` inside every container. **Do not modify these mount points**, as the orchestrator relies on this structure for deterministic lifecycle management.
+The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt` inside every container. **Do not modify these mount points**, as the orchestrator relies on this structure for deterministic lifecycle management and volume integrity.
 
 ---
 
