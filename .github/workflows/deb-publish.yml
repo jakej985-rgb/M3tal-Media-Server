@@ -42,7 +42,7 @@ jobs:
 
       - name: Import GPG Key
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
+          printf "%s" "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
           # Verify the key is present
           gpg --list-secret-keys
 
