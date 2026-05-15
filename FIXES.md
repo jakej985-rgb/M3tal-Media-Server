@@ -1,63 +1,51 @@
-**DocCritic Audit Report: M3TAL Media Server**
+### **Audit Report: M3TAL Media Server Documentation**
 
-**Auditor:** Senior DevOps Auditor, M3TAL Platform
-**Status:** **FAILED**
-**Verdict:** The documentation is currently a "developer's souvenir." It describes the architecture well but fails to provide a functional deployment path for a new operator. A new user will experience immediate runtime failures due to missing environment configuration and directory assumptions.
+**Auditor:** DocCritic, Senior DevOps Auditor  
+**Status:** **FAILED**  
+**Verdict:** **BLOCKER**. As a new user, I cannot successfully deploy this stack. The documentation assumes deep internal knowledge of the project's state machine and fails to provide the critical "Day 0" configuration steps required to bridge the gap between cloning the repo and running `./m3tal up`.
 
 ---
 
-### 🚨 Issue List
+### **Detailed Issue List**
 
 #### **BLOCKER**
-*   **Missing `.env` Template:** There is no documentation on how to generate the initial environment file. A user running `./m3tal init` will likely fail if the application expects pre-existing environment variables that aren't defined.
-*   **Undefined `BASE_STORAGE_PATH` Requirement:** The "Path Consistency Rule" mentions `/mnt` but does not explicitly state that the user *must* create this directory or mount a drive there before running the orchestrator.
-*   **No Dependency Pre-check:** The documentation fails to state that the host requires Docker and Docker Compose (v2+) to be installed.
+1.  **Missing Initial Configuration Step:** The `Quick Start` commands `./m3tal init` and `./m3tal up` will fail immediately because there is no instruction to create or populate the `.env` file. The software cannot "Initialize" if the required environment variables are unknown to the system.
+2.  **Implicit Dependency on `m3tal-goback`:** The documentation states the dashboard communicates with `m3tal-goback` (a separate repository), but provides no guidance on how to obtain, configure, or reach this external service. The user will be left with a broken dashboard.
+3.  **Host Path Blindness:** The `Path Consistency Rule` demands `/mnt` exist on the host, but `./m3tal init` does not explain if it creates this directory or if the user must pre-create it with specific permissions.
 
 #### **WARNING**
-*   **Network Port Blindness:** There is zero information regarding which ports (80, 443, 8080) must be open on the host firewall. Traefik handles routing, but if the user has a local web server (e.g., Nginx/Apache) running, the `m3tal up` command will silently fail or conflict.
-*   **Ambiguous `init` behavior:** It is unclear if `./m3tal init` creates the `.env` file automatically or if the user is expected to copy an example file (which doesn't exist in the repo).
+4.  **Traefik / Port Visibility:** No mention of which ports must be opened on the host firewall. A user doesn't know if they need to expose 80, 443, 8080, or custom ports to access the dashboard.
+5.  **Docker Prerequisites:** The documentation assumes the user has `docker` and `docker-compose` installed and the current user is in the `docker` group. If I run this as a non-root user, it will likely fail with a permission error.
 
 #### **SUGGESTION**
-*   **"Quick Start" Logic Gap:** The transition from `go build` to `./m3tal init` assumes the binary has permission to manipulate the file system. Add a note about `chmod +x` and required user permissions (docker socket access).
-*   **Architecture Diagram Clarity:** The diagram shows `m3tal-goback` as an external dependency, but doesn't explain how to link it (e.g., does it need to be in the same Docker network, or is it a URL-based API?).
+6.  **"Doctor" Command Timing:** The documentation should explicitly state: "If `up` fails, run `./m3tal doctor` to verify your environment."
+7.  **Absolute Path Clarity:** "Absolute path" is mentioned, but a concrete example (e.g., `/home/user/media` vs `~/media`) would prevent common configuration errors.
 
 ---
 
-### 🛠 Suggested Fixes
+### **Suggested Fixes**
 
-#### 1. Add a Pre-flight Checklist (Documentation)
-Add a section before "Quick Start":
-> **System Prerequisites:**
-> - Linux host with Docker Engine and Docker Compose (v2.x) installed.
-> - User must be in the `docker` group.
-> - Ensure port 80 and 443 are available.
-> - Mount your media storage to `/mnt` on the host, or update `BASE_STORAGE_PATH` via `./m3tal config`.
+**1. Create a `Pre-flight` section in README:**
+*   Add a step: `cp .env.example .env`.
+*   Explain the requirement to populate `BASE_STORAGE_PATH` and `API_TOKEN` before running `init`.
 
-#### 2. Create an `.env` initialization step
-Modify the "Quick Start" to:
-```bash
-# 1. Compile
-go build -o m3tal main.go 
+**2. Clarify `m3tal-goback` integration:**
+*   Add a warning: *"Prerequisite: This orchestrator requires an active `m3tal-goback` instance. Please ensure the API_URL in your `.env` points to your backend instance before launching."*
 
-# 2. Setup Configuration
-./m3tal setup  # (New command: prompts for API keys/storage paths)
-# OR 
-cp .env.example .env && ./m3tal config
-```
+**3. Explicit Port Documentation:**
+*   Add a `Networking` sub-section in `README.md` listing the ports:
+    *   `80/443` (Traefik Gateway)
+    *   `8080` (Dashboard)
+    *   Add command: `ufw allow 80/tcp && ufw allow 443/tcp`.
 
-#### 3. Formalize the Path Constraint
-Update the **Path Consistency Rule** section:
-> **Strict Path Requirement:** 
-> The orchestrator mandates that the host path defined in `BASE_STORAGE_PATH` is accessible. If `/mnt` does not exist on your host, run: `sudo mkdir -p /mnt && sudo chown $USER:$USER /mnt`.
+**4. Path/Permission Setup:**
+*   Update the `Path Consistency Rule` section:
+    *   "Ensure the host directory defined in `BASE_STORAGE_PATH` exists and is writable by the user executing the `./m3tal` binary: `mkdir -p /mnt/m3tal && chown $USER:$USER /mnt/m3tal`."
 
-#### 4. Document Firewall/Network Exposure
-Add a "Network Requirements" section:
-> **Networking:** 
-> M3TAL uses Traefik as an ingress controller. Ensure your host firewall allows traffic on TCP ports 80 and 443. Access the dashboard at `http://<host-ip>`.
-
-#### 5. Clarify External Dependencies
-In the "Troubleshooting" section, explicitly define:
-> **m3tal-goback:** This must be reachable via the network defined in your `.env`. If running on the same host, use `http://host.docker.internal:PORT`.
+**5. Docker Group Check:**
+*   Add a "System Requirements" block:
+    *   "Ensure your user is added to the docker group: `sudo usermod -aG docker $USER` (requires re-login)."
 
 ---
-**Auditor Note:** *Fix these items, and the project might actually be deployable by a human. Re-submit for audit once the `setup` flow is non-destructive and explicit.*
+
+**Auditor Note:** *You are building a high-performance orchestration tool. Do not assume your users are mind-readers. If the CLI manages lifecycle and storage, the documentation must explicitly guide the user through the initial environment setup, or the "sub-millisecond control plane" is useless because the system never reaches a `Running` state.*
