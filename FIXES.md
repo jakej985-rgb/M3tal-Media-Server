@@ -1,53 +1,47 @@
-### **Audit Report: M3TAL Media Server Documentation**
+### **DocCritic Audit Report: M3TAL Core**
 
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**  
-**Verdict:** The documentation is currently insufficient for production or local deployment. It assumes a "perfect" environment and fails to provide the necessary bootstrap instructions for a user to actually start the service.
+**Verdict: FAILED (BLOCKER)**
+As a new user, I cannot successfully deploy this system. The documentation assumes a "magic" environment where the user knows how to configure environment variables, where the system expects data to live, and how the network layer is exposed. The current README is a high-level architectural overview, not an operator's manual.
 
 ---
 
-### **Detailed Issue List**
+### **Issue List**
 
 #### **BLOCKER**
-1.  **Missing `.env` Bootstrap**: There is no documentation on how to create the initial environment configuration. Running `./m3tal init` will likely fail if the system expects a `.env` file that doesn't exist yet.
-2.  **Missing System Dependency Check**: The documentation mentions a Go-native binary and Docker Compose usage but fails to explicitly list required host dependencies (e.g., Docker Engine, Docker Compose plugin, Go version, permissions for `/mnt`).
-3.  **Ambiguous Port Exposure**: The "Networking" section is empty/missing. A user does not know which ports to open on their host firewall or where to point their browser after `m3tal up`.
+1. **Missing `.env` / Configuration Instructions:** The documentation mentions `BASE_STORAGE_PATH` and `API_TOKEN`, but there is no guide on *where* to create an environment file or how the system reads configuration. If I run `m3tal init`, it will likely fail or generate invalid configs because it lacks these inputs.
+2. **Missing Port/Access Documentation:** I am told the `Traefik Gateway` is deployed, but I have no idea what port to hit in my browser. Is it 80? 443? 8080? If I don't know the port, I cannot access the dashboard.
+3. **Hard-coded Assumption of `/mnt`:** The "Path Consistency Rule" mandates `/mnt`. If a user is on a system where `/mnt` is restricted or unused (e.g., a NAS mount at `/data`), the user has no instructions on how to alias or satisfy this constraint without breaking the orchestrator.
 
 #### **WARNING**
-4.  **Host Path Assumption**: The "Path Consistency Rule" mandates `/mnt`. If the user is on macOS or Windows (Docker Desktop), `/mnt` does not exist by default. The documentation fails to explain how to map or create this directory on different OS environments.
-5.  **`m3tal.py` Ghost references**: The user prompt implies there should be a `m3tal.py` setup, but the README only discusses the Go binary. If a Python setup script exists, it is missing from the docs. If it’s deprecated, the repo is cluttered with obsolete info.
-6.  **Missing Dashboard Access Logic**: The dashboard requires an external `m3tal-goback` service. The documentation fails to explain how to configure this API URL *before* the first launch.
+4. **Ambiguous `m3tal up` dependencies:** Does `m3tal up` require `docker-compose` to be pre-installed on the host? Does it use the Docker Python SDK or call the `docker-compose` binary? The distinction between the Go orchestrator and the `deploy/stack` manifests is unclear regarding dependencies.
+5. **Lack of "Day 0" Setup:** The "Quick Start" is too fast. It ignores the required initial setup of the `m3tal` configuration file. Where does `m3tal.yaml` (or similar) live? `/etc/m3tal/`? `~/.config/m3tal/`?
 
 #### **SUGGESTION**
-7.  **Diagnostic Feedback Loop**: `./m3tal doctor` is mentioned, but what happens if it fails? Add an example output of a "Successful" vs. "Failed" doctor run.
-8.  **Missing Build Artifacts**: The README suggests `go build -o m3tal main.go`. It should verify if this needs `go mod tidy` or specific CGO flags for the Docker/Docker socket interactions.
+6. **"Doctor" Command Transparency:** Since you provide a `m3tal doctor` command, promote it in the "Quick Start" section. It’s the user's best friend for debugging the missing environment variables mentioned above.
 
 ---
 
-### **Required Fixes**
+### **Suggested Fixes**
 
-1.  **Environment Setup Section**:
-    *   Add a step: `cp .env.example .env` before running `init`.
-    *   Include a table defining mandatory vs. optional variables (e.g., `BASE_STORAGE_PATH`, `API_TOKEN`).
+*   **Fix for #1:** Add a section: **"Initial Configuration"**.
+    > Create a file at `/etc/m3tal/config.env`:
+    > ```bash
+    > BASE_STORAGE_PATH=/home/user/media
+    > API_TOKEN=generate_a_secure_random_string
+    > ```
+    > Mention that `m3tal init` pulls from this location.
 
-2.  **Networking/Access Table**:
-    *   Add a section: 
-        *   "Access your dashboard at `http://<HOST_IP>:80`."
-        *   "Traefik will expose port 80/443; ensure these are not in use by other services."
+*   **Fix for #2:** Add a **"Networking & Access"** section:
+    > "By default, M3TAL exposes the Dashboard on port `80` (HTTP) and `443` (HTTPS). Ensure these ports are open on your host firewall."
 
-3.  **Infrastructure Pathing**:
-    *   Explicitly instruct users to create the mount point: `mkdir -p /mnt/m3tal` and ensure the executing user has `chown` permissions.
+*   **Fix for #3:** Clarify the "Path Consistency Rule":
+    > "The orchestrator mandates that your `BASE_STORAGE_PATH` is mapped to `/mnt` inside the container. If your media is stored at `/data`, the orchestrator will automatically bind `/data` to `/mnt` within the container context."
 
-4.  **Prerequisites Section**:
-    *   Create a "System Requirements" block:
-        *   Docker Engine 20.10+
-        *   Docker Compose V2
-        *   Go 1.21+ (Only if compiling from source)
-        *   User must be in the `docker` group.
+*   **Fix for #4 & #5:** Update "Quick Start" with a logical flow:
+    1. `sudo apt install m3tal-core`
+    2. `sudo m3tal config set path /path/to/media`
+    3. `sudo m3tal init`
+    4. `m3tal doctor` (Verify all systems green)
+    5. `m3tal up`
 
-5.  **Clear the "Ghost" references**:
-    *   If `m3tal.py` is irrelevant, delete it. If it is the preferred installation method, the `go build` instruction should be secondary.
-
----
-
-**Auditor's Note:** *This project feels like an internal tool that expects the operator to "know" the environment. For an open-source or team-distributed tool, you must assume the user is starting from an empty machine.*
+*   **Documentation Meta-Improvement:** Add a "Requirements" header specifying that `Docker Engine` and `Docker Compose V2` must be installed prior to running the `m3tal-core` package.
