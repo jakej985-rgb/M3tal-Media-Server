@@ -1,59 +1,50 @@
-### **DocCritic Audit Report**
-**To:** M3TAL Development Team  
-**From:** Senior DevOps Auditor  
-**Subject:** Documentation Audit - M3TAL Media Server (v1.7)  
-**Verdict:** **REJECTED.** The documentation is currently insufficient for a production-grade deployment. The "Quick Start" omits critical environmental bootstrapping, leading to inevitable runtime failure.
+### **DocCritic Audit Report: M3TAL Media Server (v1.7)**
+
+**Verdict:** **FAILED.** 
+As a new user, I cannot deploy this. The "Quick Start" guide is dangerously optimistic. It assumes a pre-configured environment that the documentation fails to define. The lack of explicit environment setup instructions before execution will result in an immediate runtime failure.
 
 ---
 
-### **Detailed Issue List**
+### **Issue List**
 
-#### **1. BLOCKER: Missing Environment Configuration**
-*   **Issue:** The "Quick Start" guide leads a user to run `./m3tal init` and `./m3tal up` without ever mentioning the creation or population of a `.env` file.
-*   **Fix:** Explicitly state: "Copy `example.env` to `.env` and configure `BASE_STORAGE_PATH`, `API_TOKEN`, and `DOCKER_NETWORK` before running `./m3tal init`."
+#### **BLOCKER**
+*   **[BLOCKER] Missing `.env` Initialization**: The `Quick Start` commands `./m3tal init` and `./m3tal up` imply that a `.env` file exists and is populated. There is no instruction on how to create this file, what variables are required (e.g., `BASE_STORAGE_PATH`, `API_TOKEN`), or where the template is located.
+*   **[BLOCKER] Implicit Assumption of `/mnt`**: The documentation explicitly states "The stack assumes `/mnt` is the internal media root." It does not explain if the *user* needs to create this directory on the host, or if the orchestrator creates it. If the user doesn't have a volume at `/mnt`, will the stack crash? The user needs a "Prerequisites" section covering system permissions.
+*   **[BLOCKER] Port Conflict/Access Silence**: The documentation mentions a `Traefik Gateway` but fails to list the ports it binds to (e.g., 80, 443, 8080). A user won't know how to access the dashboard or verify if the ports are available on their host.
 
-#### **2. BLOCKER: Host-to-Container Mount Assumption**
-*   **Issue:** The documentation states: *"The orchestrator relies on this structure for deterministic lifecycle management."* It fails to define **how** to ensure the host `/mnt` path is correctly mapped or permissioned. If the user does not have a `/mnt` folder or has permission issues, `./m3tal up` will hang or fail silently.
-*   **Fix:** Add a section "Host Preparation" requiring users to verify `/mnt` existence and ownership. Add a command like `mkdir -p /mnt/m3tal` and ensure current user permissions are set.
+#### **WARNING**
+*   **[WARNING] Binary Permissions**: `go build -o m3tal main.go` does not automatically grant execution permissions on all OS types. Documentation should suggest `chmod +x m3tal`.
+*   **[WARNING] Docker Dependency**: While it mentions "Docker socket," it doesn't explicitly state that the user must be in the `docker` group or have `sudo` privileges to interact with the socket.
+*   **[WARNING] Path Ambiguity**: The "Path Consistency Rule" is vague. Does the `BASE_STORAGE_PATH` on the host get mapped to `/mnt` automatically by the `m3tal` binary, or does the user need to edit a Docker Compose file? 
 
-#### **3. WARNING: Undocumented Network/Port Access**
-*   **Issue:** The documentation mentions Traefik, but does not state which ports must be open on the host firewall.
-*   **Fix:** Provide a "Networking Requirements" section clearly stating that ports 80/443 (or custom) must be available, and reference the `docker-compose.yml` (or `m3tal-stack` folder) where these are defined.
-
-#### **4. WARNING: CLI Tooling Confusion**
-*   **Issue:** The CLI command `./m3tal config` is mentioned, but it is unclear if this modifies the `.env` file directly or requires an interactive TUI.
-*   **Fix:** Clarify the behavior of `m3tal config`. Does it prompt for input? Does it require root?
-
-#### **5. SUGGESTION: "m3tal-stack" Usage Clarification**
-*   **Issue:** The doc says the orchestrator manages `source/m3tal-stack`, but doesn't tell the user what to do if they need to customize the stack (e.g., adding a container).
-*   **Fix:** Clarify if users are allowed to edit files inside `source/m3tal-stack/` or if that will cause "Desynchronization" errors mentioned in the Troubleshooting section.
-
-#### **6. SUGGESTION: Dependency Prerequisites**
-*   **Issue:** The `go build` instruction assumes the user has the Go toolchain installed, but the OS requirements (Docker/Docker Compose versioning) are omitted.
-*   **Fix:** Add a "Prerequisites" table (e.g., Docker Engine 20.10+, Docker Compose V2, Go 1.21+).
+#### **SUGGESTION**
+*   **[SUGGESTION] First-run flow**: Add a `make setup` or a more descriptive `m3tal setup` command that interactively creates the `.env` file for the user.
+*   **[SUGGESTION] Networking Clarity**: Include a "Default Access URLs" table (e.g., `http://localhost:8080`) so users know where to point their browsers.
 
 ---
 
-### **Recommended Quick Start Fix (Draft)**
+### **Suggested Fixes**
 
-```bash
-# 1. Prerequisites
-# Ensure Docker and Go 1.21+ are installed.
-# Ensure /mnt is writable by the current user.
+1.  **Add a "Prerequisites" Section**:
+    *   "Ensure Docker and Docker Compose are installed."
+    *   "Ensure your user has access to the Docker socket."
+    *   "Ensure directory `/mnt` exists on your host machine or prepare a path for `BASE_STORAGE_PATH`."
 
-# 2. Environment Setup
-cp example.env .env
-# Edit .env and set BASE_STORAGE_PATH (e.g., /mnt/media)
+2.  **Explicit Environment Setup**:
+    *   Update Quick Start:
+        ```bash
+        # 1. Setup Environment
+        cp .env.example .env
+        ./m3tal config  # (Or manually edit .env to set BASE_STORAGE_PATH and API_TOKEN)
+        ```
 
-# 3. Compile
-go build -o m3tal main.go 
+3.  **Document Ports**:
+    *   Add a section: **Accessing M3TAL**:
+        *   Dashboard: `http://localhost:80`
+        *   Traefik Dashboard: `http://localhost:8080`
 
-# 4. Initialize (Validates .env and /mnt path)
-./m3tal init
+4.  **Refine "Path Consistency Rule"**:
+    *   Clarify the mapping: "The orchestrator automatically maps your host's `BASE_STORAGE_PATH` to `/mnt` inside the container via Docker volume bind-mounts."
 
-# 5. Launch
-./m3tal up
-# Access the dashboard at http://localhost:80 (or your configured domain)
-```
-
-**Auditor Note:** *The architectural design is sound, but the "Black Box" nature of the CLI orchestrator currently hides too many failure points from the user. Transparency is required for adoption.*
+5.  **Add `chmod` instruction**:
+    *   `chmod +x m3tal` after the build step to prevent `Permission Denied` errors for users on Linux/macOS.
