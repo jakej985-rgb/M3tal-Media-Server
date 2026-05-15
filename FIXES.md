@@ -1,67 +1,58 @@
-### **Audit Report: M3TAL Media Server Documentation**
-
+# Audit Report: M3TAL Media Server Documentation
 **Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**  
-**Verdict:** **BLOCKER.** The current documentation assumes prior internal knowledge of the M3TAL ecosystem. A new user cannot successfully deploy this system based on the provided README. The lack of environment setup instructions and hidden dependencies makes this a "black box" deployment.
+**Status:** **FAILED - NON-DEPLOYABLE**
+
+As a new user attempting to deploy the M3TAL platform, I hit a "dead stop" within 30 seconds of starting. The documentation assumes deep tribal knowledge of the ecosystem, ignores host-level prerequisites, and fails to define the "Contract" between the host and the application.
 
 ---
 
-### **Issue List**
+### 🚨 Detailed Issue List
 
-#### **BLOCKER**
-*   **[BLOCKER] Missing `.env` template:** The `init` command implies a sync, but provides no instructions on where to place the `.env` file or what variables are required (e.g., `BASE_STORAGE_PATH`, `API_TOKEN`).
-*   **[BLOCKER] Assumption of Environment Context:** There is no documentation on how to *bootstrap* the system. Where do I define the environment variables before running `./m3tal init`?
-*   **[BLOCKER] Missing Prerequisite validation:** The documentation fails to state that `go` (1.21+) and `docker-compose` are hard requirements on the host machine.
-
-#### **WARNING**
-*   **[WARNING] Traefik Access Ambiguity:** The `NETWORKING.md` is referenced but the README fails to provide the basic access port (e.g., 80/443/8080) or how to access the Dashboard once `up` is executed.
-*   **[WARNING] `/mnt` hard-dependency:** The requirement that the host path be mapped to `/mnt` is a major constraint. If a user is on macOS or Windows, or has existing data in a different structure, the orchestrator will fail without clear instructions on how to bridge this.
-
-#### **SUGGESTION**
-*   **[SUGGESTION] Visual Workflow:** The CLI reference is good, but a "First-Time Setup Checklist" would significantly reduce friction.
-*   **[SUGGESTION] Binary Management:** No mention of permissions. Users often hit "Permission Denied" with Go binaries.
+| Severity | Issue | Impact |
+| :--- | :--- | :--- |
+| **BLOCKER** | **Missing Environment Configuration** | The `init` command fails because no instructions exist on how to generate or seed the `.env` file required for `BASE_STORAGE_PATH`. |
+| **BLOCKER** | **Zero Host Requirements** | The `Path Consistency Rule` requires `/mnt` to be mounted. No instructions exist on how to prepare the host (e.g., permissions, symlinks, or actual mounting). |
+| **WARNING** | **Network Access Opaque** | No mention of which ports must be open on the host (80/443 for Traefik). Users will face silent connection timeouts. |
+| **WARNING** | **Dependency Ambiguity** | The orchestrator relies on `m3tal-goback`. It is unclear if this is a local docker service or a remote URL, and where this configuration is defined. |
+| **SUGGESTION** | **CLI Feedback Loop** | `./m3tal init` output should explicitly print the path it expects to find on the host. |
 
 ---
 
-### **Suggested Fixes**
+### 🛠 Suggested Fixes
 
-#### 1. Add a `Prerequisites` section to the README:
-```markdown
-## 📋 Prerequisites
-- Go 1.21+ installed and in PATH.
-- Docker & Docker Compose Plugin.
-- User must have read/write access to the host's `BASE_STORAGE_PATH`.
-```
+#### 1. Add an "Environment Seeding" Section (Blocker Fix)
+Before running `./m3tal init`, the user needs an initial configuration.
+*   **Fix:** Add `cp .env.example .env` to the Quick Start guide. 
+*   **Fix:** Update `docs/ENVIRONMENT_VARIABLES.md` to define the `BASE_STORAGE_PATH` format.
 
-#### 2. Create a "Configuration First" step in the Quick Start:
-```bash
-# 1. Create your environment configuration
-cp .env.example .env
-nano .env  # Configure BASE_STORAGE_PATH and API_TOKEN
+#### 2. Host-Level Pre-flight Check (Blocker Fix)
+The documentation mentions a "Path Consistency Rule" but does not explain how to satisfy it.
+*   **Fix:** Provide a shell command block for users:
+    ```bash
+    # Prepare the host storage directory
+    mkdir -p /mnt/m3tal_data
+    # Verify write permissions for the Docker daemon
+    sudo chown -R $USER:$USER /mnt/m3tal_data
+    ```
 
-# 2. Build the orchestrator
-go build -o m3tal main.go
-chmod +x m3tal
+#### 3. Networking/Port Exposure Documentation (Warning Fix)
+Users need to know how to reach the Dashboard.
+*   **Fix:** Add a section under `🌐 Networking` stating: "The stack requires ports 80 and 443 to be available on the host to accommodate the Traefik Gateway."
 
-# 3. Initialize and Launch
-./m3tal init
-./m3tal up
-```
+#### 4. Explicit `m3tal-goback` Configuration (Warning Fix)
+*   **Fix:** Explicitly state if the `m3tal-goback` URL is set via an environment variable in the `.env` file or if it expects a specific local service name. Add a "Prerequisites" section linking the required backend services.
 
-#### 3. Formalize the Networking access info:
-Add this to the `Quick Start` or `Networking` section:
-> **Accessing the Dashboard:** Once the stack is `up`, the Traefik Gateway routes traffic to the Dashboard. By default, access the interface at `http://localhost:8080` (or the configured `DOMAIN` in `.env`).
+#### 5. Improved Quick Start Flow (Suggestion)
+The sequence `build -> init -> up` is logical but fragile.
+*   **Proposed Flow:**
+    1.  **Clone**
+    2.  **Env Setup**: `cp .env.example .env && nano .env`
+    3.  **Host Prep**: `sudo mkdir -p /mnt/m3tal && sudo chown $USER /mnt/m3tal`
+    4.  **Build**: `go build -o m3tal main.go`
+    5.  **Initialize**: `./m3tal init`
+    6.  **Launch**: `./m3tal up`
 
-#### 4. Explicitly handle the `/mnt` constraint:
-In `ENVIRONMENT_VARIABLES.md`, add a warning:
-> **Storage Note:** The Orchestrator forces a volume mount where `BASE_STORAGE_PATH` (Host) -> `/mnt` (Container). Ensure your media files are structured under your chosen `BASE_STORAGE_PATH` folder on the host.
+---
 
-#### 5. Provide a `.env.example` file:
-Ensure the repository includes a `.env.example` file with at least these keys:
-```text
-BASE_STORAGE_PATH=/home/user/media
-API_TOKEN=change_me_immediately
-DOMAIN=localhost
-```
-
-**DocCritic Final Note:** *Clean up the "hidden requirements." If the binary fails because a folder doesn't exist, the `init` command should either create it or throw a descriptive error (e.g., "Directory /mnt/media not found, please check .env"), rather than crashing during the `up` phase.*
+### Verdict
+**The documentation is currently insufficient for a production-grade orchestration tool.** It lacks "Day 0" setup instructions, leaving the user to guess host configuration requirements. **Do not deploy this documentation to end-users until the Host/Environment requirements are explicitly defined.**
