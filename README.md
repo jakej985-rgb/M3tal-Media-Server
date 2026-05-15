@@ -16,8 +16,8 @@ The `m3tal` binary acts as the **primary Orchestrator/Core**. It manages the lif
 ### System Components
 
 *   **Orchestrator (`m3tal` CLI)**: The Go-native binary compiled from the repository root. It serves as the control plane, interfacing directly with the Docker socket to manage container lifecycles, network configurations, and volume mappings for the `m3tal-stack`.
-*   **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. These define the deployment of critical services, including the Traefik proxy and the `dashboard` container, all managed by the `m3tal` orchestrator to ensure strict networking and storage compliance.
-*   **Dashboard (`source/dashboard/`)**: The web interface for the M3TAL system. Built as a Python/Flask application, it is containerized and deployed as a core component of the `m3tal-stack`.
+*   **Infrastructure (`deploy/stack/`)**: Standardized Docker Compose manifests. These define the deployment of critical services, including the Traefik proxy and the `dashboard` container, all managed by the `m3tal` orchestrator to ensure strict networking and storage compliance.
+*   **Dashboard (`deploy/dashboard/`)**: The web interface for the M3TAL system. Built as a Python/Flask application, it is containerized and deployed as a core component of the `m3tal-stack`.
 
 ### Relationship Mapping
 
@@ -46,16 +46,28 @@ This repository is a core component of the M3TAL ecosystem:
 
 ---
 
-## 🛠️ Quick Start
+## 🛠️ Quick Start (Recommended)
+
+M3TAL is now distributed as a native Debian package. This is the recommended way to install it on Linux.
 
 ```bash
-# 1. Compile the M3TAL orchestrator
-go build -o m3tal main.go 
+# 1. Add the M3TAL repository
+curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -
+echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list
 
-# 2. Initialize infrastructure
+# 2. Install M3TAL Core
+sudo apt-get update && sudo apt-get install -y m3tal-core
+
+# 3. Initialize and Start
+sudo m3tal init
+m3tal up
+```
+
+### Development / Local Build
+If you prefer to build from source:
+```bash
+go build -o m3tal ./cmd/m3tal
 ./m3tal init
-
-# 3. Launch stack
 ./m3tal up
 ```
 
@@ -66,20 +78,20 @@ The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted
 
 ## 🛠️ CLI Command Reference
 
-| Command               | Description                                                  |
-| :-------------------- | :----------------------------------------------------------- |
-| `./m3tal init`        | Syncs configuration and validates host path requirements.    |
-| `./m3tal up`          | Deploys the containerized stack via Docker Compose.          |
-| `./m3tal doctor`      | Diagnostic scan (Docker, ports, and path health).            |
-| `./m3tal config`      | Interface for updating global `.env` parameters.             |
-| `./m3tal down`        | Stops and purges the M3TAL stack.                            |
+| Command           | Description                                                  |
+| :---------------- | :----------------------------------------------------------- |
+| `m3tal init`      | Syncs configuration and validates host path requirements.    |
+| `m3tal up`        | Deploys the containerized stack via Docker Compose.          |
+| `m3tal doctor`    | Diagnostic scan (Docker, ports, and path health).            |
+| `m3tal config`    | Interface for updating global configuration parameters.      |
+| `m3tal down`      | Stops and purges the M3TAL stack.                            |
 
 ---
 
 ## 🧭 Troubleshooting
 
-*   **Desynchronization**: If infrastructure states drift, run `./m3tal init` to refresh Compose templates.
+*   **Desynchronization**: If infrastructure states drift, run `m3tal init` to refresh templates.
 *   **Storage Path Issues**: Ensure `BASE_STORAGE_PATH` is an absolute path. The stack assumes `/mnt` is the internal media root.
-*   **Dashboard API Errors**: Ensure the external `m3tal-goback` is reachable and the `API_TOKEN` matches the environment settings.
+*   **Dashboard API Errors**: Ensure the `m3tal-api` is reachable and the `API_TOKEN` matches.
 
 *M3TAL Core — Precision Media Infrastructure.*

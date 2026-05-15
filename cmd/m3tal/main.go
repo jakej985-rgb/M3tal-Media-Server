@@ -17,12 +17,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/jakej985-rgb/m3tal-core/pkg/api"
-	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
-	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
-	"github.com/jakej985-rgb/m3tal-core/pkg/orchestrator"
-	"github.com/jakej985-rgb/m3tal-core/pkg/preflight"
-	"github.com/jakej985-rgb/m3tal-core/pkg/system"
+	"github.com/jakej985-rgb/m3tal-core/internal/api"
+	"github.com/jakej985-rgb/m3tal-core/internal/auth"
+	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/orchestrator"
+	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
+	"github.com/jakej985-rgb/m3tal-core/internal/system"
 	"github.com/spf13/cobra"
 )
 
@@ -32,10 +32,9 @@ var envExample string
 func main() {
 	// First-run check for Linux system installations
 	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
-		if _, err := os.Stat("/etc/m3tal"); os.IsNotExist(err) {
-			// Probably a local/dev run, skip system check
-		} else if _, err := os.Stat("/etc/m3tal/config.yaml"); os.IsNotExist(err) {
-			fmt.Println("⚠️  System configuration not found at /etc/m3tal/config.yaml")
+		configPath := system.GetConfigPath()
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			fmt.Printf("⚠️  System configuration not found at %s\n", configPath)
 			fmt.Println("👉 Run: sudo m3tal init")
 			fmt.Println("")
 		}
@@ -243,7 +242,7 @@ func main() {
 			}
 
 			fmt.Printf("✅ Updating user %s...\n", username)
-			usersFile := "source/m3tal-stack/users.json"
+			usersFile := filepath.Join(system.GetStackDir(), "users.json")
 			if err := auth.UpdateUser(usersFile, username, password); err != nil {
 				log.Fatal(err)
 			}
@@ -257,7 +256,7 @@ func main() {
 storage path accessibility, port availability, and system configuration.
 Run this before 'm3tal up' to diagnose potential issues.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			envPath := ".env"
+			envPath := system.GetConfigPath()
 			baseStoragePath := ""
 			if data, err := os.ReadFile(envPath); err == nil {
 				baseStoragePath = getEnvValue(string(data), "BASE_STORAGE_PATH")
@@ -271,14 +270,14 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "init",
 		Short: "Initialize environment and generate secrets",
 		Run: func(cmd *cobra.Command, args []string) {
-			if _, err := os.Stat(".env"); err == nil {
+			if _, err := os.Stat(system.GetConfigPath()); err == nil {
 				fmt.Println("⚠️  .env already exists. Use 'm3tal config wizard' to update.")
 				return
 			}
 			runWizard(false)
 
 			// Post-init storage path validation
-			envData, err := os.ReadFile(".env")
+			envData, err := os.ReadFile(system.GetConfigPath())
 			if err == nil {
 				basePath := getEnvValue(string(envData), "BASE_STORAGE_PATH")
 				if basePath != "" {
@@ -318,9 +317,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "list",
 		Short: "List all configuration variables",
 		Run: func(cmd *cobra.Command, args []string) {
-			content, err := os.ReadFile(".env")
+			content, err := os.ReadFile(system.GetConfigPath())
 			if err != nil {
-				log.Fatal("❌ .env not found. Run 'init' first.")
+				log.Fatalf("❌ Configuration not found. Run 'init' first.")
 			}
 			fmt.Println(string(content))
 		},
@@ -334,9 +333,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			key := args[0]
 			val := args[1]
 
-			content, err := os.ReadFile(".env")
+			content, err := os.ReadFile(system.GetConfigPath())
 			if err != nil {
-				log.Fatal("❌ .env not found. Run 'init' first.")
+				log.Fatalf("❌ Configuration not found. Run 'init' first.")
 			}
 
 			newContent := replaceSecret(string(content), key+"=", val)
@@ -345,7 +344,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				newContent += fmt.Sprintf("\n%s=%s", key, val)
 			}
 
-			if err := os.WriteFile(".env", []byte(newContent), 0600); err != nil {
+			if err := os.WriteFile(system.GetConfigPath(), []byte(newContent), 0600); err != nil {
 				log.Fatal(err)
 			}
 			fmt.Printf("✅ Config updated: %s=%s\n", key, val)
@@ -358,9 +357,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			key := args[0]
-			content, err := os.ReadFile(".env")
+			content, err := os.ReadFile(system.GetConfigPath())
 			if err != nil {
-				log.Fatal("❌ .env not found. Run 'init' first.")
+				log.Fatalf("❌ Configuration not found. Run 'init' first.")
 			}
 
 			lines := strings.Split(string(content), "\n")
@@ -378,10 +377,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "scan",
 		Short: "Scan available Docker stacks",
 		Run: func(cmd *cobra.Command, args []string) {
-			stackDir := "/usr/share/m3tal/docker"
-			if _, err := os.Stat(stackDir); os.IsNotExist(err) {
-				stackDir = "source/m3tal-stack"
-			}
+			stackDir := system.GetStackDir()
 			entries, err := os.ReadDir(stackDir)
 			if err != nil {
 				fmt.Println("❌ Unable to read docker directory:", err)
@@ -419,14 +415,13 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 func runWizard(update bool) {
 	fmt.Println("🛠️  M3TAL Configuration Wizard")
 
-	targetFile := ".env"
+	targetFile := system.GetConfigPath()
 	isSystem := false
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		isSystem = true
-		targetFile = "/etc/m3tal/config.yaml"
-		_ = os.MkdirAll("/etc/m3tal", 0755)
-		_ = os.MkdirAll("/var/lib/m3tal", 0755)
-		fmt.Println("✅ System directories initialized (/etc/m3tal, /var/lib/m3tal)")
+		_ = os.MkdirAll(system.DefaultSystemConfigDir, 0755)
+		_ = os.MkdirAll(system.DefaultSystemDataDir, 0755)
+		fmt.Printf("✅ System directories initialized (%s, %s)\n", system.DefaultSystemConfigDir, system.DefaultSystemDataDir)
 	}
 
 	_ = os.MkdirAll("./data", 0755)

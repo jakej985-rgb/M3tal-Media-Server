@@ -15,19 +15,19 @@ The system has transitioned from a collection of fragmented Python/Bash agents i
 
 ### 🌏 Unified Orchestrator
 
-* **Component**: `pkg/orchestrator`
-* **Logic**: Manages the multi-compose stack (`source/m3tal-stack/`) using native Docker API interactions and standardized execution paths.
+* **Component**: `internal/orchestrator`
+* **Logic**: Manages the multi-compose stack (`deploy/stack/`) using native Docker API interactions and standardized execution paths.
 * **Safety**: Replaces the legacy `reconcile.py` with type-safe execution and atomic state transitions.
 
 ### 💾 Atomic State & Configuration
 
 * **Path**: `state/` and `.env`
 * **Logic**: Uses a centralized environment configuration model. The Go binary enforces absolute path consistency (`/mnt` mapping) across all managed services.
-* **Persistence**: All system state is stored in standardized JSON/YAML formats, accessible via the `pkg/system` layer.
+* **Persistence**: All system state is stored in standardized JSON/YAML formats, accessible via the `internal/system` layer.
 
 ### 👮 Health & Observability
 
-* **Component**: `pkg/health`
+* **Component**: `internal/health`
 * **Logic**: Implements sub-millisecond HTTP and Socket-based health polling.
 * **Metrics**: Real-time telemetry is collected by the Go backend and served via the internal API for the dashboard.
 
@@ -38,12 +38,12 @@ The system has transitioned from a collection of fragmented Python/Bash agents i
 ### ✅ PHASE 1 — GO CORE (COMPLETE)
 
 * **[COMPLETED]** `./m3tal` CLI: Unified command interface for `up`, `down`, `init`, and `config`.
-* **[COMPLETED]** `pkg/orchestrator`: Multi-stack compose management logic.
+* **[COMPLETED]** `internal/orchestrator`: Multi-stack compose management logic.
 * **[COMPLETED]** `build.sh`: Standardized compilation pipeline for Go 1.26+.
 
 ### ✅ PHASE 2 — INFRASTRUCTURE (COMPLETE)
 
-* **[COMPLETED]** `source/m3tal-stack/`: Standardized Docker manifests for Network, Routing, and Media services.
+* **[COMPLETED]** `deploy/stack/`: Standardized Docker manifests for Network, Routing, and Media services.
 * **[COMPLETED]** Traefik Integration: Dynamic host-level routing for `api.localhost` and `m3tal.localhost`.
 
 ### 🚧 PHASE 3 — DASHBOARD MIGRATION (IN PROGRESS)
@@ -85,7 +85,7 @@ The system has transitioned from a collection of fragmented Python/Bash agents i
 The system is considered healthy if:
 
 1. **Binary Integrity**: `./m3tal` compiles and executes on the target architecture (amd64/arm64).
-2. **Stack Health**: All services in `source/m3tal-stack/` report "Healthy" via `pkg/health`.
+2. **Stack Health**: All services in `deploy/stack/` report "Healthy" via `internal/health`.
 3. **Routing**: `m3tal.localhost` and `api.localhost` resolve and serve traffic correctly.
 4. **Persistence**: Configuration changes via `./m3tal config` persist across service restarts.
 5. **Recovery**: Services automatically recover from host reboots via Docker restart policies managed by the orchestrator.

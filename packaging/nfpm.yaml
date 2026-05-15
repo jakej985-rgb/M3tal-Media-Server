@@ -33,6 +33,10 @@ contents:
     dst: /etc/m3tal/config.yaml
     type: config
 
+  # Stack files
+  - src: ./deploy/stack/
+    dst: /opt/m3tal/stack/
+
 scripts:
   postinstall: ./scripts/postinstall.sh
   postremove: ./scripts/postremove.sh

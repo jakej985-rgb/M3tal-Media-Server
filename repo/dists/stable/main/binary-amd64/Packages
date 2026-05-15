@@ -1,0 +1,17 @@
+Package: m3tal-core
+Architecture: amd64
+Version: 1.0.0
+Priority: optional
+Section: utils
+Maintainer: Jake Johnson
+Depends: docker-ce | docker.io, docker-compose-plugin
+Filename: pool/main/m3tal-core_v1.0.0_amd64.deb
+Size: 11458548
+MD5sum: 5d76fd1f79dbb74023a22373e60c2bf4
+SHA1: 87094fb8760dd0099a91d25a52a850e4bd83aa03
+SHA256: 129ba441a271c78bdf05ee67a4c66cea9eeec19825db93d20d0ee2f550780dc1
+SHA512: 491b09c86a31d41c3b9d50a51b19033be9a25b5bda9e41d74153f286020b8be80dca839087c3cc4830adecad912a2845a89a4e6f86938b6ed8bfeb5ebc54c463
+Description: M3TAL Core — Lightweight orchestration platform.
+ Includes CLI (m3tal) and API backend (m3tal-api).
+ GUI dashboard available as separate Docker image.
+

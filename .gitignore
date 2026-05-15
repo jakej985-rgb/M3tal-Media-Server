@@ -38,3 +38,13 @@ vulture_results.txt
 
 # Binary archives (L6)
 *.rar
+
+# Go / build artifacts
+m3tal
+m3tal-api
+.go_dist/
+*.deb
+*.gpg
+*.key
+dist/
+bin/

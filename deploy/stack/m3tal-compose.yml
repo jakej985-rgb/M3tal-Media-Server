@@ -1,0 +1,82 @@
+services:
+  m3tal-dashboard:
+    image: ghcr.io/jakej985-rgb/m3tal-godash:debug
+    container_name: m3tal-dashboard
+    user: "${PUID:-1000}:${PGID:-1000}"
+    volumes:
+      - ${CONFIG_PATH:-/mnt/config}/m3tal/state:/docker/state
+      - ${BASE_STORAGE_PATH:-/mnt}:/mnt
+      - ./users.json:/docker/state/users.json:rw
+    command: python3 server.py
+    restart: unless-stopped
+    environment:
+      - TZ=America/Denver
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET:?DASHBOARD_SECRET not set — run from repo root with .env}
+      - STATE_DIR=/docker/state
+      - USERS_FILE=/docker/state/users.json
+      - DASHBOARD_HOST=0.0.0.0
+      - DASHBOARD_PORT=8082
+      - PYTHONUNBUFFERED=1
+      - GO_API_URL=http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`dash.${DOMAIN:?DOMAIN not set}`)" # Updated rule as per plan
+      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8082"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=control-plane"
+    networks:
+      - proxy
+    env_file:
+      - ../m3tal-core/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 250M
+
+  # Security Hardening: Docker Socket Proxy
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    container_name: m3tal-docker-proxy
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - SERVICES=1
+      - TASKS=1
+      - EVENTS=1
+      - VERSION=1
+      - INFO=1
+      - POST=1
+      - EXEC=0
+      - ALLOW_START=1
+      - ALLOW_STOP=0
+      - ALLOW_RESTARTS=1
+    ports:
+      - "127.0.0.1:2375:2375"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 100M
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:2375/version || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  proxy:
+    external: true
+  default:
+    name: none
