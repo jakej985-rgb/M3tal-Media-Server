@@ -46,6 +46,11 @@ jobs:
           # Verify the key is present
           gpg --list-secret-keys
 
+      - name: Trust GPG Key
+        run: |
+          # This avoids "key is not trusted" warnings during signing
+          echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key "${{ secrets.GPG_KEY_ID }}" trust
+
       - name: Build APT Repository
         run: |
           # Create the repo if it doesn't exist
@@ -54,13 +59,22 @@ jobs:
           # Add the newly built .deb
           aptly repo add m3tal dist/m3tal-core.deb
           
-          # Publish (or update) the repo
-          # We use --batch and --passphrase to handle signing in CI
-          # If it's the first time, we publish. If it exists, we update.
+          # Publish (or update) the repo with loopback pinentry
           if aptly publish list | grep -q "stable"; then
-            aptly publish update -gpg-key="${{ secrets.GPG_KEY_ID }}" -passphrase="${{ secrets.GPG_PASSPHRASE }}" stable
+            aptly publish update \
+              -gpg-key="${{ secrets.GPG_KEY_ID }}" \
+              -passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              -batch \
+              -gpg-options="--pinentry-mode=loopback" \
+              stable
           else
-            aptly publish repo -gpg-key="${{ secrets.GPG_KEY_ID }}" -passphrase="${{ secrets.GPG_PASSPHRASE }}" -distribution=stable m3tal
+            aptly publish repo \
+              -gpg-key="${{ secrets.GPG_KEY_ID }}" \
+              -passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              -batch \
+              -gpg-options="--pinentry-mode=loopback" \
+              -distribution=stable \
+              m3tal
           fi
 
       - name: Prepare GH-Pages Directory
