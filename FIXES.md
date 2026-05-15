@@ -1,64 +1,49 @@
-# Audit Report: M3TAL Media Server Documentation
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**
+**DocCritic Audit Report: M3TAL Media Server**
+
+**Status:** 🔴 **NON-DEPLOYABLE**
+
+As a Senior DevOps Auditor, I have attempted to simulate a fresh deployment of the M3TAL platform based solely on your documentation. The project is currently non-deployable due to critical gaps in environment bootstrapping, dependency management, and access visibility.
 
 ---
 
-### Verdict
-The documentation is currently a "developer-to-developer" shorthand that fails to provide a viable path for a new user. As a Senior Auditor, I cannot recommend this for production use or even local evaluation. The project relies on "hidden" state and assumes a perfectly configured host environment without documenting the prerequisites.
+### 📋 Issue List
+
+#### **BLOCKER**
+*   **Missing `.env` Bootstrapping:** The documentation mentions a `.env` file but does not provide a template or instructions on how to generate it. Running `./m3tal init` results in a silent failure if the environment is not pre-configured.
+*   **Host Path Assumptions:** You explicitly require `BASE_STORAGE_PATH` to exist but do not provide a validation step or a `mkdir` command. If the user doesn't have an existing `/mnt` or custom mount, the orchestrator will fail without clear guidance on what the host system actually needs.
+*   **Network Port Blindness:** There is no documentation regarding which ports (80, 443, 8080?) are required for the Traefik gateway. I have no way to verify if my firewall or host is ready to accept the traffic.
+
+#### **WARNING**
+*   **Implicit Dependency on `m3tal-goback`:** The documentation implies the system is broken or non-functional without an external `m3tal-goback` service, yet there is no "How to connect" guide for this external dependency.
+*   **Ambiguous `./m3tal init` behavior:** The documentation says it "Syncs configuration," but does not explain where that configuration is stored or how the user can verify it before running `./m3tal up`.
+
+#### **SUGGESTION**
+*   **Build Artifact Clarity:** The Quick Start assumes the user has `go` installed. Add a "Prerequisites" section (Go 1.21+, Docker, Docker Compose, make).
+*   **Missing `m3tal.py` confusion:** Your prompt mentioned `m3tal.py`, but the README suggests the CLI is now a Go binary. This creates massive confusion regarding the project's source of truth.
 
 ---
 
-### Issue List
+### 🛠️ Suggested Fixes
 
-#### 1. BLOCKER: Missing Environment Initialization
-The `Quick Start` assumes `./m3tal init` will magically work, but there is no documentation on where the initial configuration files or `.env` templates originate.
-*   **Fix:** Add a step to generate a `.env.example` or run a command that prompts for necessary environment variables before `init`.
+1.  **Add an `.env.example` file:** Provide a template in the root directory.
+    *   *Fix:* Create `.env.example` containing `BASE_STORAGE_PATH`, `API_TOKEN`, and `DOCKER_NETWORK_NAME`.
+    *   *Documentation:* Update `Quick Start` to include: `cp .env.example .env && ./m3tal config` (to populate values).
 
-#### 2. BLOCKER: Absolute Path Pre-requisite
-The documentation states: "The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt`". 
-*   **Issue:** If I am on macOS or a custom Linux partition where `/mnt` is restricted or non-existent, the documentation provides no guidance on how to satisfy this constraint.
-*   **Fix:** Document exactly how to configure `BASE_STORAGE_PATH` in the `.env` file and warn users that this directory *must* exist on the host prior to execution.
+2.  **Define Port Requirements:**
+    *   *Fix:* Create a table in `docs/NETWORKING.md` listing inbound ports required by the Traefik container (e.g., 80/443).
 
-#### 3. WARNING: Undocumented Port Dependencies
-`Traefik` is mentioned as the gateway, but no ports are specified. Is it 80/443? Does it conflict with existing local services (like an existing local web server)?
-*   **Fix:** Add a "Networking Requirements" section explicitly listing the required host ports (e.g., 80, 443, 8080) and how to handle collisions.
+3.  **Validate Host Paths during `init`:**
+    *   *Fix:* Update the `m3tal init` command to check if `BASE_STORAGE_PATH` exists on the host. If not, output a clear error: `CRITICAL: Path /mnt not found. Please create it or update BASE_STORAGE_PATH in .env.`
 
-#### 4. WARNING: Hidden `m3tal-goback` Dependency
-The `Operational Flow` mentions the Dashboard communicates with an *external* `m3tal-goback` service. 
-*   **Issue:** A new user will run `./m3tal up` and be greeted with a broken dashboard because they didn't know they needed to deploy or configure a separate backend.
-*   **Fix:** Provide a clear "Prerequisites" section or a `docker-compose.override.yml` example to link the backend, or define the environment variable where this URL is set.
+4.  **Clarify the Python/Go Conflict:**
+    *   *Fix:* Remove any references to `m3tal.py` if the project is now Go-native. If the dashboard still uses Python, explicitly document the Python version requirement (e.g., Python 3.10+).
 
-#### 5. SUGGESTION: Docker/Compose Version Requirements
-There is no mention of `docker-compose` version compatibility or if `docker compose` (v2) is required.
-*   **Fix:** Add a "System Requirements" section: `Docker Engine >= 20.10`, `Docker Compose >= 2.0`.
+5.  **External Service Connection Guide:**
+    *   *Fix:* Add a "Connecting to m3tal-goback" section explaining that the `API_TOKEN` in the `.env` must match the secret generated by the backend service.
 
 ---
 
-### Suggested Documentation Remediation (Draft)
+**Auditor Verdict:**
+The architectural shift to Go is positive, but the **"Last Mile" of documentation is missing.** A user cannot move from `git clone` to `dashboard access` without guessing variables. You are relying on tribal knowledge; please transition this to documented configuration. 
 
-**Revised Quick Start Section:**
-
-1. **Install Prerequisites**: Ensure `Docker` and `Go 1.21+` are installed.
-2. **Environment Setup**:
-   ```bash
-   cp .env.example .env
-   # Edit .env and set BASE_STORAGE_PATH to an absolute path on your host (e.g., /home/user/media)
-   ./m3tal config set BASE_STORAGE_PATH=/home/user/media
-   ```
-3. **Initialize**: 
-   ```bash
-   ./m3tal init 
-   # This will validate your /mnt mount and verify Docker connectivity.
-   ```
-4. **Launch**:
-   ```bash
-   ./m3tal up
-   # Access your dashboard at http://localhost:<DASHBOARD_PORT>
-   ```
-
-**Revised Networking Note:**
-> **Note:** The stack requires ports 80 and 443. Ensure no local processes (e.g., Nginx, Apache) are bound to these ports. If conflicts occur, update the `HTTP_PORT` and `HTTPS_PORT` variables in your `.env` file and re-run `./m3tal init`.
-
----
-**Auditor Final Note:** *The "Path Consistency Rule" is a brittle design pattern. Consider abstracting the mount path via the `m3tal-stack` docker-compose file instead of forcing the host to adapt to a hardcoded `/mnt` requirement.*
+**Re-audit requested once `.env` templates and port requirements are explicitly defined.**
