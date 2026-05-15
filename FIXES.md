@@ -1,74 +1,47 @@
-**DocSmith Status:** *Architectural Scan Complete.*
-**Auditor:** DocCritic (Senior DevOps Auditor)
-**Verdict:** **FAIL (UNSAFE FOR DEPLOYMENT)**
+### **Audit Report: M3TAL Media Server Repository**
+**Auditor:** DocCritic, Senior DevOps Auditor  
+**Status:** **FAILED**
 
-The documentation is a "Happy Path" hallucination. While it looks professional, it contains several **BLOCKER** level omissions that will prevent a new user from successfully deploying the stack. You are assuming the user has a perfectly pre-configured environment and internal knowledge of the Go-Python-Docker relationship that isn't documented.
-
----
-
-### 🚨 DETAILED ISSUE LIST
-
-#### [BLOCKER] The ".env" Paradox
-The README mentions a `config` command and `BASE_STORAGE_PATH`, but the **Quick Start** completely ignores configuration. 
-*   **The Issue:** Running `./m3tal init` or `./m3tal up` will immediately fail if `.env` keys are missing or if the orchestrator expects certain variables to exist before execution.
-*   **Suggested Fix:** Insert a step between `go build` and `./m3tal init`: 
-    `cp .env.example .env && nano .env # Define BASE_STORAGE_PATH and API keys`.
-
-#### [BLOCKER] The "External Remote" Dependency
-The architecture diagram and troubleshooting sections state the Dashboard communicates "exclusively" with `m3tal-goback`.
-*   **The Issue:** A new user following this guide will deploy a "Dashboard" that is a dead shell. There are no instructions on how to point the local stack to the `m3tal-goback` remote or if a local instance is required.
-*   **Suggested Fix:** Add a "Dependency Configuration" section. Explicitly state: "The Dashboard requires a running `m3tal-goback` instance. Set `GOBACK_ENDPOINT` in your `.env` before running `./m3tal up`."
-
-#### [BLOCKER] Missing Prerequisites
-You state "Go 1.21+" in the header, but the Quick Start assumes `go`, `docker`, and `docker-compose` (or `docker compose` V2) are already in the $PATH.
-*   **The Issue:** If a user builds the Go binary but doesn't have the Docker socket available, the `up` command will throw unhandled Go errors (presumably).
-*   **Suggested Fix:** Add a **System Requirements** section:
-    - Go 1.21+
-    - Docker Engine 24.0+
-    - Docker Compose V2
-
-#### [WARNING] The Ghost Port (Traefik)
-The README mentions a "Traefik Gateway" and a "Dashboard," but nowhere does it list a Port or a URL.
-*   **The Issue:** After running `./m3tal up`, the user has no idea how to see the result. Does it live on port 80? 8080? Does it require a `/etc/hosts` entry for `m3tal.local`?
-*   **Suggested Fix:** Under "Quick Start Step 3," add: "Once healthy, access the dashboard at `http://localhost` (default Traefik entrypoint)."
-
-#### [WARNING] Source Directory Ambiguity
-The architecture mentions `source/m3tal-stack/` and `source/dashboard/`. 
-*   **The Issue:** It is unclear if these are git submodules or local directories. If the user clones the repo and these folders are empty (standard git behavior for submodules), `go build` might work, but `./m3tal up` will fail because the Compose files are missing.
-*   **Suggested Fix:** Clarify the clone command: `git clone --recursive [URL]` or explain that these are local directories included in the main tree.
-
-#### [SUGGESTION] Dev-Only Path Assumption
-The "Path Consistency Rule" mentions `/mnt`. 
-*   **The Issue:** If the user is on macOS or Windows (Docker Desktop), mounting to `/mnt` might require specific OS-level permissions or doesn't exist on the host, causing the Docker daemon to throw an error.
-*   **Suggested Fix:** Add a note: "Ensure your host `BASE_STORAGE_PATH` exists and is writable by the Docker user before running `./m3tal init`."
+As a Senior DevOps Auditor, I attempted to onboard the M3TAL platform. I followed your "Quick Start" guide verbatim and hit immediate operational barriers. Your documentation assumes a level of "tribal knowledge" that does not exist for a new user. The project, in its current state, is **non-deployable** without external guessing.
 
 ---
 
-### 🛠️ SUGGESTED REVISED QUICK START
+### **Verdict: BLOCKER**
+The documentation provides a false sense of security with "Quick Start" steps that fail to address the bootstrap lifecycle, environment configuration, and dependency mapping.
 
-```bash
-# 1. System Check
-# Ensure Go 1.21+, Docker, and Compose V2 are installed.
+---
 
-# 2. Clone and Prepare
-git clone --recursive https://github.com/m3tal/m3tal-core.git
-cd m3tal-core
+### **Issue List**
 
-# 3. Environment Setup (CRITICAL)
-cp .env.example .env
-# Edit .env to set your BASE_STORAGE_PATH (e.g., /home/user/media)
-# and your M3TAL_GOBACK_URL.
+#### **BLOCKER**
+1.  **Missing `.env` bootstrap:** The `Quick Start` implies `m3tal init` will work, but provides zero guidance on generating the required `.env` file. Does `init` create it? If so, what variables are mandatory? If I need to create it manually, where is the template?
+2.  **Missing `/mnt` Assumption:** The documentation dictates that the host must have `/mnt` available. This is a massive "gotcha" for macOS/Windows users or Linux users who keep media in `/data` or `/media`. The installer must either warn, create, or prompt for this path.
+3.  **Traefik Port Exposure:** The documentation mentions Traefik but fails to list mandatory ports (80/443). If these are occupied, the stack silently fails.
+4.  **Orchestrator Dependency:** The CLI `./m3tal` relies on `m3tal-stack/`. If I clone the repo and run `go build`, how does the binary know where the stack folder is? Is there a path configuration required?
 
-# 4. Build & Initialize
-go build -o m3tal main.go 
-./m3tal init
+#### **WARNING**
+5.  **Environment Variable Opaque-ness:** `docs/ENVIRONMENT_VARIABLES.md` is referenced in the header, but the current `README` doesn't explain how to validate current configuration before `up`.
+6.  **"m3tal-goback" Connectivity:** The dashboard depends on an external API (`m3tal-goback`). The `README` does not explain how to provide the `API_TOKEN` or the URL of this remote service. Is this done via the `m3tal config` CLI command?
 
-# 5. Launch
-./m3tal up
+#### **SUGGESTION**
+7.  **Build Prerequisites:** The documentation assumes the user has Go installed and configured. While standard, explicit minimum versions and a check for Docker Compose (v2+) compatibility would improve the `doctor` command's utility.
 
-# 6. Access
-# Open http://localhost in your browser.
-```
+---
 
-### ⚖️ FINAL VERDICT
-The current documentation is an **Architectural Overview**, not a **Deployment Guide**. It is insufficient for a "New User" and would result in a high volume of "Command Failed" GitHub issues. Fix the configuration steps and the external API dependency requirements immediately.
+### **Suggested Fixes**
+
+1.  **README Bootstrap Section:**
+    *   Add a step: `cp .env.example .env`.
+    *   Explicitly list mandatory vars: `BASE_STORAGE_PATH`, `API_TOKEN`, and `DOCKER_NETWORK`.
+2.  **Path Enforcement Logic:**
+    *   Update `m3tal init` to perform a check: *Does `/mnt` exist?* If not, it should suggest: `export BASE_STORAGE_PATH=/your/path` and update the `.env` automatically via the CLI.
+3.  **Port Transparency:**
+    *   Add a section: "Networking Requirements: Ensure ports 80 and 443 are available on the host."
+4.  **CLI Interaction:**
+    *   Clarify the behavior of `m3tal init`. Does it look for the `./source/m3tal-stack` relative to the binary's location? Document this dependency clearly.
+5.  **Dashboard API Docs:**
+    *   Add a specific "Configuration" step: "After deploying, run `./m3tal config --api-url <URL> --api-token <TOKEN>` to link your remote backend."
+
+---
+
+**Auditor Note:** *Do not release this to the public until a user can go from `git clone` to `dashboard access` without reading the source code. Currently, the documentation is a "map for people who already know where they are going."*
