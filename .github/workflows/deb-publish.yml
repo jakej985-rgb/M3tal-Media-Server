@@ -20,6 +20,7 @@ jobs:
 
       - name: Build Binaries
         run: |
+          mkdir -p dist
           go build -ldflags="-s -w" -o ./m3tal ./cmd/m3tal
           go build -ldflags="-s -w" -o ./m3tal-api ./cmd/api
 
@@ -29,7 +30,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build .deb
-        run: nfpm package --packager deb --config packaging/nfpm.yaml --target dist/
+        run: nfpm package --packager deb --config packaging/nfpm.yaml --target dist/m3tal-core.deb
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
