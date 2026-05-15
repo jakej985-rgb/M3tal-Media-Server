@@ -9,20 +9,20 @@ import (
 	"strings"
 )
 
-// Stack represents a collection of docker-compose files
-type Stack struct {
+// StackManager represents a collection of docker-compose files
+type StackManager struct {
 	Files []string
 }
 
-// NewStack returns a stack with discovered M3TAL compose files.
+// NewStackManager returns a manager with discovered M3TAL compose files.
 // It scans for files matching patterns:
 //   - ./docker/*-compose.yml
 //   - ./*-stack/*-compose.yml
 //
 // If running as a system installation, it also scans /usr/share/m3tal/stack/.
-func NewStack() *Stack {
+func NewStackManager() *StackManager {
 	paths := discoverComposeFiles()
-	return &Stack{
+	return &StackManager{
 		Files: paths,
 	}
 }
@@ -88,7 +88,7 @@ func uniqueSorted(files []string) []string {
 }
 
 // Run executes a docker compose command across all stack files
-func (s *Stack) Run(action string, args ...string) error {
+func (s *StackManager) Run(action string, args ...string) error {
 	if len(s.Files) == 0 {
 		fmt.Println("⚠️  No compose files found. Nothing to do.")
 		return nil

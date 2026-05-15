@@ -12,6 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"bytes"
+	_ "embed"
+	"io"
+	"net/http"
+
 	"github.com/jakej985-rgb/m3tal-core/pkg/api"
 	"github.com/jakej985-rgb/m3tal-core/pkg/auth"
 	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
@@ -19,10 +24,6 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/preflight"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/spf13/cobra"
-	"io"
-	"net/http"
-	"bytes"
-	_ "embed"
 )
 
 //go:embed .env.example
@@ -188,7 +189,7 @@ func main() {
 		Short: "Initialize and start the M3TAL environment",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("🚀 Initializing M3TAL Orchestrator...")
-			stack := orchestrator.NewStack()
+			stack := orchestrator.NewStackManager()
 			if err := stack.Run("up", "-d"); err != nil {
 				log.Fatal(err)
 			}
@@ -206,7 +207,7 @@ func main() {
 		Short: "Stop all M3TAL stacks",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("🛑 Stopping M3TAL Stacks...")
-			stack := orchestrator.NewStack()
+			stack := orchestrator.NewStackManager()
 			if err := stack.Run("down"); err != nil {
 				log.Fatal(err)
 			}
@@ -219,7 +220,7 @@ func main() {
 		Short: "Pull latest images",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("📥 Pulling latest service images...")
-			stack := orchestrator.NewStack()
+			stack := orchestrator.NewStackManager()
 			if err := stack.Run("pull"); err != nil {
 				log.Fatal(err)
 			}
@@ -373,7 +374,37 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 
-	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configWizardCmd)
+	var configScanCmd = &cobra.Command{
+		Use:   "scan",
+		Short: "Scan available Docker stacks",
+		Run: func(cmd *cobra.Command, args []string) {
+			stackDir := "/usr/share/m3tal/docker"
+			entries, err := os.ReadDir(stackDir)
+			if err != nil {
+				fmt.Println("❌ Unable to read docker directory:", err)
+				return
+			}
+			type stackInfo struct {
+				Compose  string `json:"compose"`
+				Template string `json:"template"`
+			}
+			stacks := make(map[string]stackInfo)
+			for _, e := range entries {
+				name := e.Name()
+				if strings.HasSuffix(name, "-compose.yml") {
+					stack := strings.TrimSuffix(name, "-compose.yml")
+					composePath := filepath.Join(stackDir, name)
+					templatePath := filepath.Join(stackDir, stack+".env.template")
+					if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+						continue
+					}
+					stacks[stack] = stackInfo{Compose: composePath, Template: templatePath}
+				}
+			}
+			printJSON(stacks)
+		},
+	}
+	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
 	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd)
 
 	if err := rootCmd.Execute(); err != nil {
