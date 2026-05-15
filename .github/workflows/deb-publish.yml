@@ -18,8 +18,21 @@ jobs:
           go-version: "1.25.0"
           cache: false
 
+      - name: Bump version
+        id: bump
+        run: |
+          # Get last tag, default to v0.2.0-alpha if none exists
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.2.0-alpha)
+          TAG=${TAG#v}
+          IFS='-' read -r base suffix <<< "$TAG"
+          IFS='.' read -r major minor patch <<< "$base"
+          patch=$((patch + 1))
+          NEW="v${major}.${minor}.${patch}-alpha"
+          echo "new_tag=${NEW}" >> $GITHUB_OUTPUT
+          echo "Bumped to ${NEW}"
+
       - name: Set Version
-        run: echo "VERSION=v0.2.0-alpha-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+        run: echo "VERSION=${{ steps.bump.outputs.new_tag }}" >> $GITHUB_ENV
 
       - name: Build Binaries
         run: |
@@ -95,8 +108,8 @@ jobs:
       - name: Publish Release (Artifacts)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.0-alpha
-          name: Latest Build
+          tag_name: ${{ steps.bump.outputs.new_tag }}
+          name: Release ${{ steps.bump.outputs.new_tag }}
           files: dist/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
