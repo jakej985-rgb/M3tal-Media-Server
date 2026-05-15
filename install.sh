@@ -14,6 +14,7 @@ echo "🚀 Setting up M3TAL Core APT Repository..."
 # 1. Download and de-armor the GPG key
 echo "📦 Importing GPG key..."
 curl -fsSL "$GPG_KEY_URL" | gpg --dearmor | sudo tee "$KEYRING_PATH" > /dev/null
+sudo chmod 644 "$KEYRING_PATH"
 
 # 2. Add the repository to sources.list
 echo "📝 Adding repository to sources..."
