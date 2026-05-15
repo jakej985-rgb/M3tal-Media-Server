@@ -46,6 +46,14 @@ This repository is a core component of the M3TAL ecosystem:
 
 ---
 
+## 📋 Requirements
+
+Before installing M3TAL Core, ensure the following are installed on your host system:
+- **Docker Engine**: [Install Guide](https://docs.docker.com/engine/install/)
+- **Docker Compose V2**: Standard with modern Docker Desktop/Engine.
+
+---
+
 ## 🛠️ Quick Start (Recommended)
 
 M3TAL is now distributed as a native Debian package. This is the recommended way to install it on Linux.
@@ -58,10 +66,25 @@ echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | 
 # 2. Install M3TAL Core
 sudo apt-get update && sudo apt-get install -y m3tal-core
 
-# 3. Initialize and Start
+# 3. Configure and Initialize
+sudo m3tal config set path /path/to/your/media
 sudo m3tal init
+
+# 4. Verify and Start
+m3tal doctor
 m3tal up
 ```
+
+### ⚙️ Initial Configuration
+The platform looks for its configuration at `/etc/m3tal/config.yaml`. You can manually create/edit this file or use the `m3tal config` command.
+```bash
+# Example manual setup:
+BASE_STORAGE_PATH=/home/user/media
+API_TOKEN=generate_a_secure_random_string
+```
+
+### 🌐 Networking & Access
+By default, M3TAL exposes the Dashboard on port `80` (HTTP) and `443` (HTTPS). Ensure these ports are open on your host firewall.
 
 ### Development / Local Build
 If you prefer to build from source:
@@ -71,8 +94,8 @@ go build -o m3tal ./cmd/m3tal
 ./m3tal up
 ```
 
-### Path Consistency Rule
-The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt` inside every container. **Do not modify these mount points**, as the orchestrator relies on this structure for deterministic lifecycle management and volume integrity.
+### 📁 Path Consistency Rule
+The orchestrator mandates that your `BASE_STORAGE_PATH` is mapped to `/mnt` inside every container. If your media is stored at `/data`, the orchestrator will automatically bind `/data` to `/mnt` within the container context. **Do not modify these internal mount points** to ensure volume integrity.
 
 ---
 
