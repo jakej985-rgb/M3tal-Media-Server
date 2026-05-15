@@ -49,3 +49,4 @@ m3tal-api
 dist/
 bin/
 packaging/deb/build/
+.go_compiler/
