@@ -35,7 +35,50 @@ jobs:
       - name: Build .deb
         run: nfpm package --packager deb --config packaging/nfpm.yaml --target dist/m3tal-core.deb
 
-      - name: Publish Release
+      - name: Install aptly
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aptly
+
+      - name: Import GPG Key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
+          # Verify the key is present
+          gpg --list-secret-keys
+
+      - name: Build APT Repository
+        run: |
+          # Create the repo if it doesn't exist
+          aptly repo create -distribution=stable -component=main m3tal || true
+          
+          # Add the newly built .deb
+          aptly repo add m3tal dist/m3tal-core.deb
+          
+          # Publish (or update) the repo
+          # We use --batch and --passphrase to handle signing in CI
+          # If it's the first time, we publish. If it exists, we update.
+          if aptly publish list | grep -q "stable"; then
+            aptly publish update -gpg-key="${{ secrets.GPG_KEY_ID }}" -passphrase="${{ secrets.GPG_PASSPHRASE }}" stable
+          else
+            aptly publish repo -gpg-key="${{ secrets.GPG_KEY_ID }}" -passphrase="${{ secrets.GPG_PASSPHRASE }}" -distribution=stable m3tal
+          fi
+
+      - name: Prepare GH-Pages Directory
+        run: |
+          mkdir -p public
+          cp -r ~/.aptly/public/* public/
+          cp m3tal.gpg public/
+          cp install.sh public/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          force_orphan: true
+
+      - name: Publish Release (Artifacts)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
