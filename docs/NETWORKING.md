@@ -25,8 +25,8 @@ The `m3tal` binary automatically orchestrates the Traefik gateway.
 
 ### Configuration Loading
 
-* **Static Config**: Managed via `source/m3tal-stack/routing-compose.yml`.
-* **Dynamic Config**: The orchestrator scans `source/m3tal-stack/traefik/` for any `.yml` or `.toml` files and mounts them as dynamic configurations.
+* **Static Config**: Managed via `deploy/stack/routing-compose.yml`.
+* **Dynamic Config**: The orchestrator scans `deploy/stack/traefik/` for any `.yml` or `.toml` files and mounts them as dynamic configurations.
 * **Provider**: Uses the Docker Provider to automatically discover services with the `traefik.enable=true` label.
 * **Dependency**: Traefik relies on the `proxy` Docker network. If this network is not initialized correctly by the orchestrator, ingress routing will fail.
 

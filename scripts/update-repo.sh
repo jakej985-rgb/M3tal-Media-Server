@@ -1,0 +1,42 @@
+#!/bin/bash
+set -e
+
+REPO_DIR="repo"
+KEY_ID="B95A45C647577DEBCC877C49AF6190B0C01346DD"
+
+echo "🚀 Updating APT Repository..."
+
+# 1. Setup structure
+mkdir -p "$REPO_DIR/pool/main"
+mkdir -p "$REPO_DIR/dists/stable/main/binary-amd64"
+
+# 2. Copy .deb files to pool
+cp *.deb "$REPO_DIR/pool/main/" || true
+
+# 3. Generate Packages file
+echo "[repo] Generating Packages..."
+cd "$REPO_DIR"
+apt-ftparchive packages pool/main > dists/stable/main/binary-amd64/Packages
+gzip -c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+
+# 4. Generate Release file
+echo "[repo] Generating Release..."
+apt-ftparchive release dists/stable > dists/stable/Release
+
+# 5. Sign Release file
+echo "[repo] Signing Release with GPG ($KEY_ID)..."
+GPG_OPTS="--batch --yes --pinentry-mode loopback -u $KEY_ID"
+if [ -n "$GPG_PASSPHRASE" ]; then
+    GPG_OPTS="$GPG_OPTS --passphrase $GPG_PASSPHRASE"
+fi
+
+gpg $GPG_OPTS --clearsign -o dists/stable/InRelease dists/stable/Release
+gpg $GPG_OPTS -abs -o dists/stable/Release.gpg dists/stable/Release
+
+# 6. Export Public Key
+gpg --batch --yes --armor --export "$KEY_ID" > public.key
+
+echo "✅ APT Repository updated."
+echo "👉 Users can add it with:"
+echo "   curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -"
+echo "   echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list"

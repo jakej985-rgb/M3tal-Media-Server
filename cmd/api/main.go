@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jakej985-rgb/m3tal-core/pkg/api"
-	"github.com/jakej985-rgb/m3tal-core/pkg/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/api"
+	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 )
 
 func main() {

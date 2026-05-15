@@ -1,0 +1,322 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "container:gluetun"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - WEBUI_PORT=8090
+      - WEBUI_IP_ADDRESS=0.0.0.0
+      - TORRENTING_PORT=6881
+    volumes:
+      - /mnt/config/qbittorrent:/config
+      - /mnt:/mnt
+    env_file:
+      - ../../.env
+    labels:
+      - "m3tal.stack=media"
+      - "m3tal.role=vpn"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1500M
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.radarr.entrypoints=web"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7878"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/radarr:/config
+      - /mnt:/mnt
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 750M
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.sonarr.entrypoints=web"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/sonarr:/config
+      - /mnt:/mnt
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 750M
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6767"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/bazarr:/config
+      - /mnt:/mnt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bazarr.rule=Host(`bazarr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.bazarr.entrypoints=web"
+      - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
+    restart: unless-stopped
+
+  komga:
+    image: gotson/komga
+    container_name: komga
+    user: "${PUID:-1000}:${PGID:-1000}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:25600/actuator/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/komga:/config
+      - /mnt:/mnt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.komga.rule=Host(`komga.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.komga.entrypoints=web"
+      - "traefik.http.services.komga.loadbalancer.server.port=25600"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 600M
+    restart: unless-stopped
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr
+    container_name: jellyseerr
+    user: "${PUID:-1000}:${PGID:-1000}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5055"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/jellyseerr:/app/config
+      - /mnt:/mnt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.jellyseerr.entrypoints=web"
+      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
+    restart: unless-stopped
+
+
+  autobrr:
+    image: ghcr.io/autobrr/autobrr:v1.39
+    container_name: autobrr
+    user: "${PUID:-1000}:${PGID:-1000}"
+    volumes:
+      - /mnt/config/autobrr:/config
+      - /mnt:/mnt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.autobrr.rule=Host(`autobrr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.autobrr.entrypoints=web"
+      - "traefik.http.services.autobrr.loadbalancer.server.port=8080"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
+    restart: unless-stopped
+
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr
+    container_name: recyclarr
+    user: "${PUID:-1000}:${PGID:-1000}"
+    volumes:
+      - /mnt/config/recyclarr:/config
+      - /mnt:/mnt
+    labels:
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - m3tal
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 150M
+    restart: unless-stopped
+
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - /mnt/config/tdarr:/app/config
+      - /mnt/logs/tdarr:/app/logs
+      - /mnt:/mnt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tdarr.rule=Host(`tdarr.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.tdarr.entrypoints=web"
+      - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
+      - "traefik.docker.network=proxy"
+      - "m3tal.stack=media"
+      - "m3tal.role=internal"
+    networks:
+      - proxy
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1000M
+    restart: unless-stopped
+
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    network_mode: "container:gluetun"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=America/Denver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9696"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - /mnt/config/prowlarr:/config
+      - /mnt:/mnt
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 600M
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr
+    container_name: flaresolverr
+    network_mode: "container:gluetun"
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - LOG_LEVEL=info
+      - TZ=America/New_York
+      - BROWSER_TIMEOUT=180000
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+    env_file:
+      - ../../.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1500M
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
+  default:
+    name: none
+
+# Transitioned to bind mounts for self-healing permission management

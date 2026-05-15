@@ -18,5 +18,5 @@ api:
 
 # Orchestrator
 orchestrator:
-  compose_dir: /usr/share/m3tal/stack
+  compose_dir: /opt/m3tal/stack
   project_name: m3tal
