@@ -1,39 +1,39 @@
+**DocSmith Status:** *Architectural Scan Complete. Schema Validated. System Optimized.*
+
 # 🚀 M3TAL Media Server (v1.7)
 
 | [🚀 Overview](README.md) | [⚙️ Environment](docs/ENVIRONMENT_VARIABLES.md) | [🛠️ Build](docs/BUILD_CONFIGURATION.md) | [🌐 Networking](docs/NETWORKING.md) | [🤖 Architecture](docs/ARCHITECTURE_VISION.md) |
 | :---: | :---: | :---: | :---: | :---: |
 
-**DocSmith Status:** *Architecture Scan Complete. Schema Validated. System Optimized.*
-
-M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. This repository delivers the core orchestrator and its integrated dashboard, leveraging **Go 1.21+** for robust orchestration and core logic. It provides a unified interface for managing complex media service stacks with absolute path consistency.
+M3TAL is a high-performance media server control plane engineered for lifecycle orchestration. This repository serves as the **M3TAL Media Server**, the primary orchestrator and host for the integrated dashboard, leveraging **Go 1.21+** for robust, sub-millisecond control plane operations. It provides a unified interface for managing complex media service stacks with absolute path consistency.
 
 ---
 
 ## 🧠 Architecture: The M3TAL Ecosystem
 
-The `m3tal` binary acts as the **primary Orchestrator/Core** for this system. It manages the lifecycle and configuration of the infrastructure defined by `m3tal-stack`, ensuring precise control over the deployed services, including the `dashboard`.
+The `m3tal` binary acts as the **primary Orchestrator/Core**. It manages the lifecycle and configuration of the infrastructure defined by the `m3tal-stack`, ensuring absolute control over the deployed services.
 
 ### System Components
 
-*   **Orchestrator (`m3tal` CLI)**: The Go-native binary compiled from the repository root. It serves as the control plane, interfacing directly with the Docker socket to manage container lifecycle, network configurations, and volume mappings for the `m3tal-stack`.
+*   **Orchestrator (`m3tal` CLI)**: The Go-native binary compiled from the repository root. It serves as the control plane, interfacing directly with the Docker socket to manage container lifecycles, network configurations, and volume mappings for the `m3tal-stack`.
 *   **Infrastructure (`source/m3tal-stack/`)**: Standardized Docker Compose manifests. These define the deployment of critical services, including the Traefik proxy and the `dashboard` container, all managed by the `m3tal` orchestrator to ensure strict networking and storage compliance.
-*   **Dashboard (`source/dashboard/`)**: The web interface for the M3TAL system. Built as a Python/Flask application, it is containerized via a dedicated `Dockerfile` and deployed as part of the `m3tal-stack`.
+*   **Dashboard (`source/dashboard/`)**: The web interface for the M3TAL system. Built as a Python/Flask application, it is containerized and deployed as a core component of the `m3tal-stack`.
 
 ### Relationship Mapping
 
 ```mermaid
 graph TD
-    A[M3TAL CLI (./m3tal)] -->|Manages Lifecycle & Configuration| B[m3tal-stack (Docker Compose)]
+    A[M3TAL CLI ./m3tal] -->|Manages Lifecycle & Configuration| B[m3tal-stack Docker Compose]
     B -->|Deploys| C[Traefik Gateway]
     B -->|Deploys| D[Dashboard Container]
     C -->|Routes Traffic To| D
-    D -.->|API Requests To| E[m3tal-goback (Remote)]
+    D -.->|API Requests To| E[m3tal-goback Remote]
 ```
 
 **Operational Flow:**
-The `M3TAL CLI` is the primary interface for managing the system. It interacts with the `m3tal-stack` (Docker Compose definitions) to deploy and orchestrate the necessary containers. The `Traefik Gateway` routes external HTTP/S requests to the `Dashboard`. The `Dashboard` communicates with the `m3tal-goback` service—an external, dedicated M3TAL Backend API—to fetch data and execute business logic.
+The `M3TAL CLI` is the primary interface for managing the system. It interacts with `m3tal-stack` (Docker Compose definitions) to deploy and orchestrate containers. The `Traefik Gateway` routes external traffic to the `Dashboard`. The `Dashboard` communicates exclusively via API with the `m3tal-goback` service—an external, dedicated M3TAL Backend API—to execute business logic.
 
-> **Note on Go-Native Migration**: This repository's orchestrator is fully Go-native, providing memory safety and sub-millisecond execution for all control plane operations. While the `dashboard` remains Python-based for legacy compatibility, the wider M3TAL ecosystem is transitioning toward Go-native modules to ensure peak performance.
+> **Go-Native Migration Status**: The Orchestrator is now fully Go-native, providing memory safety and peak performance for all control plane operations. While the `dashboard` remains Python-based for legacy support, the ecosystem is rapidly migrating to Go-native modules.
 
 ---
 
@@ -43,18 +43,6 @@ This repository is a core component of the M3TAL ecosystem:
 
 *   [m3tal-godash](https://github.com/jakej985-rgb/m3tal-godash): The next-generation, high-performance, Go-native dashboard replacement.
 *   [m3tal-goback](https://github.com/jakej985-rgb/m3tal-goback): The evolving Go-native backend API implementation providing the core data/logic layer.
-
----
-
-## 📄 Environment Configuration
-
-All critical parameters for the `m3tal` orchestrator and `m3tal-stack` reside in the root `.env` file.
-
-| Variable            | Required | Purpose                                                      |
-| :------------------ | :------- | :----------------------------------------------------------- |
-| `BASE_STORAGE_PATH` | **YES**  | Absolute host path for media. Must be mapped to `/mnt` inside containers. |
-| `API_TOKEN`         | **YES**  | Auth token for `Dashboard` to `m3tal-goback` communication. |
-| `DASHBOARD_SECRET`  | **YES**  | Cryptographic key for session signing. |
 
 ---
 
@@ -72,7 +60,7 @@ go build -o m3tal main.go
 ```
 
 ### Path Consistency Rule
-The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt` inside every container. **Do not modify these mount points**, as the orchestrator relies on this structure for lifecycle management.
+The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted to `/mnt` inside every container. **Do not modify these mount points**, as the orchestrator relies on this structure for deterministic lifecycle management.
 
 ---
 
@@ -80,8 +68,8 @@ The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted
 
 | Command               | Description                                                  |
 | :-------------------- | :----------------------------------------------------------- |
-| `./m3tal init`        | Syncs configuration and validates host paths.                |
-| `./m3tal up`          | Deploys the containerized stack.                             |
+| `./m3tal init`        | Syncs configuration and validates host path requirements.    |
+| `./m3tal up`          | Deploys the containerized stack via Docker Compose.          |
 | `./m3tal doctor`      | Diagnostic scan (Docker, ports, and path health).            |
 | `./m3tal config`      | Interface for updating global `.env` parameters.             |
 | `./m3tal down`        | Stops and purges the M3TAL stack.                            |
@@ -91,7 +79,7 @@ The M3TAL ecosystem mandates that the host `BASE_STORAGE_PATH` is always mounted
 ## 🧭 Troubleshooting
 
 *   **Desynchronization**: If infrastructure states drift, run `./m3tal init` to refresh Compose templates.
-*   **Storage Path Issues**: Ensure `BASE_STORAGE_PATH` is an absolute path. The stack assumes `/mnt` is the media root.
-*   **Dashboard API Errors**: Ensure the external `m3tal-goback` is reachable and `API_TOKEN` matches.
+*   **Storage Path Issues**: Ensure `BASE_STORAGE_PATH` is an absolute path. The stack assumes `/mnt` is the internal media root.
+*   **Dashboard API Errors**: Ensure the external `m3tal-goback` is reachable and the `API_TOKEN` matches the environment settings.
 
 *M3TAL Core — Precision Media Infrastructure.*
