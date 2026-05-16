@@ -1,46 +1,55 @@
-**Audit Report: M3TAL Core Orchestrator Documentation**
-**Auditor:** DocCritic, Senior DevOps Auditor
-**Date:** October 26, 2023
-**Subject:** README.md Deployment Readiness Review
+## DocCritic Audit Report: M3TAL Core Orchestrator
+
+**To:** M3TAL Development Team  
+**From:** DocCritic, Senior DevOps Auditor  
+**Subject:** Audit of `README.md` – Deployment Feasibility
+
+### Verdict: **FAIL**
+The current documentation is an architectural whitepaper, not a functional deployment guide. It lacks the "How-To" necessary for a user to transition from code to a running container. It assumes I am a developer who already knows how to compile, link, and initialize your specific ecosystem. As a new user, I cannot deploy this.
 
 ---
 
-### **Verdict: FAILED**
-The current documentation is an architectural overview, not a deployment manual. As a new user, I have no idea how to bootstrap this system. I am staring at a `README` that describes the philosophy of the project but provides zero actionable instructions on how to move from a cloned repository to an operational state.
+### Issue List
+
+#### **BLOCKER**
+*   **Missing Build/Install Instructions:** There is zero guidance on how to generate the `m3tal` binary. Do I `go build`? Do I `make`? How do I get this onto my path?
+*   **Missing `.env` Schema:** The README references `/etc/m3tal/.env`, but provides no example or template. What environment variables are required? (e.g., `API_KEY`, `DB_URL`, `DOCKER_NETWORK_NAME`).
+*   **Missing Setup/Initialization Logic:** It mentions `/opt/m3tal/stack` and `/var/lib/m3tal/`, but the user has no instructions on how to populate these directories or if the binary generates them automatically.
+*   **Missing Docker Compose Orchestration:** You provide a `services` snippet but no full `docker-compose.yml`. A new user doesn't know how to wire `m3tal-core` to `m3tal-goback` and `m3tal-godash`.
+
+#### **WARNING**
+*   **Assumption of Host Infrastructure:** The documentation assumes `/mnt/m3tal-media` exists on the host. If this directory is missing, Docker will often create it as a root-owned directory, causing permission issues for standard users.
+*   **Traefik/Gateway Omission:** The architecture implies a web-facing dashboard. There is no mention of how to handle SSL, ingress, or internal networking/ports. How do I actually *access* the UI?
+*   **Privileged Socket Security:** You are mounting `/var/run/docker.sock` with `rw` access. This is a massive security risk. There is no warning about this or instructions on how to secure the control plane.
+
+#### **SUGGESTION**
+*   **Confusing Wording:** The distinction between "Core Orchestrator" and "Backend API" is clear conceptually but muddy practically. Does `m3tal` launch the other containers? Or do I need to launch them separately?
 
 ---
 
-### **Issue List**
+### Suggested Fixes
 
-1.  **[BLOCKER] Missing Bootstrap Procedure:** There is no "Getting Started" or "Installation" section. How do I compile the Go binary? Where do I put it? Does it need `go build`?
-2.  **[BLOCKER] Missing `.env` Schema:** The system references `/etc/m3tal/.env` as the "Source of Truth," but there is no template or list of required environment variables (e.g., DB connection strings, API keys, M3TAL_CORE_SECRET).
-3.  **[BLOCKER] Docker Orchestration Ambiguity:** The `Deployment` section shows a `docker-compose` snippet but doesn't explain how to initiate it. Do I run `docker-compose up -d`? Where does the `docker-compose.yml` file live?
-4.  **[WARNING] Path Dependency Assumptions:** The docs assume `/mnt/m3tal-media` exists. If a user tries to run this without pre-creating these directories and setting ownership, the container will fail or populate the host root with unintended files.
-5.  **[WARNING] Network/Gateway Gap:** There is zero mention of Traefik or ports. If I deploy this, how do I actually *reach* the dashboard?
-6.  **[SUGGESTION] Missing `m3tal.py` or setup CLI info:** Your instructions mention `m3tal.py` setup in the prompt, but it is completely absent from the provided README.
+1.  **Add a "Quick Start" section:**
+    *   Provide a complete, copy-pasteable `docker-compose.yml` that includes all three services (`m3tal`, `goback`, `godash`).
+    *   Explain the internal Docker network required for these to talk to each other.
 
----
+2.  **Provide an `.env.example`:**
+    *   Create a file in the repo and link to it. Explain every variable and what happens if they are missing.
 
-### **Suggested Fixes**
+3.  **Implement an "Init" Command:**
+    *   If the system requires folder structure, implement an `m3tal init` command that verifies or creates `/opt/m3tal` and `/var/lib/m3tal`. Document this as the first step after installation.
 
-*   **Implement a "Quick Start" Section:**
-    *   Add a `make` command or a bash script to handle compilation (`go build -o m3tal main.go`).
-    *   Provide a command to move the binary to `/usr/bin/`.
-*   **Provide a `.env.example`:** Create a standard file that lists all required keys for `m3tal-core`, `m3tal-goback`, and `m3tal-godash`.
-*   **Add Directory Pre-flight:**
-    *   Add a "Prerequisites" section:
-        ```bash
-        sudo mkdir -p /etc/m3tal /var/lib/m3tal /opt/m3tal/stack /mnt/m3tal-media
-        sudo chown -R $USER:$USER /etc/m3tal /opt/m3tal
-        ```
-*   **Clarify Traefik Labels:** Since this is a "Core Orchestrator," explicitly show the required Docker labels for Traefik to route traffic to `m3tal-godash`.
-*   **Configuration Logic:** Explicitly document the "First Run" sequence. Example:
-    1.  Clone repo.
-    2.  Build binary.
-    3.  Configure `.env`.
-    4.  Run `m3tal setup` (or equivalent initialization command).
-    5.  Execute `docker-compose up -d`.
+4.  **Clarify the "Deployment" flow:**
+    *   **Bad:** "The service requires privileged access..."
+    *   **Good:** "To enable the Orchestrator to manage your containers, run the following command to initialize the directory structure: `m3tal setup`. Then, use the provided `docker-compose.yml` to start the stack."
 
----
+5.  **Add a Port/Access Table:**
+    *   Create a clear table:
+        *   **Dashboard:** Port 8080 (http)
+        *   **API:** Port 9000 (Internal)
+        *   **Orchestrator:** (Internal CLI usage)
 
-**Auditor's Note:** *Engineering confidence is high based on the "Go-native" messaging, but operational readiness is non-existent. Without these fixes, the user churn rate will be 100%. Please revise immediately.*
+6.  **Safety Warning:**
+    *   Add a bold warning regarding the `docker.sock` volume mount and recommend using a dedicated user with Docker group permissions rather than running as root.
+
+**DocCritic's Final Note:** *Refactor the README to be a CLI tool reference, not an architectural manifesto. I need to know what to type, not what the system calls itself.*
