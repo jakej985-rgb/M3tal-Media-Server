@@ -1,62 +1,57 @@
-**Audit Report: M3TAL-Core Documentation**
-**Auditor:** DocCritic, Senior DevOps Auditor
-**Verdict:** **FAILED (Deployment Impossibility)**
+**Verdict: FAILED AUDIT.**
 
-The current documentation is an architectural whitepaper, not a deployment guide. It describes what the system *is*, but fails to explain how to *bootstrap* it. As a new user, I have no idea how to initialize the environment, configure the required variables, or access the dashboard.
+As a new user, I am currently looking at a "Core Orchestrator" that claims to manage my infrastructure, yet provides zero actionable instructions on how to actually bootstrap the environment. The documentation is a collection of architectural theories with no "Getting Started" path. If I run this today, I will have a broken system and no idea why.
 
 ---
 
-### ⚠️ Detailed Issue List
+### 🚨 Detailed Issue List
 
-| ID | Severity | Description |
-| :--- | :--- | :--- |
-| 01 | **BLOCKER** | **Zero Setup Instructions:** No mention of `m3tal.py setup` or equivalent initialization to create mandatory directory structures. |
-| 02 | **BLOCKER** | **Missing `.env` schema:** The documentation references `/etc/m3tal/.env` but provides no template or list of required variables (e.g., API keys, DB credentials). |
-| 03 | **BLOCKER** | **Docker Compose Incomplete:** The provided YAML snippet is a fragment. It doesn't show how to spin up the full stack (`m3tal-goback` + `m3tal-godash`). |
-| 04 | **WARNING** | **Traefik Access Info:** Documentation mentions Traefik ownership but provides no entry point (port/URL) or label requirements for ingress. |
-| 05 | **WARNING** | **Hardcoded Path Assumptions:** Assumes `/mnt/m3tal-media` and `/opt/m3tal` exist. If they don't, the container will likely fail or populate the host root with junk. |
-| 06 | **SUGGESTION** | **Binary vs. Container:** Confusion remains on whether the user should run the binary on host or via Docker. The "Deployment" section only shows a partial YAML. |
+#### **BLOCKER: Missing Initialization Workflow**
+There is no mention of how to actually *install* the `m3tal` binary. Does it compile from source? Is there a release artifact? The `m3tal.py` setup is mentioned in my instructions but absent from the README.
+*   **Fix:** Add a `Setup` section with a `make build` or `go install` command, and a `m3tal init` command to generate the required filesystem hierarchy.
+
+#### **BLOCKER: `.env` Configuration Void**
+The documentation states `/etc/m3tal/.env` is the "Global Configuration Source of Truth," but it does not provide a template, required variables, or a command to generate one.
+*   **Fix:** Provide a `.env.example` file and an instruction to copy it to `/etc/m3tal/` before starting services.
+
+#### **BLOCKER: Docker Deployment Inconsistency**
+The "Deployment" section provides a snippet of a `docker-compose.yaml` but provides no instruction on *how* to deploy it. Where is the compose file located? Do I run `docker compose up`? What about the Traefik configuration mentioned in "Ecosystem Integration Rules"?
+*   **Fix:** Provide a full, copy-pasteable `docker-compose.yml` that includes the Traefik sidecar.
+
+#### **WARNING: Path Assumption Risks**
+The documentation assumes `/mnt` exists and is writable. On a fresh Ubuntu server, `/mnt` is often empty or requires specific mount permissions.
+*   **Fix:** Add a pre-flight check script or a section in the setup instructions for creating directories: `mkdir -p /opt/m3tal/stack /etc/m3tal /mnt/m3tal-media`.
+
+#### **WARNING: Port/Access Documentation**
+There is no mention of what ports the Dashboard or API actually listen on. I have to guess that Traefik is handling routing, but I don't know what domain or port to visit.
+*   **Fix:** Create a "Connectivity" table listing standard ports (e.g., 80/443 for Traefik, 8080 for API).
+
+#### **SUGGESTION: Ambiguous "User Entry Point"**
+You define `/docker` as a symlink to `/opt/m3tal/stack`. A user doesn't know if they are supposed to create this manually or if the binary does it for them.
+*   **Fix:** Clarify: "Run `m3tal setup` to automatically generate the system symlinks and directory structure."
 
 ---
 
-### 🛠️ Required Fixes
+### 🛠️ Suggested README Additions (Immediate Implementation Required)
 
-#### 1. Add "Getting Started" Bootstrap
-Include a mandatory setup script execution in the README:
+**1. Quick Start**
 ```bash
-# Initialize system paths and config
-sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal
-sudo python3 scripts/setup.py  # Assuming this exists
+# 1. Clone & Build
+go build -o m3tal main.go
+sudo cp m3tal /usr/bin/m3tal
+
+# 2. Initialize System
+sudo m3tal init --config-dir=/etc/m3tal
+
+# 3. Configure
+# Edit /etc/m3tal/.env with your API keys and storage paths
 ```
 
-#### 2. Provide `.env.example`
-Provide a code block for the required `/etc/m3tal/.env`:
-```text
-M3TAL_API_KEY=your_secure_key
-M3TAL_MEDIA_PATH=/mnt/m3tal-media
-LOG_LEVEL=info
-```
+**2. Network Access**
+*   **Dashboard:** `http://localhost:80` (requires Traefik configured via labels)
+*   **API:** `http://localhost:8080` (Internal)
 
-#### 3. Complete `docker-compose.yml`
-Do not provide snippets. Provide a `docker-compose.yml` file that includes the orchestration of the API and Dashboard. Define the network and labels for Traefik:
-```yaml
-services:
-  m3tal-core:
-    labels:
-      - "traefik.http.routers.m3tal.rule=Host(`m3tal.local`)"
-      - "traefik.port=8080"
-    # ... rest of configuration
-```
+**3. Permissions Warning**
+*   "Ensure the user executing the orchestrator is in the `docker` group to prevent socket access errors."
 
-#### 4. Define Access Requirements
-Explicitly state: "Access the Dashboard at `http://m3tal.local` once Traefik is running."
-
-#### 5. Explicit Environment Checks
-Add a "Pre-flight Checklist" section:
-- [ ] Verify `/mnt/m3tal-media` is mounted correctly on the host.
-- [ ] Ensure user has `docker` group permissions.
-- [ ] Confirm port 80/443 is free for Traefik.
-
----
-
-**Auditor's Final Note:** *The architecture is sound, but the documentation is currently unusable for a DevOps engineer tasked with a production rollout. Fix the bootstrapping and configuration schemas immediately.*
+**DocCritic's Final Note:** *Refine these steps immediately. An orchestrator that cannot bootstrap itself is just a script, not a platform.*
