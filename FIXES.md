@@ -1,42 +1,46 @@
 **Audit Report: M3TAL Core Orchestrator Documentation**
 **Auditor:** DocCritic, Senior DevOps Auditor
-**Date:** 2023-10-27
-**Subject:** Documentation Audit - M3TAL Core
+**Date:** October 26, 2023
+**Subject:** README.md Deployment Readiness Review
 
 ---
 
 ### **Verdict: FAILED**
-The provided documentation is high-level architectural marketing material, not a functional installation guide. As a new user, I have no idea how to compile, install, or initialize the state required to make this platform operational. The current README is a "roadmap," not a "manual."
+The current documentation is an architectural overview, not a deployment manual. As a new user, I have no idea how to bootstrap this system. I am staring at a `README` that describes the philosophy of the project but provides zero actionable instructions on how to move from a cloned repository to an operational state.
 
 ---
 
 ### **Issue List**
 
-1.  **[BLOCKER] Missing Compilation/Installation Steps:** The README mentions a "Go-native binary," but provides no `go build` instructions, no binary release source, and no instructions on how to move the artifact to `/usr/bin/m3tal`.
-2.  **[BLOCKER] Missing Initialization Command:** There is no documentation for a `m3tal setup` or `m3tal init` process. How are the `/etc/m3tal/.env` and `/var/lib/m3tal/` directories generated? 
-3.  **[BLOCKER] Environment Variable Definition:** The `.env` file is referenced as the "Global Configuration Source of Truth," but no schema or template is provided. What keys are required (e.g., API keys, port bindings, database credentials)?
-4.  **[WARNING] Infrastructure Assumptions:** The documentation assumes `/mnt/m3tal-media` exists and is mounted. If this directory is missing, will the service crash? The docs should mandate a check or provide a script to ensure directory integrity.
-5.  **[WARNING] Missing Network/Gateway Exposure:** The documentation mentions a Dashboard and API, but fails to mention how to route traffic to them (e.g., Traefik/Nginx configurations, exposed port numbers).
-6.  **[SUGGESTION] Docker Compose Incompleteness:** The provided snippet is a raw block. It lacks a `docker-compose.yml` file structure, versioning, and networking context needed for a multi-container ecosystem (Core/Back/Dash).
+1.  **[BLOCKER] Missing Bootstrap Procedure:** There is no "Getting Started" or "Installation" section. How do I compile the Go binary? Where do I put it? Does it need `go build`?
+2.  **[BLOCKER] Missing `.env` Schema:** The system references `/etc/m3tal/.env` as the "Source of Truth," but there is no template or list of required environment variables (e.g., DB connection strings, API keys, M3TAL_CORE_SECRET).
+3.  **[BLOCKER] Docker Orchestration Ambiguity:** The `Deployment` section shows a `docker-compose` snippet but doesn't explain how to initiate it. Do I run `docker-compose up -d`? Where does the `docker-compose.yml` file live?
+4.  **[WARNING] Path Dependency Assumptions:** The docs assume `/mnt/m3tal-media` exists. If a user tries to run this without pre-creating these directories and setting ownership, the container will fail or populate the host root with unintended files.
+5.  **[WARNING] Network/Gateway Gap:** There is zero mention of Traefik or ports. If I deploy this, how do I actually *reach* the dashboard?
+6.  **[SUGGESTION] Missing `m3tal.py` or setup CLI info:** Your instructions mention `m3tal.py` setup in the prompt, but it is completely absent from the provided README.
 
 ---
 
 ### **Suggested Fixes**
 
-*   **For [1 & 2]:** Add a "Getting Started" section.
-    *   *Add:* `go build -o m3tal ./cmd/m3tal && sudo mv m3tal /usr/bin/`
-    *   *Add:* A `m3tal setup` command documentation that creates the directory tree: `mkdir -p /etc/m3tal /var/lib/m3tal /opt/m3tal/stack`.
-*   **For [3]:** Include an `.env.example` block in the README detailing:
-    ```text
-    M3TAL_API_PORT=8080
-    M3TAL_DASH_PORT=3000
-    M3TAL_STORAGE_ROOT=/mnt/m3tal-media
-    M3TAL_SECRET_KEY=...
-    ```
-*   **For [4]:** Add a "Pre-requisites" section advising the user to configure their mount points *before* starting the stack, and provide a shell one-liner: `[ -d /mnt/m3tal-media ] || sudo mkdir -p /mnt/m3tal-media`.
-*   **For [5]:** Create a `docker-compose.yml` that defines a shared internal network (`m3tal-net`) so the dashboard and backend can communicate internally. Clearly state which ports must be opened on the host firewall.
-*   **For [6]:** Provide a full `docker-compose.yml` example. The current snippet is isolated and useless for a user trying to link the `goback` and `godash` services together.
+*   **Implement a "Quick Start" Section:**
+    *   Add a `make` command or a bash script to handle compilation (`go build -o m3tal main.go`).
+    *   Provide a command to move the binary to `/usr/bin/`.
+*   **Provide a `.env.example`:** Create a standard file that lists all required keys for `m3tal-core`, `m3tal-goback`, and `m3tal-godash`.
+*   **Add Directory Pre-flight:**
+    *   Add a "Prerequisites" section:
+        ```bash
+        sudo mkdir -p /etc/m3tal /var/lib/m3tal /opt/m3tal/stack /mnt/m3tal-media
+        sudo chown -R $USER:$USER /etc/m3tal /opt/m3tal
+        ```
+*   **Clarify Traefik Labels:** Since this is a "Core Orchestrator," explicitly show the required Docker labels for Traefik to route traffic to `m3tal-godash`.
+*   **Configuration Logic:** Explicitly document the "First Run" sequence. Example:
+    1.  Clone repo.
+    2.  Build binary.
+    3.  Configure `.env`.
+    4.  Run `m3tal setup` (or equivalent initialization command).
+    5.  Execute `docker-compose up -d`.
 
 ---
 
-**Auditor's Closing Note:** *Fix these blockers immediately. A system is only as robust as the user's ability to deploy it without trial and error. Re-submit once a "Quick Start" section is added.*
+**Auditor's Note:** *Engineering confidence is high based on the "Go-native" messaging, but operational readiness is non-existent. Without these fixes, the user churn rate will be 100%. Please revise immediately.*
