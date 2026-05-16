@@ -2,8 +2,10 @@ name: Build and Publish
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'VERSION'
   workflow_dispatch:
 
 jobs:
@@ -48,9 +50,15 @@ jobs:
           publish_branch: gh-pages
           force_orphan: false
 
+      - name: Get Version
+        id: get_version
+        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_ENV
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: "*.deb"
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
