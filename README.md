@@ -1,4 +1,4 @@
-DocSmith here. The README has been audited and updated to reflect the Go-native architecture and standard ecosystem deployment patterns.
+DocSmith here. The README has been audited and updated to ensure accuracy with the current repository structure and Go-native architectural requirements.
 
 ***
 
@@ -13,7 +13,7 @@ DocSmith here. The README has been audited and updated to reflect the Go-native 
 The M3TAL ecosystem is decoupled into three primary layers, interacting exclusively via network protocols and standardized file paths:
 
 *   **Orchestrator (`cmd/m3tal`)**: The native Go CLI binary. It manages the Docker lifecycle, validates configurations, and acts as the entry point for all system administration.
-*   **Backend API (`m3tal-goback`)**: The data layer. It provides the REST/gRPC interface used by the Dashboard to query infrastructure status.
+*   **Backend API (`m3tal-goback`)**: The data layer. It provides the REST interface used by the Dashboard to query infrastructure status.
 *   **Dashboard (`deploy/dashboard`)**: The web-based UI layer (Python/Flask). It communicates with the backend API to visualize system state and process control requests.
 
 ---
@@ -29,10 +29,10 @@ Building from source is not required. Install the pre-compiled binary via the of
 
 ```bash
 # Add the M3TAL public key
-curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -
+curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo gpg --dearmor -o /usr/share/keyrings/m3tal-archive-keyring.gpg
 
 # Add the repository to your sources
-echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list
+echo "deb [signed-by=/usr/share/keyrings/m3tal-archive-keyring.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list
 
 # Update and install
 sudo apt-get update
@@ -87,7 +87,7 @@ services:
 ## Ecosystem Integration Rules
 
 *   **API-Only Communication**: Components must not share direct file modification access. All interactions between the Dashboard and the Orchestrator must route through the `m3tal-goback` API.
-*   **Go-Native Migration**: The ecosystem is transitioning away from legacy wrappers. All new logic in the orchestrator must be written in Go.
+*   **Go-Native Migration**: The ecosystem is transitioning away from legacy wrappers. All core logic in the orchestrator is written in Go.
 *   **Path Consistency**: All media assets must be served from the `/mnt` volume tree. This ensures that the Orchestrator, Backend, and Dashboard see the same file structure regardless of the container namespace.
 
 ---
