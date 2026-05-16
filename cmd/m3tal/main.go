@@ -821,6 +821,7 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 		runWithSudoFallback(exe, "logs")
 	case 3:
 		runWithSudoFallback(exe, "dash", "up")
+	case 4:
 		fmt.Println("\n|-- 4.) Configuration & Secrets")
 		fmt.Println("|   [1] Edit Global Configuration (Wizard)")
 		fmt.Println("|   [2] Edit Stack Configuration")
