@@ -66,6 +66,7 @@ func (s *StackManager) Run(action string, args ...string) error {
 
 	// Auto-create required external networks
 	ensureNetworkExists("proxy")
+	ensureNetworkExists("m3tal")
 
 	envFile := system.GetConfigPath()
 	hasEnv := false
