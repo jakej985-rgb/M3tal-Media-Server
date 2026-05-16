@@ -92,6 +92,17 @@ func (s *Server) GetConfig(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(config)
 }
 
+// GetStats returns system metrics
+func (s *Server) GetStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := system.GetStats()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
 // HandleContainerAction processes start/stop/restart
 func (s *Server) HandleContainerAction(w http.ResponseWriter, r *http.Request, action func(string) error) {
 	if r.Method != http.MethodPost {

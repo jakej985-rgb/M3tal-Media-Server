@@ -25,8 +25,8 @@ func main() {
 
 	log.Println("🚀 M3TAL API Interface starting on :5050...")
 
-	http.HandleFunc("/api/containers", srv.AuthMiddleware(srv.ListContainers))
-	http.HandleFunc("/api/containers/list", srv.AuthMiddleware(srv.ListContainers))
+	http.HandleFunc("/api/containers", srv.AuthMiddleware(srv.GetServices))
+	http.HandleFunc("/api/containers/list", srv.AuthMiddleware(srv.GetServices))
 	http.HandleFunc("/api/metrics", srv.AuthMiddleware(srv.GetStats))
 
 	http.HandleFunc("/api/containers/start", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func main() {
 
 	http.HandleFunc("/api/health", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		srv.ListContainers(w, r)
+		srv.GetHealth(w, r)
 	}))
 
 	if err := http.ListenAndServe(":5050", nil); err != nil {
