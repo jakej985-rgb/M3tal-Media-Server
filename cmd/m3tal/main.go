@@ -443,7 +443,8 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			}
 			type stackInfo struct {
 				Compose  string `json:"compose"`
-				Template string `json:"template"`
+				Template string `json:"template,omitempty"`
+				Env      string `json:"env,omitempty"`
 			}
 			stacks := make(map[string]stackInfo)
 			for _, e := range entries {
@@ -452,10 +453,31 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					stack := strings.TrimSuffix(name, "-compose.yml")
 					composePath := filepath.Join(stackDir, name)
 					templatePath := filepath.Join(stackDir, stack+".env.template")
-					if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+					envPath := filepath.Join(stackDir, stack+".env")
+					
+					hasTemplate := false
+					hasEnv := false
+					
+					if _, err := os.Stat(templatePath); err == nil {
+						hasTemplate = true
+					}
+					if _, err := os.Stat(envPath); err == nil {
+						hasEnv = true
+					}
+					
+					if !hasTemplate && !hasEnv {
 						continue
 					}
-					stacks[stack] = stackInfo{Compose: composePath, Template: templatePath}
+					
+					info := stackInfo{Compose: composePath}
+					if hasTemplate {
+						info.Template = templatePath
+					}
+					if hasEnv {
+						info.Env = envPath
+					}
+					
+					stacks[stack] = info
 				}
 			}
 			printJSON(stacks)
@@ -779,27 +801,38 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 				} else if editChoice == 2 {
 					stackDir := system.GetStackDir()
 					entries, _ := os.ReadDir(stackDir)
-					var templates []string
+					var stacks []string
 					for _, e := range entries {
-						if strings.HasSuffix(e.Name(), ".env.template") {
-							templates = append(templates, e.Name())
+						if strings.HasSuffix(e.Name(), "-compose.yml") {
+							stackName := strings.TrimSuffix(e.Name(), "-compose.yml")
+							tmplPath := filepath.Join(stackDir, stackName+".env.template")
+							envPath := filepath.Join(stackDir, stackName+".env")
+							if _, err := os.Stat(tmplPath); err == nil {
+								stacks = append(stacks, stackName)
+							} else if _, err := os.Stat(envPath); err == nil {
+								stacks = append(stacks, stackName)
+							}
 						}
 					}
-					if len(templates) == 0 {
-						fmt.Println("⚠️  No stack templates found.")
+					if len(stacks) == 0 {
+						fmt.Println("⚠️  No stack configurations found.")
 					} else {
 						fmt.Println("\n📦 Available Stacks:")
-						for i, t := range templates {
-							name := strings.TrimSuffix(t, ".env.template")
-							fmt.Printf("   [%d] %s\n", i+1, name)
+						for i, s := range stacks {
+							fmt.Printf("   [%d] %s\n", i+1, s)
 						}
 						fmt.Print("\n👉 Stack Number: ")
 						var sNum int
 						fmt.Scanln(&sNum)
-						if sNum > 0 && sNum <= len(templates) {
-							stackName := strings.TrimSuffix(templates[sNum-1], ".env.template")
-							tmplPath := filepath.Join(stackDir, templates[sNum-1])
+						if sNum > 0 && sNum <= len(stacks) {
+							stackName := stacks[sNum-1]
+							tmplPath := filepath.Join(stackDir, stackName+".env.template")
 							targetPath := filepath.Join(stackDir, stackName+".env")
+							
+							if _, err := os.Stat(tmplPath); os.IsNotExist(err) {
+								tmplPath = ""
+							}
+							
 							runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--template", tmplPath)
 						}
 					}
