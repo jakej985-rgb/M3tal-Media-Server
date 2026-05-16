@@ -69,6 +69,16 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      - name: Checkout gh-pages branch to retain existing packages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: repo
+        continue-on-error: true
+
+      - name: Remove nested .git directory
+        run: rm -rf repo/.git || true
+
       - name: Update APT Repository
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
