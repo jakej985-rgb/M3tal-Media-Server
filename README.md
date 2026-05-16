@@ -23,12 +23,11 @@ The M3TAL ecosystem is decoupled into three primary layers, interacting exclusiv
 ## Quick Start Guide
 
 ### 1. Prerequisites
-*   **Go 1.21+** installed on the host.
 *   **Docker & Docker Compose** installed.
 *   **OS**: Linux-based environment (recommended for path consistency).
 
 ### 2. Install M3TAL
-**Building from source is no longer required!** You can install the pre-compiled Debian package directly from our APT repository.
+**Building from source is not required.** You can install the pre-compiled Debian package directly from our APT repository.
 
 Setup the keyring and install:
 ```bash
@@ -71,12 +70,11 @@ To ensure the Orchestrator can manage assets and configuration across containers
 ---
 
 ## Deployment: Docker Configuration
-The Orchestrator requires access to the Docker socket to manage the ecosystem. Ensure your environment matches this configuration:
+The Orchestrator manages lifecycle by interacting with the Docker socket. Ensure your environment mounts are consistent:
 
 ```yaml
 services:
   m3tal-orchestrator:
-    build: .
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
