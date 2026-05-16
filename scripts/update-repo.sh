@@ -34,9 +34,12 @@ gpg $GPG_OPTS --clearsign -o dists/stable/InRelease dists/stable/Release
 gpg $GPG_OPTS -abs -o dists/stable/Release.gpg dists/stable/Release
 
 # 6. Export Public Key
-gpg --batch --yes --armor --export "$KEY_ID" > public.key
+gpg --batch --yes --armor --export "$KEY_ID" > m3tal.gpg
+
+# 7. Copy install.sh for public access
+cp ../install.sh .
 
 echo "✅ APT Repository updated."
 echo "👉 Users can add it with:"
-echo "   curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -"
-echo "   echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list"
+echo "   curl -fsSL https://jakej985-rgb.github.io/m3tal-core/install.sh | sudo bash"
+echo "   (This script now handles key addition and source list configuration)"
