@@ -694,6 +694,9 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 	fmt.Println("|-- 4.) Start Dashboard (Dash Up)")
 	fmt.Println("|-- 5.) Configuration Wizard")
 	fmt.Println("|-- 6.) System Status (PS)")
+	fmt.Println("|-- 7.) Update Images (Pull)")
+	fmt.Println("|-- 8.) System Health Check (Doctor)")
+	fmt.Println("|-- 9.) Generate Dashboard Password")
 	fmt.Println("|-- 0.) Exit")
 	
 	fmt.Print("\n👉 Selection: ")
@@ -715,6 +718,12 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 		runWithSudoFallback(exe, "config", "wizard")
 	case 6:
 		runWithSudoFallback(exe, "ps")
+	case 7:
+		runWithSudoFallback(exe, "pull")
+	case 8:
+		runWithSudoFallback(exe, "doctor")
+	case 9:
+		runWithSudoFallback(exe, "dashpass")
 	case 0:
 		return
 	default:
