@@ -688,15 +688,11 @@ func runWithSudoFallback(name string, args ...string) {
 
 func runMainMenu(cmd *cobra.Command, args []string) {
 	fmt.Println("\n🛠️  M3TAL Control Center")
-	fmt.Println("|-- 1.) Start Environment (Up)")
-	fmt.Println("|-- 2.) Stop Environment (Down)")
-	fmt.Println("|-- 3.) View Logs Explorer")
-	fmt.Println("|-- 4.) Start Dashboard (Dash Up)")
-	fmt.Println("|-- 5.) Configuration Wizard")
-	fmt.Println("|-- 6.) System Status (PS)")
-	fmt.Println("|-- 7.) Update Images (Pull)")
-	fmt.Println("|-- 8.) System Health Check (Doctor)")
-	fmt.Println("|-- 9.) Generate Dashboard Password")
+	fmt.Println("|-- 1.) Container Management")
+	fmt.Println("|-- 2.) View Logs Explorer")
+	fmt.Println("|-- 3.) Start Dashboard & API")
+	fmt.Println("|-- 4.) Configuration & Secrets")
+	fmt.Println("|-- 5.) System Health Check (Doctor)")
 	fmt.Println("|-- 0.) Exit")
 	
 	fmt.Print("\n👉 Selection: ")
@@ -707,23 +703,47 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 
 	switch choice {
 	case 1:
-		runWithSudoFallback(exe, "up")
+		fmt.Println("\n|-- 1.) Container Management")
+		fmt.Println("|   [1] Start Environment (Up)")
+		fmt.Println("|   [2] Stop Environment (Down)")
+		fmt.Println("|   [3] Update Images (Pull)")
+		fmt.Println("|   [4] System Status (PS)")
+		fmt.Print("\n👉 Selection: ")
+		var subChoice int
+		fmt.Scanln(&subChoice)
+		switch subChoice {
+		case 1:
+			runWithSudoFallback(exe, "up")
+		case 2:
+			runWithSudoFallback(exe, "down")
+		case 3:
+			runWithSudoFallback(exe, "pull")
+		case 4:
+			runWithSudoFallback(exe, "ps")
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
 	case 2:
-		runWithSudoFallback(exe, "down")
-	case 3:
 		runWithSudoFallback(exe, "logs")
-	case 4:
+	case 3:
 		runWithSudoFallback(exe, "dash", "up")
+	case 4:
+		fmt.Println("\n|-- 4.) Configuration & Secrets")
+		fmt.Println("|   [1] Configuration Wizard")
+		fmt.Println("|   [2] Generate Dashboard Password")
+		fmt.Print("\n👉 Selection: ")
+		var subChoice int
+		fmt.Scanln(&subChoice)
+		switch subChoice {
+		case 1:
+			runWithSudoFallback(exe, "config", "wizard")
+		case 2:
+			runWithSudoFallback(exe, "dashpass")
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
 	case 5:
-		runWithSudoFallback(exe, "config", "wizard")
-	case 6:
-		runWithSudoFallback(exe, "ps")
-	case 7:
-		runWithSudoFallback(exe, "pull")
-	case 8:
 		runWithSudoFallback(exe, "doctor")
-	case 9:
-		runWithSudoFallback(exe, "dashpass")
 	case 0:
 		return
 	default:

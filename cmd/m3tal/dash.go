@@ -60,9 +60,15 @@ func initDashCmd() *cobra.Command {
 
 	var upCmd = &cobra.Command{
 		Use:   "up",
-		Short: "Pull config, image, and start dashboard",
+		Short: "Pull config, start API, and start dashboard",
 		Run: func(cmd *cobra.Command, args []string) {
 			pullConfig()
+			
+			fmt.Println("🚀 Starting M3TAL API service...")
+			if err := exec.Command("sudo", "systemctl", "start", "m3tal-api.service").Run(); err != nil {
+				fmt.Println("⚠️  Could not start m3tal-api.service. It may already be running or systemd is not available.")
+			}
+			
 			runDashCompose("pull")
 			runDashCompose("up", "-d")
 		},
