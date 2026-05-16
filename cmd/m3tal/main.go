@@ -318,7 +318,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				fmt.Println("⚠️  .env already exists. Use 'm3tal config wizard' to update.")
 				return
 			}
-			runWizard(false)
+			runWizard(system.GetConfigPath(), ".env.example", false, true)
 
 			// Post-init storage path validation
 			envData, err := os.ReadFile(system.GetConfigPath())
@@ -343,7 +343,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Manage M3TAL environment variables",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				runWizard(true)
+				runWizard(system.GetConfigPath(), ".env.example", true, true)
 				return
 			}
 		},
@@ -353,9 +353,23 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "wizard",
 		Short: "Run the interactive configuration wizard",
 		Run: func(cmd *cobra.Command, args []string) {
-			runWizard(true)
+			target, _ := cmd.Flags().GetString("target")
+			template, _ := cmd.Flags().GetString("template")
+			isGlobal := false
+			
+			if target == "" {
+				target = system.GetConfigPath()
+				isGlobal = true
+			}
+			if template == "" {
+				template = ".env.example"
+			}
+			
+			runWizard(target, template, true, isGlobal)
 		},
 	}
+	configWizardCmd.Flags().String("target", "", "Target .env file to save")
+	configWizardCmd.Flags().String("template", "", "Template .env file to read defaults from")
 
 	var configListCmd = &cobra.Command{
 		Use:   "list",
@@ -456,13 +470,10 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	}
 }
 
-func runWizard(update bool) {
-	fmt.Println("🛠️  M3TAL Configuration Wizard")
+func runWizard(targetFile string, templateFile string, update bool, isGlobal bool) {
+	fmt.Printf("🛠️  M3TAL Configuration Wizard (%s)\n", filepath.Base(targetFile))
 
-	targetFile := system.GetConfigPath()
-	isSystem := false
-	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		isSystem = true
+	if isGlobal && runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		configDir := filepath.Dir(system.ConfigPath)
 		_ = os.MkdirAll(configDir, 0755)
 		_ = os.MkdirAll(system.DataPath, 0755)
@@ -471,23 +482,23 @@ func runWizard(update bool) {
 
 	_ = os.MkdirAll("./data", 0755)
 
-	sourceFile := ".env.example"
 	var data []byte
 	var err error
 
 	if update {
 		if _, err = os.Stat(targetFile); err == nil {
-			sourceFile = targetFile
-			data, err = os.ReadFile(sourceFile)
-		} else if _, err = os.Stat(".env"); err == nil {
-			sourceFile = ".env"
-			data, err = os.ReadFile(sourceFile)
+			data, err = os.ReadFile(targetFile)
+		} else if _, err = os.Stat(filepath.Base(targetFile)); err == nil {
+			data, err = os.ReadFile(filepath.Base(targetFile))
 		}
 	}
 
-	if data == nil {
-		// Use embedded example if not an update or if update source missing
-		data = []byte(envExample)
+	if data == nil && templateFile != "" {
+		if templateFile == ".env.example" {
+			data = []byte(envExample)
+		} else {
+			data, err = os.ReadFile(templateFile)
+		}
 	}
 
 	if err != nil && data == nil {
@@ -501,14 +512,24 @@ func runWizard(update bool) {
 			key := parts[0]
 			val := parts[1]
 
-			if (key == "DASHBOARD_SECRET" || key == "API_TOKEN") && !update {
+			if isGlobal && (key == "DASHBOARD_SECRET" || key == "API_TOKEN") && !update {
 				newSecret := generateSecret()
 				fmt.Printf("[Auto] %s generated: %s\n", key, newSecret)
 				lines[i] = key + "=" + newSecret
 				continue
 			}
 
-			fmt.Printf("%s [%s]: ", key, val)
+			// Add ANSI formatting for empty but required values
+			colorReset := "\033[0m"
+			colorRed := "\033[31m"
+			
+			promptStr := fmt.Sprintf("%s [%s]: ", key, val)
+			if val == "" {
+				fmt.Printf("%s%s%s", colorRed, promptStr, colorReset)
+			} else {
+				fmt.Printf("%s", promptStr)
+			}
+
 			var input string
 			fmt.Scanln(&input)
 			if input != "" {
@@ -522,7 +543,7 @@ func runWizard(update bool) {
 		log.Fatal(err)
 	}
 	fmt.Printf("\n✅ Configuration saved to %s\n", targetFile)
-	if isSystem {
+	if isGlobal {
 		fmt.Println("👉 You may also want to symlink this to .env for local stack commands.")
 	}
 }
@@ -747,7 +768,44 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 			case 1:
 				runWithSudoFallback(exe, "config", "list")
 			case 2:
-				runWithSudoFallback(exe, "config", "wizard")
+				fmt.Println("\n|       |-- [2] Edit Configuration")
+				fmt.Println("|           |-- 1.) All (Global /etc/m3tal/.env)")
+				fmt.Println("|           |-- 2.) Stacks (Individual)")
+				fmt.Print("\n👉 Selection: ")
+				var editChoice int
+				fmt.Scanln(&editChoice)
+				if editChoice == 1 {
+					runWithSudoFallback(exe, "config", "wizard")
+				} else if editChoice == 2 {
+					stackDir := system.GetStackDir()
+					entries, _ := os.ReadDir(stackDir)
+					var templates []string
+					for _, e := range entries {
+						if strings.HasSuffix(e.Name(), ".env.template") {
+							templates = append(templates, e.Name())
+						}
+					}
+					if len(templates) == 0 {
+						fmt.Println("⚠️  No stack templates found.")
+					} else {
+						fmt.Println("\n📦 Available Stacks:")
+						for i, t := range templates {
+							name := strings.TrimSuffix(t, ".env.template")
+							fmt.Printf("   [%d] %s\n", i+1, name)
+						}
+						fmt.Print("\n👉 Stack Number: ")
+						var sNum int
+						fmt.Scanln(&sNum)
+						if sNum > 0 && sNum <= len(templates) {
+							stackName := strings.TrimSuffix(templates[sNum-1], ".env.template")
+							tmplPath := filepath.Join(stackDir, templates[sNum-1])
+							targetPath := filepath.Join(stackDir, stackName+".env")
+							runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--template", tmplPath)
+						}
+					}
+				} else {
+					fmt.Println("❌ Invalid selection.")
+				}
 			case 3:
 				runWithSudoFallback(exe, "config", "scan")
 			default:
