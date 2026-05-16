@@ -6,15 +6,15 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
 // --- Detect M3TAL repo structure ---
 function detectStructure() {
   const structure = {
-    hasDocker: fs.existsSync("source/m3tal-stack/m3tal-compose.yml"),
-    hasGo: fs.existsSync("source/go-backend/go.mod"),
-    hasDashboard: fs.existsSync("source/dashboard/server.py"),
-    hasCLI: fs.existsSync("m3tal.py"),
+    hasDocker: fs.existsSync("deploy/stack/m3tal-compose.yml"),
+    hasGo: fs.existsSync("go.mod"),
+    hasDashboard: fs.existsSync("deploy/dashboard/server.py"),
+    hasCLI: fs.existsSync("cmd/m3tal/main.go"),
     services: [],
   };
 
-  if (fs.existsSync("source")) {
-    const sourceDirs = fs.readdirSync("source", { withFileTypes: true })
+  if (fs.existsSync("deploy")) {
+    const sourceDirs = fs.readdirSync("deploy", { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name);
     structure.services = sourceDirs;
@@ -31,10 +31,10 @@ const existingReadme = fs.existsSync("README.md")
 
 const context = `
 Repo Architectural Map:
-- Orchestrator (CLI): ${structure.hasCLI ? "m3tal.py (present)" : "missing"}
-- Infrastructure: ${structure.hasDocker ? "source/m3tal-stack (standardized compose)" : "missing"}
-- Backend API: ${structure.hasGo ? "source/go-backend (Go native)" : "missing"}
-- Dashboard: ${structure.hasDashboard ? "source/dashboard (Python/Flask)" : "missing"}
+- Orchestrator (CLI): ${structure.hasCLI ? "cmd/m3tal (present)" : "missing"}
+- Infrastructure: ${structure.hasDocker ? "deploy/stack (standardized compose)" : "missing"}
+- Backend API: ${structure.hasGo ? "Go native (root go.mod)" : "missing"}
+- Dashboard: ${structure.hasDashboard ? "deploy/dashboard (Python/Flask)" : "missing"}
 - Detected Modules: ${structure.services.join(", ") || "none"}
 
 M3TAL Ecosystem Rules:
@@ -56,7 +56,7 @@ STRICT RULES:
 - Use real structure: Do NOT invent features or directories.
 - No placeholders: Use the actual service names found in the scan.
 - Relationship Mapping: Explain how the CLI, Backend, and Dashboard interact.
-- Style: Professional, technical, and "Mission Control" aesthetic.
+- Style: A clear, step-by-step newbie start guide. Focus on actionable installation and usage instructions. Avoid marketing copy, buzzwords, or overly dramatic "Mission Control" aesthetics. Speak directly to a user trying to install this for the first time.
 - Preservation: Keep existing valid sections but modernize them to reflect the Go-native migration.
 
 ${context}
