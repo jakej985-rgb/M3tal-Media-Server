@@ -1,52 +1,43 @@
-# AUDIT REPORT: M3TAL Core Orchestrator Documentation
+### **Audit Report: M3TAL Core Orchestrator Documentation**
 **Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**
+**Status:** **REJECTED**
 
 ---
 
 ### **Verdict**
-**CRITICAL FAILURE.** The current documentation is an architectural whitepaper, not an installation guide. As a new user, I have no idea how to go from "cloned repo" to "running service." You assume global system paths (`/opt`, `/etc`, `/mnt`) exist and provide no mechanism to create them. You mention a `m3tal` binary but provide no `Makefile` or build instructions.
+The current documentation is an architectural whitepaper, not an installation guide. As a new user, I have no idea how to actually run this software. The instructions assume I am already part of the M3TAL development team. The lack of a clear "Quick Start" guide and missing prerequisite configuration steps makes this repository unusable for a general user.
 
 ---
 
-### **Issue List**
+### **Detailed Issue List**
 
 #### **BLOCKER**
-*   **Missing Build/Install Instructions:** The README mentions a `m3tal` binary, but there is no command to build it (e.g., `go build -o m3tal main.go`).
-*   **Missing Setup Script:** The document assumes directories like `/etc/m3tal` and `/opt/m3tal` exist. There is no `setup.sh` or installation step to bootstrap these required paths/permissions.
-*   **Environment Variables:** You mention `/etc/m3tal/.env` as the "Source of Truth," but provide no template or documentation for what variables are required (e.g., DB_URL, API_KEY, PORTS).
-*   **Docker Orchestration Logic:** You provide a snippet for `m3tal-core`, but you do not explain how the user is supposed to deploy the *rest* of the stack (the `m3tal-stack`).
+1. **Missing Initialization Procedure:** The documentation mentions a `m3tal` binary, but fails to provide a `build` or `install` command. Do I run `go build`? Is there a Makefile?
+2. **Missing `.env` Template:** The docs state `/etc/m3tal/.env` is the "Source of Truth," but provide no template or required variables (e.g., API keys, database URLs, mount paths). A blank install will crash immediately.
+3. **Missing "First-Run" logic:** There is no command provided to initialize the state (e.g., `m3tal setup` or `m3tal init`).
+4. **Volume Dependency Crash:** The Docker configuration maps `/mnt:/mnt`. If I don't have `/mnt/m3tal-media` pre-created with correct permissions (UID/GID), the container will likely throw permission errors or boot-loop.
 
 #### **WARNING**
-*   **Traefik Gateway Omission:** You claim "Traefik Ownership," but provide zero guidance on how to configure the Traefik entry point, port mapping (80/443), or internal network names. A new user will have a conflict with their host port 80 immediately.
-*   **Assuming /mnt exists:** You treat `/mnt/m3tal-media` as a default. If the user doesn't have a drive mounted at `/mnt`, the container mount will create an empty root-owned directory, causing permission errors.
+5. **Ambiguous Entry Point:** The README mentions both `/opt/m3tal/stack` and `/docker`. Which one is the intended directory for users to run `docker compose up`? 
+6. **Network/Port Siloing:** The documentation mentions Traefik but provides zero information on required ports (e.g., 80, 443, 8080) or how to link the API and Dashboard containers to the Orchestrator network.
+7. **No "Source/Usage" workflow:** I see references to `m3tal-goback` and `m3tal-godash`, but no instruction on how to deploy them *together* with the Core. Do I need one `docker-compose.yml` that handles all three? 
 
 #### **SUGGESTION**
-*   **Confusing Hierarchy:** The README describes `/docker` as the "Primary User Entry Point" but then provides a Docker Compose block that relies on `/opt/m3tal`. These instructions are contradictory.
+8. **Lack of "Prerequisites" Check:** Add a shell script or command to verify that Docker, Go, and the necessary directory structures exist before attempting installation.
+9. **Role Confusion:** The "System Architecture" section describes the Orchestrator, API, and Dashboard as separate components, but the deployment section only shows the Core. I need a unified `docker-compose.yml` example.
 
 ---
 
-### **Suggested Fixes**
+### **Required Remediation Steps**
 
-1.  **Add a `Quickstart` Section:**
-    ```bash
-    # Example addition
-    git clone ...
-    sudo ./scripts/install.sh # Needs to create /etc/m3tal, /opt/m3tal, etc.
-    cp .env.example /etc/m3tal/.env
-    go build -o m3tal .
-    sudo mv m3tal /usr/bin/
-    ```
+1.  **Add a `Quick Start` section:**
+    *   Step 1: Clone repo.
+    *   Step 2: `make build` (or equivalent).
+    *   Step 3: `cp .env.example /etc/m3tal/.env`.
+    *   Step 4: `m3tal init` (ensure this creates the `/opt/m3tal` tree).
+2.  **Provide a Full Stack `docker-compose.yml`:** Include the Orchestrator, Backend, and Dashboard in a single YAML file so users aren't guessing how to network them.
+3.  **Define the Environment:** Create a `.env.example` file in the root of the repo with every required variable clearly commented.
+4.  **Add a "Ports & Networking" table:** Clearly list which ports the user must expose to the host for the Dashboard and API.
+5.  **Explicit Path Creation:** Add a note or a small script snippet: `mkdir -p /mnt/m3tal-media && chown -R 1000:1000 /mnt/m3tal-media` to prevent permission-denied errors on startup.
 
-2.  **Provide an `.env.example`:** Create a file in the repo detailing required variables:
-    *   `M3TAL_API_PORT`
-    *   `DOCKER_NETWORK_NAME`
-    *   `TRAEFIK_ENTRYPOINT`
-
-3.  **Clarify the Docker Lifecycle:** Provide a `docker-compose.yml` that includes the full stack (Traefik, Goback, Godash, and Core), rather than just the Core container. If the Core is meant to spin up other containers, provide an example of the command used to trigger this via the binary (e.g., `m3tal start --stack`).
-
-4.  **Add a Directory Validator:** Add a check in your Go code (at startup) to verify that the required paths (`/etc/m3tal`, etc.) exist. If they don't, have the program output a clear error: `CRITICAL: Directory /etc/m3tal not found. Run ./setup.sh`.
-
-5.  **Standardize Pathing:** Decide on one "Entry Point." If `/opt/m3tal` is the source of truth, stop referencing `/docker` as the user entry point. It creates cognitive load for no reason.
-
-**DocCritic Note:** *Fix these before I return for the Stage 2 Compliance Audit. Documentation is code; if it doesn't run, it's a bug.*
+**DocCritic's Final Note:** *Stop treating the README as a marketing document and start treating it as a technical manual. If a user can't be at a `docker compose up` command within 5 minutes of reading, the documentation has failed.*
