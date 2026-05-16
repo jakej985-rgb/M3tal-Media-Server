@@ -58,5 +58,8 @@ networks:
   proxy:
     name: proxy
     driver: bridge
+  m3tal:
+    name: m3tal
+    driver: bridge
   default:
     name: none
