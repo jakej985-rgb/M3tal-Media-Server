@@ -44,7 +44,7 @@ services:
       - /mnt:/mnt
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.portainer.entrypoints=web"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
       - "traefik.docker.network=proxy"

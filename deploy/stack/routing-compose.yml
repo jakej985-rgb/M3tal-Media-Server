@@ -31,7 +31,7 @@ services:
           memory: 250M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:?DOMAIN not set}`)"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.entrypoints=web"
       - "traefik.http.routers.traefik.middlewares=m3tal-auth"
@@ -48,7 +48,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN:?CF_TUNNEL_TOKEN not set — run from repo root with .env}
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN:-}
     networks:
       - proxy
     env_file:

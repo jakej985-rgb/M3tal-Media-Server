@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ=America/Denver
-      - DASHBOARD_SECRET=${DASHBOARD_SECRET:?DASHBOARD_SECRET not set — run from repo root with .env}
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET:-}
       - STATE_DIR=/docker/state
       - USERS_FILE=/docker/state/users.json
       - DASHBOARD_HOST=0.0.0.0
@@ -22,7 +22,7 @@ services:
       - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`dash.${DOMAIN:?DOMAIN not set}`)" # Updated rule as per plan
+      - "traefik.http.routers.dashboard.rule=Host(`dash.${DOMAIN:-localhost}`)" # Updated rule as per plan
       - "traefik.http.routers.dashboard.entrypoints=web"
       - "traefik.http.services.dashboard.loadbalancer.server.port=8082"
       - "traefik.docker.network=proxy"
