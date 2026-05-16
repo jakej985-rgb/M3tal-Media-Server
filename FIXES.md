@@ -1,53 +1,49 @@
-### **Verdict: FAILED**
-**Audit Status:** The documentation is currently insufficient for production or evaluation deployment. It suffers from "developer bias," assumes a pre-configured environment, and lacks critical security and networking details. It reads more like a project manifesto than a functional operator’s manual.
+Hello DocSmith. I’ve reviewed the documentation for the M3TAL Core Orchestrator. As a Senior DevOps Auditor, I found the current state of this README to be insufficient for a production-grade orchestration tool. You are making dangerous assumptions about the host environment, and the "Quick Start" is more of a "Quick Guess."
+
+### Verdict: **FAIL**
+The documentation is currently unsuitable for deployment. It lacks critical security context for package management, fails to define necessary environment constraints, and leaves the user guessing about how to actually access the system they just deployed.
 
 ---
 
-### **Issue List**
+### Issue List
 
-#### **BLOCKERS**
-1.  **[BLOCKER] Deprecated APT Commands:** You are using `apt-key add`, which has been deprecated since Debian 11/Ubuntu 20.04. Systems will throw security warnings and potentially refuse the key.
-2.  **[BLOCKER] Missing Port/Access Information:** The guide mentions a Dashboard and an API but provides no information on which ports the Traefik/Docker stack exposes. A user will be left with a running container and no way to access the UI (e.g., `http://localhost:8080`).
-3.  **[BLOCKER] Unchecked Assumption of `/mnt`:** The documentation mandates `/mnt/m3tal-media` but provides no instructions on how to create this mount point or handle permissions. If the user doesn't have an auto-mounted drive at `/mnt`, the orchestrator will likely fail silently or crash.
+#### 1. BLOCKER: Deprecated APT Key Management
+You are using `apt-key`, which has been deprecated in Debian/Ubuntu for years. Modern systems require the keyring to be placed in `/etc/apt/keyrings/`.
+*   **Fix:** Use `gpg --dearmor` to convert the key and place it in the `/etc/apt/keyrings/` directory, updating the `deb` line to include `[signed-by=/etc/apt/keyrings/m3tal.gpg]`.
 
-#### **WARNINGS**
-4.  **[WARNING] Marketing Fluff:** The intro is heavy on "architectural profiles" and "Go-native standards." This is unnecessary cognitive load for someone just trying to deploy the binary.
-5.  **[WARNING] Ambiguous `m3tal setup`:** There is no documentation on what `m3tal setup` actually does. Does it ask for user input? Does it write files to `/etc/m3tal/`? Does it require `sudo`?
-6.  **[WARNING] Missing Cleanup/Maintenance:** The guide provides `up` commands but no `down` or `logs` commands. A user has no way to manage the lifecycle once started.
+#### 2. BLOCKER: Missing Port/Access Information
+You instruct the user to run `m3tal dash up`, but there is zero information regarding which ports the Traefik/Dashboard gateway binds to. I have no idea how to access the service after deployment.
+*   **Fix:** Explicitly state the default ports (e.g., 80/443 for Traefik or specific high ports) and any default credentials.
 
-#### **SUGGESTIONS**
-7.  **[SUGGESTION] Docker Deployment Context:** The section "Deployment: Docker Configuration" is confusing. Is the user meant to create this file manually, or does `m3tal up` generate it? If it's manual, where is the full `docker-compose.yaml`?
-8.  **[SUGGESTION] Environment Variables:** If `m3tal setup` is required, list the essential environment variables (e.g., `M3TAL_ROOT`) that might be needed if not using the default paths.
+#### 3. WARNING: Environment Assumption (`/mnt`)
+The README assumes the user has a pre-configured `/mnt/m3tal-media` mount. If the directory does not exist, the Docker volume mount will likely create a root-owned directory, causing permission issues or total failure of the media service.
+*   **Fix:** Add a "System Preparation" step that explicitly lists `mkdir -p /mnt/m3tal-media` and mentions required filesystem permissions.
+
+#### 4. WARNING: Docker Deployment Incompleteness
+The "Deployment: Docker Configuration" section provides a snippet but does not explain how to actually trigger a deployment or if this snippet is meant to be a `docker-compose.yaml` file.
+*   **Fix:** Provide a `docker-compose.yml` boilerplate that the user can copy-paste.
+
+#### 5. SUGGESTION: Marketing vs. Technical Writing
+The intro uses "high-performance control," "ecosystem," and "modular infrastructure." These are fluff.
+*   **Fix:** Strip the marketing copy. A README should start with what the software *does* and how to *run* it.
+
+#### 6. SUGGESTION: Missing Troubleshooting/Logs
+There is no mention of how to view logs for the Orchestrator or the individual containers if `m3tal up` fails.
+*   **Fix:** Add a "Troubleshooting" section documenting the command `m3tal logs` or standard `docker compose logs` paths.
 
 ---
 
-### **Suggested Fixes**
+### Required Actions for Remediation
 
-#### **1. Modernize APT Instructions**
-Replace the `apt-key` block with the `signed-by` directive:
-```bash
-# Download to the keyrings directory
-curl -fsSL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo gpg --dearmor -o /usr/share/keyrings/m3tal.gpg
+1.  **Update Repository Setup:**
+    ```bash
+    curl -fsSL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo gpg --dearmor -o /etc/apt/keyrings/m3tal.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/m3tal.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list > /dev/null
+    ```
+2.  **Define Access:** Clearly list: "Access the dashboard at `http://<server-ip>:PORT`."
+3.  **Define Environment Check:** Add a pre-flight check section:
+    *   `sudo mkdir -p /mnt/m3tal-media`
+    *   `sudo chown $USER:$USER /mnt/m3tal-media`
+4.  **Refine "Quick Demo":** Ensure the user knows that `m3tal up` and `m3tal dash up` require the Docker daemon to be active and the user to be in the `docker` group.
 
-# Add to sources list with signed-by
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/m3tal.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list > /dev/null
-```
-
-#### **2. Document the Infrastructure Requirements**
-Add a "Network & Storage" section:
-*   **Ports:** Clearly define that the Dashboard runs on port `80` (or `8080`) and that Traefik is expected to be configured or is auto-configured.
-*   **Storage:** Add a mandatory step: `sudo mkdir -p /mnt/m3tal-media && sudo chown $USER:$USER /mnt/m3tal-media`.
-
-#### **3. Clarify CLI Usage (The "Demo")**
-Expand the Quick Start section:
-*   `m3tal setup`: Explain that this creates `/etc/m3tal/config.yaml`.
-*   `m3tal up`: Add that this launches the stack in the background.
-*   **Add command:** `m3tal logs` (for debugging) and `m3tal down` (to stop the stack).
-
-#### **4. Prune the Marketing Copy**
-Remove phrases like "Core Orchestrator architectural profile" and "Nexus of the ecosystem." Replace the intro with:
-> **M3TAL Media Server**
-> M3TAL is a Go-based orchestration CLI used to manage containerized media infrastructure.
-
-#### **5. Clarify the Deployment Model**
-Specify clearly: "Does the user interact with the `docker-compose.yml` file, or is it managed entirely by the `m3tal` binary?" If the binary manages it, clarify that the `docker-compose.yaml` provided in the docs is for reference/troubleshooting only.
+**DocCritic's Note:** I expect these changes to be reflected before the next audit. Documentation is part of the code—if it’s undocumented, it doesn’t exist.
