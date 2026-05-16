@@ -1,57 +1,30 @@
-### **AUDIT REPORT: M3TAL Core Orchestrator Documentation**
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED**
+**DocCritic Audit Report: M3TAL Core Orchestrator**
 
-As a new user attempting to deploy the M3TAL stack, I am currently staring at a README that describes *what* the system is but provides zero instructions on *how* to make it functional. There is no "Getting Started," no prerequisite check, and no pathway to a running service.
+**Verdict:** **FAILED**. As a new user, I am staring at a manifest of requirements with zero actionable instructions. This document reads like a system architecture whitepaper, not a README. It fails to provide the "how-to" for the most basic deployment steps. The project is currently non-deployable.
 
 ---
 
-### **ISSUE LIST**
+### Issue List
 
-#### **BLOCKER**
-1.  **[BLOCKER] Missing Initialization Flow:** There is no documentation on how to build, install, or run the `m3tal` binary. Does the user compile from source? Is there an install script?
-2.  **[BLOCKER] Zero Configuration Instructions:** You reference `/etc/m3tal/.env`, but provide no template or documentation for required environment variables. A user cannot guess the API keys, database URLs, or mount path overrides.
-3.  **[BLOCKER] Deployment Incompleteness:** The Docker YAML provided is an orphaned snippet. Where does it go? How is it triggered? There is no reference to `docker-compose.yml` or the commands required to bring the stack online.
-
-#### **WARNING**
-4.  **[WARNING] Assumption of Filesystem Readiness:** You mandate paths like `/opt/m3tal/stack` and `/mnt/m3tal-media` without explaining that the user must create these directories and set permissions *before* running the container. If the user runs the container, Docker will create these as `root`-owned directories, leading to immediate permission failures.
-5.  **[WARNING] Traefik/Networking Ambiguity:** You mention a "Core-First" protocol and a Dashboard, but nowhere is there mention of how to access these services. Are they exposed on ports 80/443? Does M3TAL require an external Traefik configuration?
-
-#### **SUGGESTION**
-6.  **[SUGGESTION] Binary Management:** If `m3tal` is the Orchestrator, a "Quick Start" bash script is needed to handle symlinking the binary to `/usr/bin/m3tal` and initializing the directory structure.
-7.  **[SUGGESTION] Dependency Clarity:** Clearly state that Docker and Docker Compose are mandatory dependencies.
+*   **BLOCKER:** **No "Getting Started" or Build Instructions.** There is no indication of how to build the `m3tal` binary or how to install it to `/usr/bin/m3tal`.
+*   **BLOCKER:** **Missing Configuration Initialization.** The documentation references `/etc/m3tal/.env` as the "Source of Truth" but provides no example `.env` file, key names, or setup script.
+*   **BLOCKER:** **Missing Orchestrator Setup.** The README mentions `m3tal` coordinates "Docker orchestration via the `/opt/m3tal` manifest tree." How does the directory get created? Do I pull the manifests from a repo? Is there an `m3tal setup` command?
+*   **WARNING:** **Host Path Assumptions.** The documentation assumes `/mnt/m3tal-media` exists. If this is a requirement for the container to function, the script/documentation must ensure directory creation or warn the user.
+*   **WARNING:** **Undefined Access/Ports.** The `docker-compose.yml` snippet is incomplete for a real-world scenario. There is no mapping for ports (Traefik gateway or UI access) or instructions on how to reach the dashboard.
+*   **SUGGESTION:** **Confusing Wording.** The README claims "The platform is fully committed to Go-native binaries," yet the user is told to run a `docker-compose.yml` with `image: m3tal/core:latest`. Are we running a binary or a container? The distinction is blurred.
 
 ---
 
-### **RECOMMENDED REMEDIATION**
+### Suggested Fixes
 
-**1. Add a "Quick Start" section:**
-```bash
-# Example Setup Script
-sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal /mnt/m3tal-media
-sudo cp .env.example /etc/m3tal/.env
-# Add instructions on running 'make build' or 'go build'
-```
+1.  **Add a "Quick Start" section:** Provide the exact sequence of commands to get up and running (e.g., `git clone`, `go build`, `mkdir -p /etc/m3tal`, `cp .env.example /etc/m3tal/.env`).
+2.  **Provide an `.env.example` file:** Document every environment variable required (e.g., `M3TAL_API_KEY`, `DOCKER_SOCKET_PATH`, `MEDIA_ROOT`).
+3.  **Define the Bootstrap Process:** Include a script or a command block to initialize the directory structure:
+    ```bash
+    sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal /mnt/m3tal-media
+    ```
+4.  **Complete the Docker Compose:** Update the provided YAML to include Traefik labels or explicit port mappings so the user knows *where* to point their browser to see the Dashboard.
+5.  **Clarify the Deployment Model:** Explicitly state: *"Run the orchestrator as a container (recommended) OR as a binary (advanced)."* Do not mix the two in the deployment section.
+6.  **Add a "Prerequisites" section:** Explicitly list that Docker, Docker Compose, and Go 1.2x+ are required for this build. 
 
-**2. Provide an `.env.example` file:**
-Create a file in the repo named `.env.example` with placeholders for all required keys (e.g., `M3TAL_API_KEY`, `DASHBOARD_PORT`, `STORAGE_PATH`).
-
-**3. Complete the Docker Compose Reference:**
-Provide a full `docker-compose.yml` instead of a snippet. Explain how to launch:
-```bash
-docker-compose up -d
-```
-
-**4. Explicit Path/Permission Instructions:**
-Add a "Prerequisites" section: 
-> "Ensure your user has read/write access to the host paths defined in the Filesystem table. Run `sudo chown -R $USER:$USER /opt/m3tal` before deployment."
-
-**5. Connectivity Table:**
-Add a table mapping services to ports:
-*   `m3tal-godash`: `localhost:8080`
-*   `m3tal-goback`: `localhost:9000`
-
----
-
-### **VERDICT**
-**DO NOT DEPLOY.** The current documentation assumes an expert level of internal knowledge. It serves as a whitepaper, not a manual. A new user will fail at the first step due to missing environment variables and undefined mount-point permissions. **Revise immediately.**
+**DocCritic Note:** *Documentation is the first line of security and reliability. If a user has to guess where a file goes, they will misconfigure it. Fix these gaps immediately.*
