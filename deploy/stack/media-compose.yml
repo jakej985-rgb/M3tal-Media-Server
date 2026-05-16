@@ -18,7 +18,7 @@ services:
       - /mnt/config/qbittorrent:/config
       - /mnt:/mnt
     env_file:
-      - ../../.env
+      - ./media.env
     labels:
       - "m3tal.stack=media"
       - "m3tal.role=vpn"
@@ -46,7 +46,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7878"]
       interval: 30s
@@ -79,7 +79,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8989"]
       interval: 30s
@@ -120,7 +120,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -151,7 +151,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -182,7 +182,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -209,7 +209,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -230,7 +230,7 @@ services:
     networks:
       - m3tal
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -259,7 +259,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -285,7 +285,7 @@ services:
       - /mnt/config/prowlarr:/config
       - /mnt:/mnt
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:
@@ -305,7 +305,7 @@ services:
       - LOG_HTML=false
       - CAPTCHA_SOLVER=none
     env_file:
-      - ../../.env
+      - ./media.env
     deploy:
       resources:
         limits:

@@ -70,6 +70,17 @@ func (s *StackManager) Run(action string, args ...string) error {
 	}
 
 	for _, file := range s.Files {
+		// 1. Determine stack name and ensure <stack>.env exists
+		stackBase := filepath.Base(file)
+		stackName := stackBase[:len(stackBase)-len("-compose.yml")]
+		stackDir := filepath.Dir(file)
+		localEnv := filepath.Join(stackDir, stackName+".env")
+
+		// Automatically symlink global env to <stack>.env if it doesn't exist
+		if _, err := os.Lstat(localEnv); os.IsNotExist(err) && hasEnv {
+			_ = os.Symlink(envFile, localEnv)
+		}
+
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
 		
 		var cmdArgs []string

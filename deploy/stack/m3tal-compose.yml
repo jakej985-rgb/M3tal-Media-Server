@@ -30,7 +30,7 @@ services:
     networks:
       - proxy
     env_file:
-      - ../m3tal-core/.env
+      - ./m3tal.env
     deploy:
       resources:
         limits:
