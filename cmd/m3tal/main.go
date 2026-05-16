@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -318,7 +319,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				fmt.Println("⚠️  .env already exists. Use 'm3tal config wizard' to update.")
 				return
 			}
-			runWizard(system.GetConfigPath(), ".env.example", false, true)
+			runWizard(system.GetConfigPath(), "", false, true)
 
 			// Post-init storage path validation
 			envData, err := os.ReadFile(system.GetConfigPath())
@@ -343,7 +344,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Manage M3TAL environment variables",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				runWizard(system.GetConfigPath(), ".env.example", true, true)
+				runWizard(system.GetConfigPath(), "", true, true)
 				return
 			}
 		},
@@ -354,22 +355,19 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Run the interactive configuration wizard",
 		Run: func(cmd *cobra.Command, args []string) {
 			target, _ := cmd.Flags().GetString("target")
-			template, _ := cmd.Flags().GetString("template")
+			composeFile, _ := cmd.Flags().GetString("compose")
 			isGlobal := false
 			
 			if target == "" {
 				target = system.GetConfigPath()
 				isGlobal = true
 			}
-			if template == "" {
-				template = ".env.example"
-			}
 			
-			runWizard(target, template, true, isGlobal)
+			runWizard(target, composeFile, true, isGlobal)
 		},
 	}
 	configWizardCmd.Flags().String("target", "", "Target .env file to save")
-	configWizardCmd.Flags().String("template", "", "Template .env file to read defaults from")
+	configWizardCmd.Flags().String("compose", "", "Compose file to read required variables from")
 
 	var configListCmd = &cobra.Command{
 		Use:   "list",
@@ -492,7 +490,33 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	}
 }
 
-func runWizard(targetFile string, templateFile string, update bool, isGlobal bool) {
+func parseComposeVariables(composeFile string) map[string]string {
+	data, err := os.ReadFile(composeFile)
+	if err != nil {
+		return nil
+	}
+	
+	// Regex matches ${VAR} or ${VAR:-default} or ${VAR-default}
+	re := regexp.MustCompile(`\$\{([A-Z0-9_]+)(?::?-([^}]+))?\}`)
+	matches := re.FindAllStringSubmatch(string(data), -1)
+	
+	vars := make(map[string]string)
+	for _, match := range matches {
+		if len(match) > 1 {
+			key := match[1]
+			val := ""
+			if len(match) > 2 {
+				val = match[2]
+			}
+			if existing, ok := vars[key]; !ok || (existing == "" && val != "") {
+				vars[key] = val
+			}
+		}
+	}
+	return vars
+}
+
+func runWizard(targetFile string, composeFile string, update bool, isGlobal bool) {
 	fmt.Printf("🛠️  M3TAL Configuration Wizard (%s)\n", filepath.Base(targetFile))
 
 	if isGlobal && runtime.GOOS == "linux" && os.Geteuid() == 0 {
@@ -504,63 +528,90 @@ func runWizard(targetFile string, templateFile string, update bool, isGlobal boo
 
 	_ = os.MkdirAll("./data", 0755)
 
-	var data []byte
-	var err error
-
+	var existingData []byte
 	if update {
-		if _, err = os.Stat(targetFile); err == nil {
-			data, err = os.ReadFile(targetFile)
-		} else if _, err = os.Stat(filepath.Base(targetFile)); err == nil {
-			data, err = os.ReadFile(filepath.Base(targetFile))
-		}
-	}
-
-	if data == nil && templateFile != "" {
-		if templateFile == ".env.example" {
-			data = []byte(envExample)
-		} else {
-			data, err = os.ReadFile(templateFile)
-		}
-	}
-
-	if err != nil && data == nil {
-		log.Fatalf("❌ Missing configuration source.")
-	}
-
-	lines := strings.Split(string(data), "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "=") && !strings.HasPrefix(line, "#") {
-			parts := strings.SplitN(line, "=", 2)
-			key := parts[0]
-			val := parts[1]
-
-			if isGlobal && (key == "DASHBOARD_SECRET" || key == "API_TOKEN") && !update {
-				newSecret := generateSecret()
-				fmt.Printf("[Auto] %s generated: %s\n", key, newSecret)
-				lines[i] = key + "=" + newSecret
-				continue
-			}
-
-			// Add ANSI formatting for empty but required values
-			colorReset := "\033[0m"
-			colorRed := "\033[31m"
-			
-			promptStr := fmt.Sprintf("%s [%s]: ", key, val)
-			if val == "" {
-				fmt.Printf("%s%s%s", colorRed, promptStr, colorReset)
+		if _, err := os.Stat(targetFile); err == nil {
+			info, _ := os.Lstat(targetFile)
+			if info.Mode()&os.ModeSymlink != 0 {
+				fmt.Printf("⚠️  Target %s is a symlink. Breaking symlink for independent configuration...\n", filepath.Base(targetFile))
+				os.Remove(targetFile)
 			} else {
-				fmt.Printf("%s", promptStr)
-			}
-
-			var input string
-			fmt.Scanln(&input)
-			if input != "" {
-				lines[i] = key + "=" + input
+				existingData, _ = os.ReadFile(targetFile)
 			}
 		}
 	}
 
-	content := strings.Join(lines, "\n")
+	existingVars := make(map[string]string)
+	if existingData != nil {
+		lines := strings.Split(string(existingData), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "=") && !strings.HasPrefix(line, "#") {
+				parts := strings.SplitN(line, "=", 2)
+				existingVars[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	requiredVars := make(map[string]string)
+	var orderedKeys []string
+
+	if isGlobal {
+		lines := strings.Split(string(envExample), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "=") && !strings.HasPrefix(line, "#") {
+				parts := strings.SplitN(line, "=", 2)
+				requiredVars[parts[0]] = parts[1]
+				orderedKeys = append(orderedKeys, parts[0])
+			}
+		}
+	} else if composeFile != "" {
+		parsedVars := parseComposeVariables(composeFile)
+		for k, v := range parsedVars {
+			requiredVars[k] = v
+			orderedKeys = append(orderedKeys, k)
+		}
+	}
+
+	if len(orderedKeys) == 0 {
+		log.Fatalf("❌ Missing configuration source or no variables found.")
+	}
+
+	var finalLines []string
+	for _, key := range orderedKeys {
+		defaultVal := requiredVars[key]
+		
+		val := defaultVal
+		if existing, ok := existingVars[key]; ok {
+			val = existing
+		}
+
+		if isGlobal && (key == "DASHBOARD_SECRET" || key == "API_TOKEN") && !update && val == "" {
+			newSecret := generateSecret()
+			fmt.Printf("[Auto] %s generated: %s\n", key, newSecret)
+			finalLines = append(finalLines, key+"="+newSecret)
+			continue
+		}
+
+		colorReset := "\033[0m"
+		colorRed := "\033[31m"
+		
+		promptStr := fmt.Sprintf("%s [%s]: ", key, val)
+		if val == "" {
+			fmt.Printf("%s%s%s", colorRed, promptStr, colorReset)
+		} else {
+			fmt.Printf("%s", promptStr)
+		}
+
+		var input string
+		fmt.Scanln(&input)
+		if input != "" {
+			finalLines = append(finalLines, key+"="+input)
+		} else {
+			finalLines = append(finalLines, key+"="+val)
+		}
+	}
+
+	content := strings.Join(finalLines, "\n")
 	if err := os.WriteFile(targetFile, []byte(content), 0600); err != nil {
 		log.Fatal(err)
 	}
@@ -826,14 +877,10 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 						fmt.Scanln(&sNum)
 						if sNum > 0 && sNum <= len(stacks) {
 							stackName := stacks[sNum-1]
-							tmplPath := filepath.Join(stackDir, stackName+".env.template")
+							composePath := filepath.Join(stackDir, stackName+"-compose.yml")
 							targetPath := filepath.Join(stackDir, stackName+".env")
 							
-							if _, err := os.Stat(tmplPath); os.IsNotExist(err) {
-								tmplPath = ""
-							}
-							
-							runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--template", tmplPath)
+							runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--compose", composePath)
 						}
 					}
 				} else {
