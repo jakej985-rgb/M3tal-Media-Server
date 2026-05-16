@@ -1,30 +1,43 @@
-**DocCritic Audit Report: M3TAL Core Orchestrator**
+As a Senior DevOps Auditor for the M3TAL platform, I have conducted an initial audit of the documentation provided. 
 
-**Verdict:** **FAILED**. As a new user, I am staring at a manifest of requirements with zero actionable instructions. This document reads like a system architecture whitepaper, not a README. It fails to provide the "how-to" for the most basic deployment steps. The project is currently non-deployable.
-
----
-
-### Issue List
-
-*   **BLOCKER:** **No "Getting Started" or Build Instructions.** There is no indication of how to build the `m3tal` binary or how to install it to `/usr/bin/m3tal`.
-*   **BLOCKER:** **Missing Configuration Initialization.** The documentation references `/etc/m3tal/.env` as the "Source of Truth" but provides no example `.env` file, key names, or setup script.
-*   **BLOCKER:** **Missing Orchestrator Setup.** The README mentions `m3tal` coordinates "Docker orchestration via the `/opt/m3tal` manifest tree." How does the directory get created? Do I pull the manifests from a repo? Is there an `m3tal setup` command?
-*   **WARNING:** **Host Path Assumptions.** The documentation assumes `/mnt/m3tal-media` exists. If this is a requirement for the container to function, the script/documentation must ensure directory creation or warn the user.
-*   **WARNING:** **Undefined Access/Ports.** The `docker-compose.yml` snippet is incomplete for a real-world scenario. There is no mapping for ports (Traefik gateway or UI access) or instructions on how to reach the dashboard.
-*   **SUGGESTION:** **Confusing Wording.** The README claims "The platform is fully committed to Go-native binaries," yet the user is told to run a `docker-compose.yml` with `image: m3tal/core:latest`. Are we running a binary or a container? The distinction is blurred.
+### **Verdict: FAILED**
+**Current Status:** The documentation is a high-level architectural manifesto, not a deployment guide. It lacks the critical "How-To" steps required for a developer or system administrator to actually initialize the service. In its current state, a user cannot deploy this project.
 
 ---
 
-### Suggested Fixes
+### **Detailed Issue List**
 
-1.  **Add a "Quick Start" section:** Provide the exact sequence of commands to get up and running (e.g., `git clone`, `go build`, `mkdir -p /etc/m3tal`, `cp .env.example /etc/m3tal/.env`).
-2.  **Provide an `.env.example` file:** Document every environment variable required (e.g., `M3TAL_API_KEY`, `DOCKER_SOCKET_PATH`, `MEDIA_ROOT`).
-3.  **Define the Bootstrap Process:** Include a script or a command block to initialize the directory structure:
-    ```bash
-    sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal /mnt/m3tal-media
+#### **BLOCKER**
+1.  **Missing Initialization Sequence:** There is zero guidance on how to install the `m3tal` binary. Is it `go build`, a pre-compiled binary release, or a Docker-based entry point? The user is left with no way to start the Orchestrator.
+2.  **Zero Configuration Guidance:** The documentation mentions `/etc/m3tal/.env` as the "Source of Truth" but fails to provide a template or list of required environment variables (e.g., API keys, database URLs, port bindings).
+3.  **Missing Startup/Run Command:** Even if the image is pulled, the `docker-compose.yml` snippet does not define an `entrypoint` or `command`. The container will exit immediately upon startup.
+
+#### **WARNING**
+4.  **Assumed Infrastructure State:** The guide assumes the existence of `/opt/m3tal` and `/mnt/m3tal-media` on the host machine. A standard deployment script must include `mkdir -p` commands or a setup script to ensure these directories exist with correct permissions.
+5.  **Network/Port Ambiguity:** The documentation mentions "Traefik gateway" in the requirements but does not document how to expose the `m3tal-core` service to the network or what ports the API/Dashboard actually listen on.
+
+#### **SUGGESTION**
+6.  **"Quick Start" vs. "Architecture":** The document is heavy on marketing "M3TAL ecosystem" jargon but light on engineering utility. A "Quick Start" section is missing.
+7.  **Docker Socket Risks:** Granting `docker.sock` access to the container is a high-privilege action. The documentation lacks a security warning or a recommendation to use Docker context/proxying for production security.
+
+---
+
+### **Suggested Fixes**
+
+*   **Implement a `setup.sh` script:** Create a script that creates the directory structure (`/opt/m3tal`, `/var/lib/m3tal`) and prompts the user to generate a base `.env` file.
+*   **Add an Environment Template:** Include a `template.env` file in the repo and a section in the README detailing:
+    *   `M3TAL_API_PORT`: (Default: 8080)
+    *   `M3TAL_LOG_LEVEL`: (Debug/Info/Error)
+    *   `M3TAL_DB_PATH`: (Defined path for state storage)
+*   **Clarify CLI Usage:** Provide the command to initialize the orchestrator: 
+    *   *e.g., `m3tal setup --init` or `docker run m3tal/core:latest --init`*
+*   **Update the Docker Compose:** Add `labels` for Traefik discovery:
+    ```yaml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.m3tal.rule=Host(`m3tal.yourdomain.com`)"
+      - "traefik.http.services.m3tal.loadbalancer.server.port=8080"
     ```
-4.  **Complete the Docker Compose:** Update the provided YAML to include Traefik labels or explicit port mappings so the user knows *where* to point their browser to see the Dashboard.
-5.  **Clarify the Deployment Model:** Explicitly state: *"Run the orchestrator as a container (recommended) OR as a binary (advanced)."* Do not mix the two in the deployment section.
-6.  **Add a "Prerequisites" section:** Explicitly list that Docker, Docker Compose, and Go 1.2x+ are required for this build. 
+*   **Add "Prerequisites":** Explicitly list the requirement for Docker Engine, Docker Compose V2, and Go (if compiling from source).
 
-**DocCritic Note:** *Documentation is the first line of security and reliability. If a user has to guess where a file goes, they will misconfigure it. Fix these gaps immediately.*
+**Auditor Note:** Please rectify these blockers immediately. The "Core Orchestrator" cannot be considered "ready for deployment" if the engineer cannot bridge the gap between git clone and functional container state.
