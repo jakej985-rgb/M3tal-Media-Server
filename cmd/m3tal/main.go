@@ -40,7 +40,16 @@ func main() {
 		}
 	}
 
-	var rootCmd = &cobra.Command{Use: "m3tal"}
+	var rootCmd = &cobra.Command{
+		Use:   "m3tal",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				runMasterMenu()
+				return
+			}
+			cmd.Help()
+		},
+	}
 	rootCmd.PersistentFlags().String("api-url", "http://localhost:8080", "M3TAL API URL")
 	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
 	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
@@ -658,6 +667,81 @@ func runLogsMenu() {
 		fmt.Println("\n🚀 Streaming Aggregated Logs...")
 		stackMgr := orchestrator.NewStackManager()
 		stackMgr.Run("logs", "--tail", "20", "-f")
+	case 0:
+		return
+	default:
+		fmt.Println("❌ Invalid selection.")
+	}
+}
+
+func runMasterMenu() {
+	fmt.Println("\n🌌 M3TAL MASTER CONTROL CENTER")
+	fmt.Println("==================================================")
+	fmt.Println("[1] 📊 System Status    (ps)")
+	fmt.Println("[2] 🚀 Orchestration    (up / down / pull)")
+	fmt.Println("[3] 📋 Logs Explorer    (logs)")
+	fmt.Println("[4] 🖥️  Dashboard        (dash)")
+	fmt.Println("[5] 🛠️  Maintenance      (doctor / config)")
+	fmt.Println("[0] 🚪 Exit")
+	
+	fmt.Print("\n👉 Selection: ")
+	var choice int
+	fmt.Scanln(&choice)
+
+	switch choice {
+	case 1:
+		mgr, _ := containers.GetProvider()
+		list, _ := mgr.ListContainers()
+		fmt.Println("\n📊 Current Environment State:")
+		printJSON(list)
+	case 2:
+		fmt.Println("\n🚀 Orchestration Menu")
+		fmt.Println("   [1] Start Stack (up)")
+		fmt.Println("   [2] Stop Stack  (down)")
+		fmt.Println("   [3] Pull Images (pull)")
+		fmt.Print("\n👉 Selection: ")
+		var sub int
+		fmt.Scanln(&sub)
+		stack := orchestrator.NewStackManager()
+		if sub == 1 {
+			stack.Run("up", "-d")
+		} else if sub == 2 {
+			stack.Run("down")
+		} else if sub == 3 {
+			stack.Run("pull")
+		}
+	case 3:
+		runLogsMenu()
+	case 4:
+		fmt.Println("\n🖥️  Dashboard Menu")
+		fmt.Println("   [1] Start Dashboard")
+		fmt.Println("   [2] Stop Dashboard")
+		fmt.Println("   [3] View Dash Logs")
+		fmt.Print("\n👉 Selection: ")
+		var sub int
+		fmt.Scanln(&sub)
+		if sub == 1 {
+			runDashCompose("up", "-d")
+		} else if sub == 2 {
+			runDashCompose("stop")
+		} else if sub == 3 {
+			runDashCompose("logs", "-f")
+		}
+	case 5:
+		fmt.Println("\n🛠️  Maintenance Menu")
+		fmt.Println("   [1] Run Doctor (Pre-flight)")
+		fmt.Println("   [2] Run Config Wizard")
+		fmt.Print("\n👉 Selection: ")
+		var sub int
+		fmt.Scanln(&sub)
+		if sub == 1 {
+			// Simulating doctor call
+			envPath := system.GetConfigPath()
+			results := preflight.RunAll(envPath, "")
+			preflight.PrintResults(results)
+		} else if sub == 2 {
+			runWizard(true)
+		}
 	case 0:
 		return
 	default:
