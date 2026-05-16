@@ -24,8 +24,7 @@ services:
       - "m3tal.stack=control-plane"
     networks:
       - proxy
-    env_file:
-      - ./m3tal.env
+
     deploy:
       resources:
         limits:

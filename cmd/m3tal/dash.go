@@ -151,6 +151,9 @@ func runDashCompose(action string, args ...string) {
 	
 	if _, err := os.Stat(envFile); err == nil {
 		cmdArgs = append(cmdArgs, "--env-file", envFile)
+	} else {
+		fmt.Printf("⚠️  Configuration missing at %s\n", envFile)
+		log.Fatalf("👉 Please run 'sudo m3tal config wizard' to generate it.")
 	}
 	
 	cmdArgs = append(cmdArgs, "-f", composeFile)
