@@ -1,50 +1,64 @@
-**To:** DocSmith  
-**From:** DocCritic, Senior DevOps Auditor  
-**Subject:** AUDIT REPORT: M3TAL Core Orchestrator README  
+**Audit Report: M3TAL Core Orchestrator README**
+**Auditor:** DocCritic, Senior DevOps Auditor
+**Verdict:** **FAILED (REJECTED)**
+
+The documentation is currently insufficient for production deployment. It relies on dangerous assumptions regarding filesystem layout and fails to explain critical infrastructure requirements (networking, security, and storage initialization). The tone leans toward "marketing brochure" rather than "technical manual."
 
 ---
 
-### **Verdict: FAILED**
-The current documentation is a "developer’s brain dump" rather than an operational guide. It suffers from dangerous assumptions regarding filesystem state and lacks essential network exposure details. While the APT instructions are present, the project is currently impossible to deploy reliably in a production or clean-room environment.
+### Issue List
+
+#### BLOCKER
+1. **Missing Storage Initialization:** The documentation assumes `/mnt/m3tal-media` exists. A new user will encounter a `bind mount` failure if this directory is not created or permissions are not set.
+2. **Missing Port Mapping/Access Info:** There is no documentation regarding Traefik, reverse proxy requirements, or which ports the Dashboard/API bind to on the host machine.
+3. **Incomplete Docker Instructions:** While a snippet is provided, there is no `docker-compose.yml` boilerplate or instructions on how to bridge the CLI (`m3tal up`) with the actual network-accessible services.
+
+#### WARNING
+4. **Dev-Only Assumptions:** The assumption that a user is running on Debian/Ubuntu with root access to `/etc/` and `/opt/` is standard, but the guide fails to mention necessary `user` permissions for the Docker socket.
+5. **Lack of Configuration Validation:** `m3tal setup` is mentioned, but what happens if it fails? There is no "Troubleshooting" or "Logs" section.
+
+#### SUGGESTION
+6. **Marketing Buzzwords:** Phrases like "Go-Native Architectural Requirements" and "Modular Infrastructure Platform" add zero value to an operator. Strip the fluff; focus on the state machine.
+7. **Implicit Dependencies:** It is unclear if `m3tal-goback` and `m3tal-godash` need to be cloned manually or if `m3tal up` pulls them via Docker Compose.
 
 ---
 
-### **Issue List**
+### Suggested Fixes
 
-#### **BLOCKER**
-1. **Host-Level Dependency Assumption**: The `Filesystem Standard` lists `/mnt/m3tal-media` as a requirement, but provides no instructions on how the user should configure this. If the directory does not exist, the orchestrator/containers will fail to start (or worse, create root-owned directories on the host).
-2. **Missing Port Exposure/Traefik**: The documentation mentions a "Dashboard" but does not define which ports it binds to, nor does it mention the Traefik configuration required to route traffic to the containerized components. Users cannot access the services they just deployed.
-3. **Missing "Stop/Teardown" Workflow**: A "Quick Start" is useless without a "Quick Shutdown." Users need to know how to tear down the environment properly to avoid orphaned containers or zombie processes.
+#### 1. Correcting Storage Assumptions (Blocker)
+Add a "System Preparation" section before Installation:
+```bash
+# Ensure storage is mounted and accessible
+sudo mkdir -p /mnt/m3tal-media
+sudo chown -R $USER:$USER /mnt/m3tal-media
+```
 
-#### **WARNING**
-1. **Ambiguous `m3tal up` context**: The documentation claims `m3tal up` starts the infrastructure defined in `deploy/stack`. It is unclear if this command expects the user to be in a specific directory or if it assumes a hardcoded path.
-2. **Missing Docker Socket Permissions**: The `m3tal-orchestrator` service requires access to `/var/run/docker.sock`. Running this without noting the requirement for the user to be in the `docker` group or requiring `sudo` for the CLI will lead to immediate permission denied errors.
+#### 2. Network/Access Documentation (Blocker)
+Add an "Access & Networking" table:
+| Service | Host Port | Internal Port | Description |
+| :--- | :--- | :--- | :--- |
+| Dashboard | 8080 | 80 | UI Access |
+| API | 9090 | 9090 | Backend Data |
 
-#### **SUGGESTION**
-1. **Marketing Overload**: The section "Ecosystem Integration Rules" is fluff. A user reading a README cares about *how* to deploy, not the architectural philosophy of the "Go-Native Migration." Move this to a `/docs/ARCH.md` file.
-2. **Environment Variables**: The `m3tal-orchestrator` section mentions `M3TAL_ROOT`, but there is no guide on how to provide this variable. Is it via a `.env` file? Shell export? CLI flag?
+*Include a warning that Traefik or an equivalent reverse proxy must be configured to point to these ports.*
+
+#### 3. Clarifying Docker Orchestration (Blocker)
+You state `m3tal up` runs the stack. Clarify if the user needs to clone the repository to a specific location:
+> "The `m3tal up` command expects the repository to be cloned to `/opt/m3tal/stack`. Please ensure you have cloned this repository and initialized the submodules."
+
+#### 4. Clean Up Marketing Copy (Suggestion)
+*   **Remove:** "Go-Native Migration Active" (Irrelevant to the user).
+*   **Replace:** "Core Orchestrator" with "CLI Manager".
+*   **Action:** Change "Ecosystem Integration Rules" to "Operational Constraints".
+
+#### 5. Verify APT instructions (Warning)
+Add a sanity check:
+```bash
+# Verify installation
+m3tal --version
+# Should return the current semver release
+```
 
 ---
 
-### **Required Fixes**
-
-1. **Implement Pre-flight Checks**: Add a section before `m3tal setup` that verifies the environment:
-   ```bash
-   # Add this to documentation
-   sudo mkdir -p /mnt/m3tal-media
-   sudo chown $USER:$USER /mnt/m3tal-media
-   ```
-2. **Define Networking**: Explicitly define the port mappings in the Docker section. Example:
-   > "The Dashboard is exposed on host port 8080. Ensure Traefik is configured to point to this container port if using a reverse proxy."
-3. **Clarify CLI usage**: Explicitly state the relationship between the CLI and the Docker socket:
-   > "Note: The `m3tal` binary requires Docker socket access. Ensure your user is added to the `docker` group (`sudo usermod -aG docker $USER`) before running `m3tal up`."
-4. **Add Teardown**: Add:
-   ```bash
-   m3tal dash down
-   m3tal down
-   ```
-5. **Clean the Copy**: Replace the "Ecosystem Integration Rules" with a **Configuration Reference** table showing exactly which Environment Variables are required for the CLI to function.
-
----
-
-**Auditor Note:** *Stop treating the README like a manifesto. A README is a checklist for a sysadmin. Keep it technical, keep it actionable, and assume the user has zero context of your internal project goals.*
+**DocCritic’s Note:** Do not treat your users as developers who already know the codebase. Treat them as system administrators who want to deploy a service without their server crashing due to missing mount points. **Revise and resubmit.**
