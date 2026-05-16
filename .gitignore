@@ -40,8 +40,8 @@ vulture_results.txt
 *.rar
 
 # Go / build artifacts
-m3tal
-m3tal-api
+/m3tal
+/m3tal-api
 .go_dist/
 *.deb
 *.gpg
@@ -49,9 +49,5 @@ m3tal-api
 dist/
 bin/
 packaging/deb/build/
-.go_compiler/
-m3tal
-m3tal-api
-*.deb
 .go_compiler/
 repo/

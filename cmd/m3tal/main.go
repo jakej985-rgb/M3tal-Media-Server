@@ -189,15 +189,20 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("🚀 Initializing M3TAL Orchestrator (using stack: %s)...\n", system.UserfacingStackPath)
 			stack := orchestrator.NewStackManager()
-			if err := stack.Run("up", "-d"); err != nil {
-				log.Fatal(err)
+			if len(stack.Files) > 0 {
+				if err := stack.Run("up", "-d"); err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println("\n✅ M3TAL Stack is UP!")
+				fmt.Println("--------------------------------------------------")
+				fmt.Println("Dashboard: http://localhost:8082")
+				fmt.Println("API:       http://localhost:5050")
+				fmt.Println("--------------------------------------------------")
+				fmt.Printf("Use 'm3tal logs' or 'docker compose -f %s/m3tal-compose.yml ps' to monitor.\n", system.UserfacingStackPath)
+			} else {
+				fmt.Printf("⚠️  No stacks detected in %s.\n", system.UserfacingStackPath)
+				fmt.Println("🛰️  M3TAL is listening and ready for deployments.")
 			}
-			fmt.Println("\n✅ M3TAL Stack is UP!")
-			fmt.Println("--------------------------------------------------")
-			fmt.Println("Dashboard: http://localhost:8082")
-			fmt.Println("API:       http://localhost:5050")
-			fmt.Println("--------------------------------------------------")
-			fmt.Printf("Use 'm3tal logs' or 'docker compose -f %s/m3tal-compose.yml ps' to monitor.\n", system.UserfacingStackPath)
 		},
 	}
 
