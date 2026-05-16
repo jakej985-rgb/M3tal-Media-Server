@@ -56,6 +56,8 @@ STRICT RULES:
 - Use real structure: Do NOT invent features or directories.
 - No placeholders: Use the actual service names found in the scan.
 - Relationship Mapping: Explain how the CLI, Backend, and Dashboard interact.
+- Installation: Emphasize that building from source is NOT needed. Show the APT repository keyring setup and install commands.
+- Quick Demo: Provide a short "Quick Demo" section showing basic CLI commands (e.g., m3tal setup, m3tal up, m3tal dash up).
 - Style: A clear, step-by-step newbie start guide. Focus on actionable installation and usage instructions. Avoid marketing copy, buzzwords, or overly dramatic "Mission Control" aesthetics. Speak directly to a user trying to install this for the first time.
 - Preservation: Keep existing valid sections but modernize them to reflect the Go-native migration.
 

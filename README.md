@@ -27,18 +27,33 @@ The M3TAL ecosystem is decoupled into three primary layers, interacting exclusiv
 *   **Docker & Docker Compose** installed.
 *   **OS**: Linux-based environment (recommended for path consistency).
 
-### 2. Build the Orchestrator
-Navigate to the root directory to build the Go-native binary:
+### 2. Install M3TAL
+**Building from source is no longer required!** You can install the pre-compiled Debian package directly from our APT repository.
+
+Setup the keyring and install:
 ```bash
-go build -o m3tal ./cmd/m3tal/main.go
-sudo cp m3tal /usr/local/bin/
+# Add the M3TAL public key
+curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -
+
+# Add the repository to your sources
+echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list
+
+# Install the orchestrator
+sudo apt-get update
+sudo apt-get install m3tal
 ```
 
-### 3. Deploy the Ecosystem
-The repository includes a standardized deployment stack. Deploy the secondary modules via the `deploy/stack` directory:
+### 3. Quick Demo
+To quickly verify your installation, initialize the ecosystem and start the stack:
 ```bash
-cd deploy/stack
-docker-compose up -d
+# Run the setup wizard to configure your .env
+m3tal setup
+
+# Start the core infrastructure
+m3tal up
+
+# Start the dashboard UI
+m3tal dash up
 ```
 
 ---
