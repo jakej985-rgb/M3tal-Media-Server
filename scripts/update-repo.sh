@@ -25,9 +25,9 @@ apt-ftparchive release dists/stable > dists/stable/Release
 
 # 5. Sign Release file
 echo "[repo] Signing Release with GPG ($KEY_ID)..."
-GPG_OPTS="--batch --yes --pinentry-mode loopback -u $KEY_ID"
+GPG_OPTS="-u $KEY_ID"
 if [ -n "$GPG_PASSPHRASE" ]; then
-    GPG_OPTS="$GPG_OPTS --passphrase $GPG_PASSPHRASE"
+    GPG_OPTS="$GPG_OPTS --batch --yes --pinentry-mode loopback --passphrase $GPG_PASSPHRASE"
 fi
 
 gpg $GPG_OPTS --clearsign -o dists/stable/InRelease dists/stable/Release
