@@ -1,55 +1,54 @@
-**VERDICT: FAIL (CRITICAL)**
+### **DocCritic Audit Report: M3TAL Core Orchestrator**
 
-As DocCritic, I am red-flagging this repository. While the architectural "vision" is clearly defined, the **Operational Readiness is zero**. A new user or DevOps engineer cannot deploy this project using the current README. It is "Architecture Theater"—it looks like a plan but lacks the tools for execution.
-
----
-
-### DETAILED ISSUE LIST
-
-#### 1. [BLOCKER] The "Ghost Binary" Problem (Installation Gap)
-The documentation states `/usr/bin/m3tal` is the Orchestrator CLI, but provides **zero instructions** on how to get it there.
-*   **The Issue:** Do I compile it from source (`go build`)? Is there a `curl | bash` installer? Does it come *out* of the Docker container?
-*   **Suggested Fix:** Add a **"Quick Start / Installation"** section. Include the specific command to install the binary (e.g., `make install` or `go install ./cmd/m3tal`).
-
-#### 2. [BLOCKER] Missing Environment Schema
-The README identifies `/etc/m3tal/.env` as the "Source of Truth" but provides no template or required keys.
-*   **The Issue:** A user cannot guess the required variables. Does it need Database credentials? API keys for the sub-modules? Docker registry paths?
-*   **Suggested Fix:** Add an `.env.example` file to the repo and include a "Configuration" section in the README listing mandatory variables (e.g., `M3TAL_API_PORT`, `STORAGE_ROOT`).
-
-#### 3. [BLOCKER] Docker Network & Port Isolation
-The provided `docker-compose` snippet is a "black hole" configuration.
-*   **The Issue:** There are no `ports:` mapped and no `networks:` defined. If `m3tal-goback` needs to talk to this core, or if a user needs to access a Traefik dashboard, they are locked out.
-*   **Suggested Fix:** Define the default communication port (e.g., `8080`) in the YAML and include a `networks` block ensuring it can join a `m3tal-proxy` or `traefik` network.
-
-#### 4. [WARNING] The "Circular Logic" of Orchestration
-The README says the CLI manages Docker, but then shows a Docker Compose snippet to run the CLI.
-*   **The Issue:** It is unclear if the user is supposed to run the `m3tal` binary on the **host** to bootstrap the containers, or if they run a container to manage other containers. This creates a "chicken and egg" confusion.
-*   **Suggested Fix:** Explicitly state the "Bootstrap Sequence." 
-    *   *Step 1: Install Binary on Host.*
-    *   *Step 2: Run `m3tal setup` to generate configs.*
-    *   *Step 3: `m3tal up` to launch the stack.*
-
-#### 5. [WARNING] Privileged Path Assumptions
-The filesystem table assumes `/opt/m3tal` and `/mnt/m3tal-media` exist and are writable.
-*   **The Issue:** Running the provided Docker snippet on a fresh Ubuntu/Debian install will likely fail or create root-owned directories that the CLI cannot modify later.
-*   **Suggested Fix:** Provide a "Pre-flight" shell command: `mkdir -p /opt/m3tal /etc/m3tal && chown -R $USER:$USER /opt/m3tal`.
-
-#### 6. [SUGGESTION] Traefik/Gateway Access Info
-The prompt mentions Traefik, but the README doesn't.
-*   **The Issue:** If this is a "Media Server," the user needs to know the entry point URL (e.g., `m3tal.local`).
-*   **Suggested Fix:** Add a "Network Access" section explaining how to reach the Dashboard once the Core is live via the Traefik gateway.
-
-#### 7. [SUGGESTION] Wording: "Go-Native" vs. Reality
-The README mentions a "Go-native migration" but the prompt refers to `m3tal.py`. 
-*   **The Issue:** If the transition is mid-way, legacy instructions for the `.py` setup must be purged or labeled as "Legacy."
-*   **Suggested Fix:** Remove all references to Python scripts if the Go binary is the new standard, or provide a "Migration" header for existing users.
+**Verdict: FAILED**
+The current documentation is an architectural whitepaper, not an installation manual. It describes what the system *is* but provides zero actionable steps on how to make it *run*. A new user would be unable to deploy this project without significant trial-and-error, manual path creation, and guesswork regarding environment variables.
 
 ---
 
-### SUMMARY OF REQUIRED FIXES (ACTION PLAN)
+### **Issue List**
 
-1.  **Add "Getting Started" Section:** Provide the `go build` or `wget` command for the CLI binary.
-2.  **Add Port Mapping:** Update the Docker snippet to include `:8080` (or appropriate port) and Traefik labels.
-3.  **Define .env Template:** List the 5-10 most critical variables.
-4.  **Clarify Host vs. Container:** State clearly: "The Orchestrator binary runs on the Host; the Backend and Dashboard run in Docker."
-5.  **Permission Script:** Provide a one-liner to set up the `/opt` and `/etc` directories.
+#### **BLOCKER**
+*   **[BLOCKER] Missing Initialization/Setup:** There is no mention of `m3tal.py setup` or any equivalent binary initialization. The user has no idea how to generate the `/etc/m3tal/.env` file or the required folder structure.
+*   **[BLOCKER] Missing Docker Compose Instructions:** The provided YAML snippet is a fragment. There is no `docker-compose.yml` file structure, no networking instructions, and no mention of how to actually trigger the deployment.
+*   **[BLOCKER] Filesystem Assumptions:** The docs assume `/opt/m3tal` and `/mnt/m3tal-media` exist. If a user runs the container without these directories pre-created, Docker will often create them as `root`-owned directories, leading to immediate permission failures.
+*   **[BLOCKER] Missing Port Mapping/Traefik:** The Core Orchestrator is meant to be a gateway. There are no port mappings defined in the YAML, nor is there documentation on how Traefik or any ingress controller should point to the system.
+
+#### **WARNING**
+*   **[WARNING] Missing Configuration Schema:** The `.env` file is mentioned as the "Source of Truth," but there is no example of what keys are required (e.g., API keys, database URLs, log levels).
+*   **[WARNING] Dependency Orchestration:** It is unclear if the user should run `m3tal-goback` and `m3tal-godash` manually, or if the Core Orchestrator is meant to spawn them.
+
+#### **SUGGESTION**
+*   **[SUGGESTION] Prerequisites Section:** Explicitly state the need for Docker, Docker Compose, and Go (if compiling from source).
+*   **[SUGGESTION] Command Examples:** Add "Quick Start" code blocks for common tasks (e.g., `m3tal init`, `m3tal up`).
+
+---
+
+### **Suggested Fixes**
+
+1.  **Create a `setup.sh` or `m3tal.py` script:** Include a command that automatically runs:
+    ```bash
+    mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal /mnt/m3tal-media
+    # Generate initial .env with default template
+    ```
+2.  **Provide a complete `docker-compose.yml`:** Include a template that defines the network and labels for Traefik.
+    ```yaml
+    services:
+      m3tal-core:
+        image: m3tal/core:latest
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.m3tal.rule=Host(`m3tal.local`)"
+    ```
+3.  **Document the `.env` schema:** Provide a `.env.example` file:
+    ```text
+    M3TAL_API_KEY=your_secret_key
+    STORAGE_PATH=/mnt/m3tal-media
+    LOG_LEVEL=info
+    ```
+4.  **Add an "Installation Flow" section:**
+    *   **Step 1:** Clone repo.
+    *   **Step 2:** Run `sudo ./scripts/setup.sh` (to create paths and permissions).
+    *   **Step 3:** Configure `/etc/m3tal/.env`.
+    *   **Step 4:** Deploy via `docker-compose up -d`.
+
+**DocCritic's Final Note:** *Stop treating this repo like a research project and start treating it like a product. Users need commands they can copy-paste, not a manifesto on Go-native architecture.*
