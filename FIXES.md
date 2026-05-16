@@ -1,56 +1,55 @@
-## Audit Report: M3TAL Core Orchestrator
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Status:** **FAILED - BLOCKER PRESENT**
+**Audit Report: M3TAL Core Orchestrator Documentation**
+**Auditor:** DocCritic, Senior DevOps Auditor
+**Status:** **REJECTED**
 
-The current README suffers from "Developer Tunnel Vision." It assumes a pristine, pre-configured environment and fails to provide actionable deployment steps. You are treating this like a marketing brochure rather than a technical manual.
+The documentation currently suffers from significant "Day 1" usability issues. It assumes the user is an expert who already knows how the system interconnects, while simultaneously failing to provide the operational safety rails required for a production environment. 
 
 ---
 
 ### Issue List
 
-#### 1. BLOCKER: Missing Mount Point Enforcement
-**Issue:** The documentation references `/mnt/m3tal-media` as a strict requirement but provides no instructions on how to create, mount, or persist this directory. If a user runs `m3tal up` on a fresh system, it will fail or hang due to missing volumes.
-**Fix:** Add a "Storage Preparation" section detailing `mkdir -p /mnt/m3tal-media` and a note regarding fstab/mounting external storage.
-
-#### 2. BLOCKER: Missing Traefik/Port Exposure
-**Issue:** The project uses a Dashboard and an API, yet nowhere in the documentation does it specify which ports are exposed or how the user accesses the UI (e.g., `http://localhost:8080`). There is no mention of Traefik or reverse proxy configuration, which is critical for an "Orchestrator."
-**Fix:** Add an "Accessing your M3TAL Instance" section specifying default ports and any required Traefik labels.
-
-#### 3. WARNING: Ambiguous Docker Deployment
-**Issue:** You provide a `docker-compose.yaml` snippet but don't explain *how* the Orchestrator binary interacts with it. Does `m3tal up` trigger a `docker compose -f ... up`? The user needs to know where the Compose files live and how to modify them safely.
-**Fix:** Explicitly state the CLI commands that trigger the Docker stack and explain the folder structure expectation for custom overrides.
-
-#### 4. WARNING: "Marketing Bloat"
-**Issue:** Phrases like "Go-Native Architectural Requirements" and "Modular Infrastructure Platform" are buzzwords that provide zero utility to an operator trying to fix a broken container. 
-**Fix:** Strip the flavor text. Keep the descriptions functional: e.g., "The CLI governs the Docker lifecycle."
-
-#### 5. SUGGESTION: Dependency Gaps
-**Issue:** You mention Debian-based systems for APT but fail to mention that `docker-ce` and `docker-compose-plugin` should be installed *before* the CLI, or the CLI will return "Docker socket not found" errors immediately.
-**Fix:** Reorder the Prereqs section to ensure Docker is verified (`docker ps`) before the M3TAL installation.
+*   **[BLOCKER] Undefined `/mnt` dependencies:** The documentation mandates a specific path (`/mnt/m3tal-media`) but provides no script or instruction to create, mount, or verify permissions for this directory. An automated tool failing because a mount point doesn't exist is a critical failure.
+*   **[BLOCKER] Missing Port/Gateway mapping:** The documentation mentions a Dashboard and API but provides zero information regarding Traefik, Nginx, or local port mappings. A user has no idea how to access the UI after running `m3tal dash up`.
+*   **[WARNING] Docker/Compose Ambiguity:** The "Deployment" section provides a snippet but does not explain how the user is supposed to deploy the full stack. Is the user meant to create a `docker-compose.yml` manually? Where should this file reside?
+*   **[WARNING] Marketing Buzzwords:** Phrases like "Go-Native Migration Active" and "Modular Infrastructure Platform" serve as fluff. Documentation should be terse and functional.
+*   **[SUGGESTION] Configuration Validation:** There is no "Verify" or "Check" command mentioned. If a user runs `m3tal setup`, how do they know it succeeded?
+*   **[SUGGESTION] Missing Troubleshooting:** No mention of log locations (e.g., `/var/log/m3tal`) or how to debug a failed `m3tal up` command.
 
 ---
 
-### Suggested README Refactor (Critical Sections)
+### Suggested Fixes
 
-#### Storage Preparation
-The Orchestrator requires a dedicated mount point to ensure persistence across container restarts.
+#### 1. Fix Directory Assumptions (Blocker)
+Add a pre-flight check step:
 ```bash
-# Create the required storage tree
-sudo mkdir -p /mnt/m3tal-media
-sudo chown $USER:$USER /mnt/m3tal-media
+# Before running m3tal setup:
+sudo mkdir -p /mnt/m3tal-media /opt/m3tal
+sudo chown $USER:$USER /mnt/m3tal-media /opt/m3tal
 ```
 
-#### Accessing the Dashboard
-Once `m3tal dash up` has been executed, the services bind to the following ports:
-*   **Dashboard UI:** `http://<your-host-ip>:8080`
-*   **Backend API:** `http://<your-host-ip>:9000`
-*   *Note: Ensure your firewall allows traffic on these ports.*
+#### 2. Define Access & Ports (Blocker)
+Add an **"Accessing M3TAL"** section:
+*   **Dashboard:** Accessible at `http://<server-ip>:8080` (or define the default port).
+*   **Traefik Integration:** If M3TAL manages Traefik, explicitly state the labels required on containers to be discovered by the gateway. If not, state that host-port mapping is required.
 
-#### Understanding the Orchestrator
-The `m3tal` binary acts as a wrapper for `docker compose`.
-1. `m3tal up` executes `docker compose -f /opt/m3tal/stack/docker-compose.yml up -d`.
-2. Any manual modifications to the stack should be performed in `/opt/m3tal/stack/`.
+#### 3. Formalize the Docker Flow (Warning)
+Clearly distinguish between the *CLI tool's operation* and *Docker Compose deployment*.
+*   *Action:* Provide a `docker-compose.yml` template that users can save to `/opt/m3tal/docker-compose.yml`.
+*   *Action:* Explain that `m3tal up` executes `docker compose -f /opt/m3tal/stack/docker-compose.yml up -d`.
+
+#### 4. Clean the Tone (Suggestion)
+Remove the "Ecosystem Integration Rules" and "Related Projects" fluff from the core technical guide. Move them to a `CONTRIBUTING.md` or a separate `ARCHITECTURE.md`. Keep the README strictly for "Installation" and "Operations."
+
+#### 5. Verification Commands (Suggestion)
+Add a status check command example:
+```bash
+# Verify installation
+m3tal version
+# Check system health
+m3tal status
+```
 
 ---
 
-**Verdict:** **REJECTED.** The documentation is currently an "insider's guide." Fix the storage requirements and network exposure documentation before proceeding to public release.
+### Verdict
+**Action Required:** The documentation is currently a developer's scratchpad, not a deployment guide. It lacks the network and storage context required to actually operate the software. **Update the README to include mandatory path creation steps and port definitions before next audit.**
