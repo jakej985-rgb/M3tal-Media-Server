@@ -45,6 +45,7 @@ services:
       - "6881:6881/udp"
     networks:
       - proxy
+      - m3tal
     env_file:
       - ./network.env
     deploy:
