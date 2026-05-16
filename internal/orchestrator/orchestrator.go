@@ -43,18 +43,45 @@ func discoverComposeFiles() []string {
 	return files
 }
 
-// uniqueSorted deduplicates and sorts file paths.
+// uniqueSorted deduplicates and sorts file paths with priority for infrastructure stacks.
 func uniqueSorted(files []string) []string {
 	seen := make(map[string]bool)
-	var out []string
+	var unique []string
 	for _, f := range files {
 		if !seen[f] {
 			seen[f] = true
-			out = append(out, f)
+			unique = append(unique, f)
 		}
 	}
-	sort.Strings(out)
-	return out
+
+	// Priority weights (lower is earlier)
+	priority := map[string]int{
+		"network-compose.yml":     1,
+		"routing-compose.yml":     2,
+		"m3tal-compose.yml":       3,
+		"maintenance-compose.yml": 4,
+	}
+
+	sort.Slice(unique, func(i, j int) bool {
+		nameI := filepath.Base(unique[i])
+		nameJ := filepath.Base(unique[j])
+
+		pI, okI := priority[nameI]
+		pJ, okJ := priority[nameJ]
+
+		if okI && okJ {
+			return pI < pJ
+		}
+		if okI {
+			return true
+		}
+		if okJ {
+			return false
+		}
+		return nameI < nameJ
+	})
+
+	return unique
 }
 
 // Run executes a docker compose command across all stack files

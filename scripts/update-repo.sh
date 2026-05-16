@@ -38,11 +38,12 @@ if [ -n "$GPG_PASSPHRASE" ]; then
     GPG_OPTS="$GPG_OPTS --batch --yes --pinentry-mode loopback --passphrase $GPG_PASSPHRASE"
 fi
 
-gpg $GPG_OPTS --clearsign -o dists/stable/InRelease dists/stable/Release
-gpg $GPG_OPTS -abs -o dists/stable/Release.gpg dists/stable/Release
+rm -f dists/stable/InRelease dists/stable/Release.gpg
+gpg --batch --no-tty $GPG_OPTS --clearsign -o dists/stable/InRelease dists/stable/Release
+gpg --batch --no-tty $GPG_OPTS -abs -o dists/stable/Release.gpg dists/stable/Release
 
 # 6. Export Public Key
-gpg --batch --yes --armor --export "$KEY_ID" > public.key
+gpg --batch --no-tty --yes --armor --export "$KEY_ID" > public.key
 
 echo "✅ APT Repository updated."
 echo "👉 Users can add it with:"
