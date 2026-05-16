@@ -219,6 +219,34 @@ func main() {
 		},
 	}
 
+	var logsCmd = &cobra.Command{
+		Use:   "logs [stack]",
+		Short: "View logs from M3TAL stacks (Interactive Menu)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				runLogsMenu()
+				return
+			}
+			
+			// Legacy behavior for direct arguments
+			stack := orchestrator.NewStackManager()
+			target := args[0]
+			var filtered []string
+			for _, f := range stack.Files {
+				if strings.Contains(f, target) {
+					filtered = append(filtered, f)
+				}
+			}
+			stack.Files = filtered
+			
+			if len(stack.Files) > 0 {
+				stack.Run("logs", "--tail", "50", "-f")
+			} else {
+				fmt.Println("❌ No matching stacks found.")
+			}
+		},
+	}
+
 	var pullCmd = &cobra.Command{
 		Use:   "pull",
 		Short: "Pull latest images",
@@ -409,7 +437,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd())
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -560,4 +588,79 @@ func callAPI(cmd *cobra.Command, method, path string, body interface{}) (string,
 	}
 
 	return string(data), nil
+}
+
+func runLogsMenu() {
+	fmt.Println("\n📋 M3TAL Logs Explorer")
+	fmt.Println("|-- 1.) M3TAL System")
+	fmt.Println("|     | - CLI (Local)")
+	fmt.Println("|     | - API (Systemd)")
+	fmt.Println("|-- 2.) Docker")
+	fmt.Println("|     |-- 1.) Stacks")
+	fmt.Println("|     |-- 2.) Containers")
+	fmt.Println("|-- 3.) All (Aggregated)")
+	fmt.Println("|-- 0.) Exit")
+	
+	fmt.Print("\n👉 Selection: ")
+	var choice int
+	fmt.Scanln(&choice)
+
+	switch choice {
+	case 1:
+		fmt.Println("\n|-- 1.) M3TAL System")
+		fmt.Println("|   [1] CLI Logs")
+		fmt.Println("|   [2] API Logs (Journalctl)")
+		fmt.Print("\n👉 Selection: ")
+		var subChoice int
+		fmt.Scanln(&subChoice)
+		if subChoice == 2 {
+			orchestrator.RunRaw("journalctl", "-u", "m3tal", "-f", "-n", "50")
+		} else {
+			fmt.Println("ℹ️  CLI logs are minimal and shown in terminal directly.")
+		}
+	case 2:
+		fmt.Println("\n|-- 2.) Docker")
+		fmt.Println("|   [1] List Stacks")
+		fmt.Println("|   [2] List Containers")
+		fmt.Print("\n👉 Selection: ")
+		var subChoice int
+		fmt.Scanln(&subChoice)
+
+		stackMgr := orchestrator.NewStackManager()
+		if subChoice == 1 {
+			fmt.Println("\n📦 Available Stacks:")
+			for i, f := range stackMgr.Files {
+				name := strings.TrimSuffix(filepath.Base(f), "-compose.yml")
+				fmt.Printf("   [%d] %s\n", i+1, name)
+			}
+			fmt.Print("\n👉 Stack Number: ")
+			var sNum int
+			fmt.Scanln(&sNum)
+			if sNum > 0 && sNum <= len(stackMgr.Files) {
+				stackMgr.Files = []string{stackMgr.Files[sNum-1]}
+				stackMgr.Run("logs", "--tail", "50", "-f")
+			}
+		} else if subChoice == 2 {
+			fmt.Println("\n🐳 Running Containers:")
+			mgr, _ := containers.GetProvider()
+			list, _ := mgr.ListContainers()
+			for i, c := range list {
+				fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+			}
+			fmt.Print("\n👉 Container Number: ")
+			var cNum int
+			fmt.Scanln(&cNum)
+			if cNum > 0 && cNum <= len(list) {
+				orchestrator.RunRaw("docker", "logs", "--tail", "50", "-f", list[cNum-1].Names[0])
+			}
+		}
+	case 3:
+		fmt.Println("\n🚀 Streaming Aggregated Logs...")
+		stackMgr := orchestrator.NewStackManager()
+		stackMgr.Run("logs", "--tail", "20", "-f")
+	case 0:
+		return
+	default:
+		fmt.Println("❌ Invalid selection.")
+	}
 }

@@ -193,3 +193,12 @@ func fixLegacyManifest(filePath, stackName string) error {
 	}
 	return nil
 }
+
+// RunRaw executes an arbitrary command and pipes its output to stdout/stderr.
+func RunRaw(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
