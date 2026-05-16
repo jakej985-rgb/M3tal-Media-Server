@@ -1,59 +1,62 @@
-**DocCritic Audit Report: M3TAL-CORE-001**
-**Auditor:** Senior DevOps Auditor, M3TAL Platform
-**Status:** **REJECTED**
+**Audit Report: M3TAL-Core Documentation**
+**Auditor:** DocCritic, Senior DevOps Auditor
+**Verdict:** **FAILED (Deployment Impossibility)**
 
-As a new user attempting to deploy the M3TAL stack, I am currently stuck. The documentation reads like a whitepaper rather than a deployment guide. It assumes the infrastructure is already provisioned, compiled, and configured, offering zero "Getting Started" path for a clean install.
+The current documentation is an architectural whitepaper, not a deployment guide. It describes what the system *is*, but fails to explain how to *bootstrap* it. As a new user, I have no idea how to initialize the environment, configure the required variables, or access the dashboard.
 
 ---
 
-### 🚨 Issue List
+### ⚠️ Detailed Issue List
 
 | ID | Severity | Description |
 | :--- | :--- | :--- |
-| 1 | **BLOCKER** | **Missing Compilation Steps:** The doc mentions "Go 1.21+" but provides no `go build` command to generate the `m3tal` binary. |
-| 2 | **BLOCKER** | **Configuration Void:** No template or instructions provided for `/etc/m3tal/.env`. The system will crash on boot without required variables (API keys, DB paths, etc.). |
-| 3 | **BLOCKER** | **Missing Orchestration Setup:** How is `/opt/m3tal` populated? Does the binary create these directories? Does the user have to clone them? |
-| 4 | **WARNING** | **Traefik Ambiguity:** The doc claims "The Orchestrator maintains the base Traefik proxy," but provides no `docker-compose.yml` that actually configures the Traefik entry points or network requirements. |
-| 5 | **WARNING** | **Mount Point Assumptions:** The documentation assumes `/mnt/m3tal-media` exists. A new user's system will fail if this directory is not pre-created or owned by the correct user/UID. |
-| 6 | **SUGGESTION** | **Binary Installation:** No instructions on how to install the compiled binary to `/usr/bin/m3tal`. |
+| 01 | **BLOCKER** | **Zero Setup Instructions:** No mention of `m3tal.py setup` or equivalent initialization to create mandatory directory structures. |
+| 02 | **BLOCKER** | **Missing `.env` schema:** The documentation references `/etc/m3tal/.env` but provides no template or list of required variables (e.g., API keys, DB credentials). |
+| 03 | **BLOCKER** | **Docker Compose Incomplete:** The provided YAML snippet is a fragment. It doesn't show how to spin up the full stack (`m3tal-goback` + `m3tal-godash`). |
+| 04 | **WARNING** | **Traefik Access Info:** Documentation mentions Traefik ownership but provides no entry point (port/URL) or label requirements for ingress. |
+| 05 | **WARNING** | **Hardcoded Path Assumptions:** Assumes `/mnt/m3tal-media` and `/opt/m3tal` exist. If they don't, the container will likely fail or populate the host root with junk. |
+| 06 | **SUGGESTION** | **Binary vs. Container:** Confusion remains on whether the user should run the binary on host or via Docker. The "Deployment" section only shows a partial YAML. |
 
 ---
 
-### ✅ Suggested Fixes
+### 🛠️ Required Fixes
 
-**1. Add a "Quick Start" Installation Section:**
-Provide the exact commands to get the binary ready:
+#### 1. Add "Getting Started" Bootstrap
+Include a mandatory setup script execution in the README:
 ```bash
-# Compilation
-go mod tidy
-go build -o m3tal ./cmd/m3tal/main.go
-sudo cp m3tal /usr/bin/m3tal
-
-# Initialization
+# Initialize system paths and config
 sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal
-# Provide a template for .env
-cp .env.example /etc/m3tal/.env 
+sudo python3 scripts/setup.py  # Assuming this exists
 ```
 
-**2. Provide a Reference Docker Compose:**
-The "Deployment" section currently shows a single service snippet. Users need a full `docker-compose.yml` that includes `m3tal-goback`, `m3tal-godash`, and `traefik` to see how labels and networking connect.
-
-**3. Explicit Directory Setup:**
-Add a "Pre-requisite Setup" section:
-```bash
-sudo mkdir -p /mnt/m3tal-media
-sudo chown -R $USER:$USER /mnt/m3tal-media
+#### 2. Provide `.env.example`
+Provide a code block for the required `/etc/m3tal/.env`:
+```text
+M3TAL_API_KEY=your_secure_key
+M3TAL_MEDIA_PATH=/mnt/m3tal-media
+LOG_LEVEL=info
 ```
 
-**4. Document Traefik Ports:**
-Explicitly list required host ports (e.g., 80, 443, 8080) so the user knows what to open in their firewall (UFW/Cloud provider).
+#### 3. Complete `docker-compose.yml`
+Do not provide snippets. Provide a `docker-compose.yml` file that includes the orchestration of the API and Dashboard. Define the network and labels for Traefik:
+```yaml
+services:
+  m3tal-core:
+    labels:
+      - "traefik.http.routers.m3tal.rule=Host(`m3tal.local`)"
+      - "traefik.port=8080"
+    # ... rest of configuration
+```
 
-**5. Define the `.env` schema:**
-Add a table defining what keys are mandatory:
-* `M3TAL_API_KEY`: Required for communication between back/dash.
-* `M3TAL_DB_PATH`: Location for internal state.
+#### 4. Define Access Requirements
+Explicitly state: "Access the Dashboard at `http://m3tal.local` once Traefik is running."
+
+#### 5. Explicit Environment Checks
+Add a "Pre-flight Checklist" section:
+- [ ] Verify `/mnt/m3tal-media` is mounted correctly on the host.
+- [ ] Ensure user has `docker` group permissions.
+- [ ] Confirm port 80/443 is free for Traefik.
 
 ---
 
-**Verdict:** 
-**BLOCKER.** The documentation is currently an architectural overview, not a functional deployment guide. A new user cannot deploy this system without guessing commands or reverse-engineering the Go code. **Documentation must be updated to include a "Quick Start" and a valid `docker-compose.yml` reference.**
+**Auditor's Final Note:** *The architecture is sound, but the documentation is currently unusable for a DevOps engineer tasked with a production rollout. Fix the bootstrapping and configuration schemas immediately.*
