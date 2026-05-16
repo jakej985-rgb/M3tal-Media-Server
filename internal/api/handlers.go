@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
@@ -34,8 +36,17 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// ListContainers returns all containers
-func (s *Server) ListContainers(w http.ResponseWriter, r *http.Request) {
+// GetHealth returns system health status
+func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "healthy",
+		"version": "1.0.0",
+	})
+}
+
+// GetServices returns the list of managed containers
+func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
 	mgr, err := containers.GetProvider()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -50,15 +61,35 @@ func (s *Server) ListContainers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(list)
 }
 
-// GetStats returns system metrics
-func (s *Server) GetStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := system.GetStats()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+// GetStack returns information about the compose stack
+func (s *Server) GetStack(w http.ResponseWriter, r *http.Request) {
+	stackDir := system.GetStackDir()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"path": stackDir,
+	})
+}
+
+// GetConfig returns the current configuration (sanitized)
+func (s *Server) GetConfig(w http.ResponseWriter, r *http.Request) {
+	config := make(map[string]string)
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if len(pair) == 2 {
+			key := pair[0]
+			// Only include M3TAL related env vars
+			if strings.HasPrefix(key, "M3TAL_") || key == "BASE_STORAGE_PATH" {
+				// Sanitize sensitive info
+				if strings.Contains(key, "TOKEN") || strings.Contains(key, "SECRET") || strings.Contains(key, "PASSWORD") {
+					config[key] = "********"
+				} else {
+					config[key] = pair[1]
+				}
+			}
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(config)
 }
 
 // HandleContainerAction processes start/stop/restart

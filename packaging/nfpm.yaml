@@ -1,41 +1,41 @@
-name: m3tal-core
+name: m3tal
 arch: amd64
 platform: linux
 version: ${VERSION}
 
 section: utils
 priority: optional
-maintainer: Jake Johnson
+maintainer: Jake Johnson <jake@m3tal.io>
 description: |
-  M3TAL Core — Lightweight orchestration platform.
-  Includes CLI (m3tal) and API backend (m3tal-api).
-  GUI dashboard available as separate Docker image.
+  M3TAL Core — DEB-first infrastructure orchestration platform.
+  Includes the m3tal CLI and control-plane API.
+  Optimized for Traefik ecosystems and home lab automation.
 license: MIT
 
 contents:
-  # CLI & API binaries
+  # Binaries
   - src: ./m3tal
     dst: /usr/bin/m3tal
+    type: "file"
 
   - src: ./m3tal-api
     dst: /usr/bin/m3tal-api
+    type: "file"
 
-  # Systemd service files
-  - src: ./packaging/m3tal.service
-    dst: /lib/systemd/system/m3tal.service
+  # Configuration Templates
+  - src: ./.env.example
+    dst: /etc/m3tal/.env.example
+    type: "config"
 
+  # Stack Templates (source of truth for /opt/m3tal/stack)
+  - src: ./deploy/stack/
+    dst: /usr/share/m3tal/stack
+    type: "dir"
+
+  # Systemd Services
   - src: ./packaging/m3tal-api.service
     dst: /lib/systemd/system/m3tal-api.service
-
-
-  # Default configuration
-  - src: ./packaging/config.yaml
-    dst: /etc/m3tal/config.yaml
-    type: config
-
-  # Stack files
-  - src: ./deploy/stack/
-    dst: /opt/m3tal/stack/
+    type: "config"
 
 scripts:
   postinstall: ./scripts/postinstall.sh

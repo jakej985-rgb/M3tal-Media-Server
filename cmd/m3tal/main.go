@@ -187,7 +187,7 @@ func main() {
 		Use:   "up",
 		Short: "Initialize and start the M3TAL environment",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("🚀 Initializing M3TAL Orchestrator...")
+			fmt.Printf("🚀 Initializing M3TAL Orchestrator (using stack: %s)...\n", system.UserfacingStackPath)
 			stack := orchestrator.NewStackManager()
 			if err := stack.Run("up", "-d"); err != nil {
 				log.Fatal(err)
@@ -197,7 +197,7 @@ func main() {
 			fmt.Println("Dashboard: http://localhost:8082")
 			fmt.Println("API:       http://localhost:5050")
 			fmt.Println("--------------------------------------------------")
-			fmt.Println("Use './m3tal logs' or 'docker compose ps' to monitor.")
+			fmt.Printf("Use 'm3tal logs' or 'docker compose -f %s/m3tal-compose.yml ps' to monitor.\n", system.UserfacingStackPath)
 		},
 	}
 
@@ -205,7 +205,7 @@ func main() {
 		Use:   "down",
 		Short: "Stop all M3TAL stacks",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("🛑 Stopping M3TAL Stacks...")
+			fmt.Printf("🛑 Stopping M3TAL Stacks (path: %s)...\n", system.UserfacingStackPath)
 			stack := orchestrator.NewStackManager()
 			if err := stack.Run("down"); err != nil {
 				log.Fatal(err)
@@ -404,7 +404,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -419,9 +419,10 @@ func runWizard(update bool) {
 	isSystem := false
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		isSystem = true
-		_ = os.MkdirAll(system.DefaultSystemConfigDir, 0755)
-		_ = os.MkdirAll(system.DefaultSystemDataDir, 0755)
-		fmt.Printf("✅ System directories initialized (%s, %s)\n", system.DefaultSystemConfigDir, system.DefaultSystemDataDir)
+		configDir := filepath.Dir(system.ConfigPath)
+		_ = os.MkdirAll(configDir, 0755)
+		_ = os.MkdirAll(system.DataPath, 0755)
+		fmt.Printf("✅ System directories initialized (%s, %s)\n", configDir, system.DataPath)
 	}
 
 	_ = os.MkdirAll("./data", 0755)

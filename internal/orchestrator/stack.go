@@ -247,8 +247,8 @@ func SaveEnvFile(path string, vars map[string]string) error {
 // Global values are overridden by stack values.
 // Returns the path to the runtime env file.
 func BuildRuntimeEnv(stackName string) (string, error) {
-	globalPath := system.DefaultSystemGlobalEnvPath
-	stackPath := filepath.Join(system.DefaultSystemStacksDir, fmt.Sprintf("%s.env", stackName))
+	globalPath := system.ConfigPath
+	stackPath := filepath.Join(system.StacksDir, fmt.Sprintf("%s.env", stackName))
 	runtimeDir := "/run/m3tal"
 	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 		return "", err
@@ -308,8 +308,8 @@ func (v *EnvVar) ToString() string {
 func (c *StackConfig) MergeVars() map[string]string {
 	merged := make(map[string]string)
 	// read global and stack envs
-	globals := LoadEnvFile(system.DefaultSystemGlobalEnvPath)
-	stackEnv := LoadEnvFile(filepath.Join(system.DefaultSystemStacksDir, fmt.Sprintf("%s.env", c.Stack.Name)))
+	globals := LoadEnvFile(system.ConfigPath)
+	stackEnv := LoadEnvFile(filepath.Join(system.StacksDir, fmt.Sprintf("%s.env", c.Stack.Name)))
 	for k, v := range globals {
 		merged[k] = v
 	}

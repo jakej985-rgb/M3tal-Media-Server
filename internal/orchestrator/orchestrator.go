@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
@@ -17,11 +16,6 @@ type StackManager struct {
 }
 
 // NewStackManager returns a manager with discovered M3TAL compose files.
-// It scans for files matching patterns:
-//   - ./docker/*-compose.yml
-//   - ./*-stack/*-compose.yml
-//
-// If running as a system installation, it also scans /usr/share/m3tal/stack/.
 func NewStackManager() *StackManager {
 	paths := discoverComposeFiles()
 	return &StackManager{
@@ -33,48 +27,19 @@ func NewStackManager() *StackManager {
 func discoverComposeFiles() []string {
 	var files []string
 
-	// Scan system paths from helper
-	systemDir := system.GetStackDir()
-	matches := findComposeFiles(systemDir)
+	// Scan system paths from helper (prioritizes /docker or /opt/m3tal/stack)
+	stackDir := system.GetStackDir()
+	matches, _ := filepath.Glob(filepath.Join(stackDir, "*-compose.yml"))
 	files = append(files, matches...)
 
-	// Scan local project root patterns
-	localDirs := []string{
-		".",
-		"deploy",
-	}
-
-	for _, dir := range localDirs {
-		matches := findComposeFiles(dir)
-		files = append(files, matches...)
-	}
+	// Also check for files in subdirectories (legacy/extra stacks)
+	subMatches, _ := filepath.Glob(filepath.Join(stackDir, "*", "*-compose.yml"))
+	files = append(files, subMatches...)
 
 	// Deduplicate and sort for deterministic order
 	files = uniqueSorted(files)
 
 	return files
-}
-
-// findComposeFiles scans a directory for files matching the compose patterns.
-func findComposeFiles(root string) []string {
-	var matches []string
-
-	// Pattern 1: ./docker/*-compose.yml
-	pat1 := filepath.Join(root, "docker", "*-compose.yml")
-	m1, _ := filepath.Glob(pat1)
-	matches = append(matches, m1...)
-
-	// Pattern 2: ./*-stack/*-compose.yml
-	pat2 := filepath.Join(root, "*-stack", "*-compose.yml")
-	m2, _ := filepath.Glob(pat2)
-	matches = append(matches, m2...)
-
-	// Pattern 3: ./stack/*-compose.yml
-	pat3 := filepath.Join(root, "stack", "*-compose.yml")
-	m3, _ := filepath.Glob(pat3)
-	matches = append(matches, m3...)
-
-	return matches
 }
 
 // uniqueSorted deduplicates and sorts file paths.
@@ -98,34 +63,27 @@ func (s *StackManager) Run(action string, args ...string) error {
 		return nil
 	}
 
-	for _, file := range s.Files {
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			continue
-		}
+	envFile := system.GetConfigPath()
+	hasEnv := false
+	if _, err := os.Stat(envFile); err == nil {
+		hasEnv = true
+	}
 
+	for _, file := range s.Files {
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
-		cmdArgs := append([]string{"compose", "-f", file, action}, args...)
+		
+		var cmdArgs []string
+		if hasEnv {
+			// Use --env-file for the central .env config
+			cmdArgs = []string{"compose", "--env-file", envFile, "-f", file, action}
+		} else {
+			cmdArgs = []string{"compose", "-f", file, action}
+		}
+		
+		cmdArgs = append(cmdArgs, args...)
 		cmd := exec.Command("docker", cmdArgs...)
 
-		// Pass current environment + env file if it exists
 		cmd.Env = os.Environ()
-		envFile := system.GetConfigPath()
-
-		if _, err := os.Stat(envFile); err == nil {
-			// Filter out non-exportable keys from config.yaml
-			if strings.HasSuffix(envFile, ".yaml") {
-				cmdArgs = []string{"compose", "-f", file, action}
-				if len(args) > 0 {
-					cmdArgs = append(cmdArgs, args...)
-				}
-				cmd = exec.Command("docker", cmdArgs...)
-				cmd.Env = append(os.Environ(), "M3TAL_CONFIG="+envFile)
-			} else {
-				cmdArgs = append([]string{"compose", "--env-file", envFile, "-f", file, action}, args...)
-				cmd = exec.Command("docker", cmdArgs...)
-			}
-		}
-
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 

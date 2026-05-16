@@ -50,4 +50,5 @@ dist/
 bin/
 packaging/deb/build/
 .go_compiler/
+m3tal\nm3tal-api\n*.deb\n.go_compiler/
 repo/

@@ -100,7 +100,7 @@ func checkDotEnv(envPath string) CheckResult {
 	// Warn about default values
 	var defaultsSet []string
 	defaultChecks := map[string]string{
-		"BASE_STORAGE_PATH": system.DefaultSystemDataDir,
+		"BASE_STORAGE_PATH": system.DataPath,
 		"DASHBOARD_SECRET":  "change_me_immediately",
 		"API_TOKEN":         "change_me_api_token",
 		"ADMIN_PASSWORD":    "admin_pass",
