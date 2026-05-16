@@ -9,6 +9,10 @@ mkdir -p /var/lib/m3tal
 mkdir -p /opt/m3tal/stack
 mkdir -p /var/log/m3tal
 
+# Ensure the docker group can manage stacks
+chown -R root:docker /opt/m3tal/stack
+chmod -R 775 /opt/m3tal/stack
+
 # 2. Config Initialization (do not overwrite existing config)
 if [ ! -f /etc/m3tal/.env ]; then
     if [ -f /etc/m3tal/.env.example ]; then

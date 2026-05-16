@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
@@ -81,6 +82,9 @@ func (s *StackManager) Run(action string, args ...string) error {
 			_ = os.Symlink(envFile, localEnv)
 		}
 
+		// Self-healing: Fix legacy .env paths in the manifest
+		_ = fixLegacyManifest(file, stackName)
+
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
 		
 		var cmdArgs []string
@@ -101,6 +105,32 @@ func (s *StackManager) Run(action string, args ...string) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to run %s on %s: %w", action, file, err)
 		}
+	}
+	return nil
+}
+
+// fixLegacyManifest scans a compose file for old relative .env paths and repairs them.
+func fixLegacyManifest(filePath, stackName string) error {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	// We look for common legacy patterns and replace with the local ./<stack>.env
+	brokenPaths := []string{"../../.env", "../m3tal-core/.env"}
+	newPath := fmt.Sprintf("./%s.env", stackName)
+	
+	modified := false
+	sContent := string(content)
+	for _, old := range brokenPaths {
+		if strings.Contains(sContent, old) {
+			sContent = strings.ReplaceAll(sContent, old, newPath)
+			modified = true
+		}
+	}
+
+	if modified {
+		return os.WriteFile(filePath, []byte(sContent), 0664)
 	}
 	return nil
 }
