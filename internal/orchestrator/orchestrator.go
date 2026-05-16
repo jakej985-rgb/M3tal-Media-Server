@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -170,13 +171,11 @@ func fixLegacyManifest(filePath, stackName string) error {
 		}
 	}
 
-	// NEW: Fix strict interpolation checks that cause crashes during init
-	// Find patterns like ${VAR:?Error} and change to ${VAR:-}
-	if strings.Contains(sContent, ":?") {
-		// We use a simplified string replacement for common markers we know exist
-		sContent = strings.ReplaceAll(sContent, ":?CF_TUNNEL_TOKEN not set — run from repo root with .env}", ":-}")
-		sContent = strings.ReplaceAll(sContent, ":?DASHBOARD_SECRET not set}", ":-}")
-		sContent = strings.ReplaceAll(sContent, ":?DOMAIN not set}", ":-}")
+	// NEW: Fix strict interpolation checks using Regex
+	// This catches ${VAR:?Error message} and converts to ${VAR:-}
+	re := regexp.MustCompile(`:\?([^}]+)}`)
+	if re.MatchString(sContent) {
+		sContent = re.ReplaceAllString(sContent, ":-}")
 		modified = true
 	}
 
