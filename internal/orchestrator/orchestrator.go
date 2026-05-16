@@ -118,9 +118,9 @@ func (s *StackManager) Run(action string, args ...string) error {
 		var cmdArgs []string
 		if hasEnv {
 			// Use --env-file for the central .env config
-			cmdArgs = []string{"compose", "--env-file", envFile, "-f", file, action}
+			cmdArgs = []string{"compose", "-p", stackName, "--env-file", envFile, "-f", file, action}
 		} else {
-			cmdArgs = []string{"compose", "-f", file, action}
+			cmdArgs = []string{"compose", "-p", stackName, "-f", file, action}
 		}
 		
 		cmdArgs = append(cmdArgs, args...)
