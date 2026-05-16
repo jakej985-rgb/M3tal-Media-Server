@@ -37,46 +37,6 @@ services:
           cpus: '0.5'
           memory: 250M
 
-  # Security Hardening: Docker Socket Proxy
-  docker-proxy:
-    image: tecnativa/docker-socket-proxy
-    container_name: m3tal-docker-proxy
-    environment:
-      - CONTAINERS=1
-      - IMAGES=1
-      - NETWORKS=1
-      - SERVICES=1
-      - TASKS=1
-      - EVENTS=1
-      - VERSION=1
-      - INFO=1
-      - POST=1
-      - EXEC=0
-      - ALLOW_START=1
-      - ALLOW_STOP=0
-      - ALLOW_RESTARTS=1
-    ports:
-      - "127.0.0.1:2375:2375"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - proxy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 100M
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:2375/version || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
 networks:
   proxy:
     external: true
-  default:
-    name: none
