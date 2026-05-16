@@ -39,6 +39,16 @@ elif [ ! -L /docker ]; then
     echo "⚠️  /docker exists and is not a symlink, skipping symlink creation"
 fi
 
+# 5. Permissions & Group Management
+echo "[m3tal] Hardening permissions for sudo-less operation..."
+if ! getent group m3tal >/dev/null; then
+    groupadd -r m3tal
+fi
+
+# Ensure all core directories are owned by the group
+chown -R root:m3tal /opt/m3tal /etc/m3tal /var/lib/m3tal 2>/dev/null || true
+chmod -R g+rwX /opt/m3tal /etc/m3tal /var/lib/m3tal 2>/dev/null || true
+
 # 5. Systemd Service Integration
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
