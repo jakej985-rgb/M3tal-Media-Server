@@ -1,79 +1,55 @@
-**VERDICT: FAIL (CRITICAL STATUS)**
+## **DocCritic Audit Report: M3TAL Core Orchestrator**
 
-The documentation is "Architecturally Pretty" but "Operationally Broken." While the high-level theory is excellent, a new user will be left with a running set of containers and **no way to access them**, no understanding of how to configure their media paths, and a high likelihood of permission-related failures. This documentation describes a system for architects, not an installation guide for operators.
-
----
-
-### 🚨 DETAILED ISSUE LIST
-
-#### 1. BLOCKER: Missing Access Information (The "Where is it?" Gap)
-The README mentions Traefik and a Dashboard, but nowhere does it list a default port, a default URL (e.g., `m3tal.local`), or a default login.
-*   **Fix:** Add an **"Accessing the Dashboard"** section. State the default port (e.g., `http://localhost:8080`) or the Traefik entry point.
-
-#### 2. BLOCKER: Environment Configuration "Black Box"
-You state `/etc/m3tal/.env` is the "Source of Truth," but you provide no example of what goes in it. A media server requires `PUID`, `PGID`, `TZ`, and `LIBRARY_PATH` at a minimum. If `m3tal init` generates these, the user needs to know how to modify them to point to their actual hard drives.
-*   **Fix:** Provide a "Configuration" section showing a sample `.env` file and explaining how to set the media storage path.
-
-#### 3. BLOCKER: The `/mnt` and Storage Assumption
-Media servers are useless without disk mounts. The documentation ignores storage entirely. If the Orchestrator expects `/mnt/media`, and it doesn't exist, `m3tal up` will likely fail or mount empty Docker volumes.
-*   **Fix:** Explicitly state the required directory structure for media or how to map existing drives in the `.env`.
-
-#### 4. WARNING: Permissions & Sudo Inconsistency
-You instruct the user to run `sudo m3tal init` (root) and then `m3tal up` (user). If the init command creates `/etc/m3tal` with 600 permissions for root, the standard user's `m3tal up` command will fail to read the configuration.
-*   **Fix:** Clarify if the user needs to be in a `m3tal` or `docker` group, or if all commands require `sudo`.
-
-#### 5. WARNING: Go Requirement Confusion
-Under "Requirements," you list "Go 1.21+ (For local development/compilation)." However, the Quick Start uses `apt install`. A standard user will see "Go" and waste time installing a compiler they don't need for the binary distribution.
-*   **Fix:** Move Go to a separate "Development/Building from Source" section. Do not list it as a requirement for the APT install.
-
-#### 6. WARNING: Missing Docker Network Context
-The "Ecosystem Integration Rules" mention Traefik ownership. If a user already has a service on port 80/443, `m3tal up` will crash. 
-*   **Fix:** Add a warning about port conflicts for Port 80/443 and explain how to change the Traefik entry port in the `.env`.
-
-#### 7. SUGGESTION: "m3tal.py" vs "m3tal" Binary
-The audit request mentions checking for `m3tal.py` setup, but the README describes a Go-native binary. This implies a recent migration. Ensure there are no legacy Python dependencies hidden in the background that the user needs (e.g., `pip install`).
-*   **Fix:** Explicitly state: "No Python dependencies required (Go-native)."
-
-#### 8. SUGGESTION: Health Check Clarification
-The `m3tal doctor` command is mentioned, but what does it actually check?
-*   **Fix:** Add a small note: "`m3tal doctor` validates Docker socket access, directory permissions, and `.env` integrity."
+**To:** DocSmith / M3TAL Architectural Team
+**From:** DocCritic, Senior DevOps Auditor
+**Subject:** Documentation Audit – M3TAL Media Server
 
 ---
 
-### 🛠️ SUGGESTED DOCUMENTATION PATCH
+### **Verdict: REJECTED**
+The current documentation is an architectural vision document, not an operational manual. As a new user, I am left with a pile of assumptions, missing environment requirements, and no clear path to verify the deployment. You are assuming the user has a perfectly configured system environment that matches your internal lab; real-world users will fail at step 3.
 
-**Add this section after the Quick Start:**
+---
 
-### 🌐 Access & Initial Setup
-Once `m3tal up` is executed, the stack is accessible via:
-- **Dashboard:** `http://localhost:3000` (Direct) or `http://m3tal.local` (Traefik)
-- **API Edge:** `http://localhost:8080/api`
-- **Default Credentials:** Admin / m3tal-default (Change on first login)
+### **Detailed Issue List**
 
-### ⚙️ Configuration (`/etc/m3tal/.env`)
-Before running `m3tal up`, ensure your storage paths are defined in `/etc/m3tal/.env`:
-```bash
-# User/Group IDs (match your local user)
-PUID=1000
-PGID=1000
+#### **BLOCKER**
+1. **Missing `.env` Configuration:** The documentation references `/etc/m3tal/.env` as the "Source of Truth" but provides no template, no variable list (e.g., API keys, database credentials, volume paths), and no instructions on how to generate it.
+2. **Missing Filesystem Pre-requisites:** You reference `/mnt/m3tal-media` and `/opt/m3tal/stack`. If these directories do not exist on a clean install, does the `m3tal init` command create them with the correct permissions (chown/chmod)? If not, the deployment will crash on permission errors.
+3. **Traefik Configuration Silence:** You claim "Traefik ownership" but provide zero instructions on how to expose the services. Which ports need to be open on the host firewall? Where is the Traefik entry point configuration?
 
-# Media Paths
-MEDIA_ROOT=/mnt/storage/media
-CONFIG_ROOT=/var/lib/m3tal/config
+#### **WARNING**
+4. **"Magic" APT Repository:** The `curl` command to add the repository assumes the user is root or has global sudo privileges. It fails to mention that `m3tal` binary might need `CAP_NET_BIND_SERVICE` or Docker socket access.
+5. **Lack of "Doctor" Logic:** If `m3tal up` fails, the documentation provides no troubleshooting steps. 
+6. **Docker-Compose Ambiguity:** You refer to `/docker` as a "User Entry Point" (symlink to `/opt/m3tal/stack`), but you never explain if the user needs to manually create this symlink or if the CLI does it.
 
-# Networking
-DOMAIN_NAME=m3tal.local
-```
+#### **SUGGESTION**
+7. **Developer vs. Operator Clarity:** The README mentions Go 1.21+ requirements. Clarify if the user *needs* to compile the code or if the APT install is sufficient. A binary-consumer doesn't need a Go toolchain.
+8. **Logging/Observability:** Where do the logs live? If the dashboard fails to connect to the backend, there is no mention of `m3tal logs` or log file paths.
 
-**Revise the Quick Start to include group setup:**
-```bash
-# 2. Install M3TAL
-sudo apt update && sudo apt install -y m3tal
+---
 
-# 3. Add your user to the docker group
-sudo usermod -aG docker $USER && newgrp docker
+### **Suggested Fixes**
 
-# 4. Initialize and Start
-sudo m3tal init
-m3tal up
-```
+1.  **Environment Setup:** 
+    *   Add a section: `Configuration Setup`. Provide a sample `.env` file structure.
+    *   `m3tal init` must explicitly state that it checks for `/mnt/m3tal-media` and logs a warning/error if it is missing or unmounted.
+2.  **Port Mapping Table:** Add a table to the README:
+    | Service | Port | Access |
+    | :--- | :--- | :--- |
+    | Traefik Web | 80/443 | External |
+    | M3TAL API | 8080 | Internal (Traefik) |
+    | M3TAL Dash | 3000 | Internal (Traefik) |
+3.  **Deployment Verification:** Add a "Verification" section after `m3tal up`:
+    *   *Check container status:* `docker ps | grep m3tal`
+    *   *Check logs:* `m3tal logs`
+    *   *Check connectivity:* `curl -v http://localhost:8080/health`
+4.  **Permission Safety:** Ensure the `post-install` script for the APT package creates the directories:
+    ```bash
+    sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal
+    sudo chown $USER:$USER /etc/m3tal /var/lib/m3tal
+    ```
+5.  **Standardize Pathing:** Remove the ambiguity about the `/docker` symlink. Either state "Run `ln -s /opt/m3tal/stack /docker`" or have the CLI `init` process handle it automatically.
+
+---
+*DocCritic Note: Do not push this to production until a "Troubleshooting" section is added. Currently, this documentation forces a support ticket on every user.*
