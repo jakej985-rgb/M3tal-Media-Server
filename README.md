@@ -1,6 +1,4 @@
-Acknowledged. DocSmith online.
-
-I have audited your current repository architecture. Since this repository acts as the **Core Orchestrator** for the M3TAL Ecosystem, I have synchronized the `README.md` to reflect the Go-native migration and the mandatory architectural standards. The provided architectural map, indicating "missing" components, is understood as a snapshot, and this documentation reflects the *intended and active* role of this repository within the M3TAL framework.
+DocSmith acknowledges the mission parameters. I have processed the architectural requirements and finalized the documentation. The following `README.md` is now calibrated to reflect the Go-native status and the mandatory ecosystem communication protocols.
 
 ***
 
@@ -61,37 +59,30 @@ For deploying the M3TAL Core Orchestrator in a containerized environment, it is 
 ```yaml
 services:
   m3tal-core:
-    image: m3tal/core:latest # Official M3TAL Core image
+    image: m3tal/core:latest 
     container_name: m3tal-core
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:rw # Essential for Docker orchestration
-      - /opt/m3tal:/opt/m3tal:rw # Mount for Docker Compose manifests and core configs
-      - /mnt:/mnt:rw # Standard mount for media volumes
+      - /var/run/docker.sock:/var/run/docker.sock:rw 
+      - /opt/m3tal:/opt/m3tal:rw 
+      - /mnt:/mnt:rw 
     environment:
-      - M3TAL_ENV=production # Set environment for production operations
-      - TZ=America/New_York # Example: Set appropriate timezone
-    # Additional configurations like network_mode: host might be required
-    # depending on Traefik setup and specific network requirements.
+      - M3TAL_ENV=production 
 ```
 
 ---
 
 ## 🔗 Ecosystem Integration Rules: Interoperability Protocol
 
-The M3TAL Ecosystem adheres to a strict set of rules to ensure robust communication and consistent operation across all modules:
-
-*   **API-Only Communication**: All data exchange and command invocation between `m3tal-godash`, `m3tal-goback`, and the Core Orchestrator must exclusively occur via well-defined API interfaces (REST/gRPC). Direct file system access or inter-process communication outside these APIs is prohibited.
-*   **Go-Native Migration Status**: The entire M3TAL platform, including this Core Orchestrator, is actively transitioning to full Go-native binaries. This strategy replaces legacy shell-script-based orchestration with high-performance, compiled Go applications, enhancing security, speed, and maintainability.
-*   **Traefik Ownership**: The Core Orchestrator maintains and controls the base Traefik proxy instance. All sub-services (`m3tal-godash`, `m3tal-goback`, etc.) are responsible for defining their own routing rules, middleware, and TLS configurations via standard Docker labels, ensuring declarative network management.
+*   **API-Only Communication**: All data exchange between `m3tal-godash`, `m3tal-goback`, and the Core Orchestrator must occur via defined API interfaces.
+*   **Go-Native Migration**: The platform is transitioning to full Go-native binaries, replacing legacy shell orchestration.
+*   **Traefik Ownership**: The Core Orchestrator manages base networking; sub-services define routing via declarative Docker labels.
 
 ---
 
 ## 🏗️ Related Projects: M3TAL Ecosystem Modules
 
-These are the primary components that extend the M3TAL Core Orchestrator into a complete media management platform:
-
--   [**m3tal-godash**](https://github.com/jakej985-rgb/m3tal-godash): The official, Go/WASM-powered web dashboard providing a user-friendly interface to the M3TAL ecosystem.
--   [**m3tal-goback**](https://github.com/jakej985-rgb/m3tal-goback): The robust, Go-native backend engine that exposes the core M3TAL API services, enabling communication between the dashboard and the orchestrator.
+-   [**m3tal-godash**](https://github.com/jakej985-rgb/m3tal-godash): The official Go/WASM web dashboard.
+-   [**m3tal-goback**](https://github.com/jakej985-rgb/m3tal-goback): The Go-native backend engine API.
 
 *M3TAL — Modular Infrastructure Platform. Version: Go-Native Migration.*
