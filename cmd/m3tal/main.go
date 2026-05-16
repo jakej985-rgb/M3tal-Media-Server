@@ -736,7 +736,23 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 		fmt.Scanln(&subChoice)
 		switch subChoice {
 		case 1:
-			runWithSudoFallback(exe, "config", "wizard")
+			fmt.Println("\n|   |-- [1] Configuration Wizard")
+			fmt.Println("|       |-- 1.) View Current Configuration (List)")
+			fmt.Println("|       |-- 2.) Edit Configuration (Wizard)")
+			fmt.Println("|       |-- 3.) Scan Stack Requirements (Scan)")
+			fmt.Print("\n👉 Selection: ")
+			var wizChoice int
+			fmt.Scanln(&wizChoice)
+			switch wizChoice {
+			case 1:
+				runWithSudoFallback(exe, "config", "list")
+			case 2:
+				runWithSudoFallback(exe, "config", "wizard")
+			case 3:
+				runWithSudoFallback(exe, "config", "scan")
+			default:
+				fmt.Println("❌ Invalid selection.")
+			}
 		case 2:
 			runWithSudoFallback(exe, "dashpass")
 		default:
