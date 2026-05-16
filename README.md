@@ -79,15 +79,18 @@ m3tal up
 ## 🔧 CLI Command Reference
 
 ### Core Orchestration
-- `m3tal up`: Initialize and start the core infrastructure. This deploys and manages the `m3tal-goback` (Backend API) and other essential services.
+- `m3tal up`: Initialize and start the core infrastructure.
 - `m3tal down`: Stop all managed container services.
+- `m3tal status`: Check the status of all managed stacks.
 - `m3tal doctor`: Execute system-wide health and configuration diagnostics.
 - `m3tal init`: Initialize the `/etc/m3tal` environment and generate secrets.
 
-### Dashboard & UI
-- `m3tal dash up`: Deploy the `m3tal-godash` container instance.
-- `m3tal dash down`: Terminate the UI stack.
-- `m3tal dash status`: Verify API connectivity and container health.
+### Dashboard Management
+- `m3tal dash start`: Start the M3TAL dashboard.
+- `m3tal dash stop`: Stop the M3TAL dashboard.
+- `m3tal dash restart`: Restart the dashboard service.
+- `m3tal dash logs`: View real-time dashboard logs.
+- `m3tal dash status`: Check dashboard container health.
 
 ---
 

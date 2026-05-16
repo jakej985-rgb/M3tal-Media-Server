@@ -21,7 +21,15 @@ gzip -c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64
 
 # 4. Generate Release file
 echo "[repo] Generating Release..."
-apt-ftparchive release dists/stable > dists/stable/Release
+apt-ftparchive \
+    -o "APT::FTPArchive::Release::Origin=M3TAL" \
+    -o "APT::FTPArchive::Release::Label=M3TAL" \
+    -o "APT::FTPArchive::Release::Suite=stable" \
+    -o "APT::FTPArchive::Release::Codename=stable" \
+    -o "APT::FTPArchive::Release::Components=main" \
+    -o "APT::FTPArchive::Release::Architectures=amd64" \
+    -o "APT::FTPArchive::Release::Description=M3TAL Core Repository" \
+    release dists/stable > dists/stable/Release
 
 # 5. Sign Release file
 echo "[repo] Signing Release with GPG ($KEY_ID)..."
