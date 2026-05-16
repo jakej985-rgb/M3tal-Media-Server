@@ -821,77 +821,54 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 		runWithSudoFallback(exe, "logs")
 	case 3:
 		runWithSudoFallback(exe, "dash", "up")
-	case 4:
 		fmt.Println("\n|-- 4.) Configuration & Secrets")
-		fmt.Println("|   [1] Configuration Wizard")
-		fmt.Println("|   [2] Generate Dashboard Password")
+		fmt.Println("|   [1] Edit Global Configuration (Wizard)")
+		fmt.Println("|   [2] Edit Stack Configuration")
+		fmt.Println("|   [3] Scan & List All Variables")
+		fmt.Println("|   [4] Manage Dashboard Users")
 		fmt.Print("\n👉 Selection: ")
 		var subChoice int
 		fmt.Scanln(&subChoice)
 		switch subChoice {
 		case 1:
-			fmt.Println("\n|   |-- [1] Configuration Wizard")
-			fmt.Println("|       |-- 1.) View Current Configuration (List)")
-			fmt.Println("|       |-- 2.) Edit Configuration (Wizard)")
-			fmt.Println("|       |-- 3.) Scan Stack Requirements (Scan)")
-			fmt.Print("\n👉 Selection: ")
-			var wizChoice int
-			fmt.Scanln(&wizChoice)
-			switch wizChoice {
-			case 1:
-				runWithSudoFallback(exe, "config", "list")
-			case 2:
-				fmt.Println("\n|       |-- [2] Edit Configuration")
-				fmt.Println("|           |-- 1.) All (Global /etc/m3tal/.env)")
-				fmt.Println("|           |-- 2.) Stacks (Individual)")
-				fmt.Print("\n👉 Selection: ")
-				var editChoice int
-				fmt.Scanln(&editChoice)
-				if editChoice == 1 {
-					runWithSudoFallback(exe, "config", "wizard")
-				} else if editChoice == 2 {
-					stackDir := system.GetStackDir()
-					entries, _ := os.ReadDir(stackDir)
-					var stacks []string
-					for _, e := range entries {
-						if strings.HasSuffix(e.Name(), "-compose.yml") {
-							stackName := strings.TrimSuffix(e.Name(), "-compose.yml")
-							tmplPath := filepath.Join(stackDir, stackName+".env.template")
-							envPath := filepath.Join(stackDir, stackName+".env")
-							if _, err := os.Stat(tmplPath); err == nil {
-								stacks = append(stacks, stackName)
-							} else if _, err := os.Stat(envPath); err == nil {
-								stacks = append(stacks, stackName)
-							}
-						}
-					}
-					if len(stacks) == 0 {
-						fmt.Println("⚠️  No stack configurations found.")
-					} else {
-						fmt.Println("\n📦 Available Stacks:")
-						for i, s := range stacks {
-							fmt.Printf("   [%d] %s\n", i+1, s)
-						}
-						fmt.Print("\n👉 Stack Number: ")
-						var sNum int
-						fmt.Scanln(&sNum)
-						if sNum > 0 && sNum <= len(stacks) {
-							stackName := stacks[sNum-1]
-							composePath := filepath.Join(stackDir, stackName+"-compose.yml")
-							targetPath := filepath.Join(stackDir, stackName+".env")
-							
-							runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--compose", composePath)
-						}
-					}
-				} else {
-					fmt.Println("❌ Invalid selection.")
-				}
-			case 3:
-				runWithSudoFallback(exe, "config", "scan")
-			default:
-				fmt.Println("❌ Invalid selection.")
-			}
+			runWithSudoFallback(exe, "config", "wizard")
 		case 2:
+			stackDir := system.GetStackDir()
+			entries, _ := os.ReadDir(stackDir)
+			var stacks []string
+			for _, e := range entries {
+				if strings.HasSuffix(e.Name(), "-compose.yml") {
+					stackName := strings.TrimSuffix(e.Name(), "-compose.yml")
+					tmplPath := filepath.Join(stackDir, stackName+".env.template")
+					envPath := filepath.Join(stackDir, stackName+".env")
+					if _, err := os.Stat(tmplPath); err == nil {
+						stacks = append(stacks, stackName)
+					} else if _, err := os.Stat(envPath); err == nil {
+						stacks = append(stacks, stackName)
+					}
+				}
+			}
+			if len(stacks) == 0 {
+				fmt.Println("⚠️  No stack configurations found.")
+			} else {
+				fmt.Println("\n📦 Available Stacks:")
+				for i, s := range stacks {
+					fmt.Printf("   [%d] %s\n", i+1, s)
+				}
+				fmt.Print("\n👉 Stack Number: ")
+				var sNum int
+				fmt.Scanln(&sNum)
+				if sNum > 0 && sNum <= len(stacks) {
+					stackName := stacks[sNum-1]
+					composePath := filepath.Join(stackDir, stackName+"-compose.yml")
+					targetPath := filepath.Join(stackDir, stackName+".env")
+					
+					runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--compose", composePath)
+				}
+			}
+		case 3:
+			runWithSudoFallback(exe, "config", "list")
+		case 4:
 			runWithSudoFallback(exe, "dashpass")
 		default:
 			fmt.Println("❌ Invalid selection.")
