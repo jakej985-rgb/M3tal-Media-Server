@@ -1,26 +1,30 @@
 # 🚀 M3TAL Media Server
 
-M3TAL is a modular infrastructure platform designed for precision media server orchestration. It features a DEB-first core for system management and a containerized dashboard for a rich user experience.
+**M3TAL** is the core orchestration engine of the M3TAL Ecosystem. Designed as a Go-native system, it provides high-performance, low-latency management for media infrastructure. By decoupling the CLI, Backend API, and Dashboard, M3TAL ensures a modular, fault-tolerant stack.
 
 ---
 
-## 🧠 Final Architecture
+## 🧠 System Architecture
 
-- **Core (m3tal)**: Installed via APT, runs on the host. Handles system state, Docker orchestration, and Traefik base configuration.
-- **Dash (m3tal-godash)**: Optional UI layer running as a Docker container. Connects to the Core via its HTTP API.
-- **UX (/docker)**: A standardized symlink providing a clean entry point for all media stack operations.
+The M3TAL ecosystem operates on a strict **"Core-First"** communication protocol:
+
+*   **Orchestrator (m3tal CLI)**: The Go-native binary acting as the primary control plane. It manages local system state, Docker orchestration, and configuration lifecycle.
+*   **Backend API (m3tal-goback)**: The server-side brain. It provides the REST/gRPC interface for the dashboard and system tools. It communicates with the Orchestrator to execute state changes.
+*   **Dashboard (m3tal-godash)**: A containerized React/Go interface. It is strictly a UI layer that consumes the Backend API. It has no direct access to system files, enforcing a secure isolation boundary.
 
 ---
 
-## 📁 Filesystem Design
+## 📁 Filesystem & Path Consistency
+
+To ensure operational stability, M3TAL enforces a strict path hierarchy. All external interaction should occur through the `/docker` entry point.
 
 | Path | Purpose |
 | :--- | :--- |
-| `/usr/bin/m3tal` | Primary CLI Binary |
+| `/usr/bin/m3tal` | Orchestrator CLI Binary |
 | `/etc/m3tal/.env` | Global Configuration Source of Truth |
-| `/var/lib/m3tal/` | Persistent Application Data |
-| `/opt/m3tal/stack` | Docker Compose Manifests (Real Path) |
-| `/docker` | **User Entry Point** (Symlink to /opt/m3tal/stack) |
+| `/var/lib/m3tal/` | Persistent State & Internal Data |
+| `/opt/m3tal/stack` | Docker Compose Manifests (Source) |
+| `/docker` | **User Entry Point** (Symlink to `/opt/m3tal/stack`) |
 
 ---
 
@@ -29,12 +33,11 @@ M3TAL is a modular infrastructure platform designed for precision media server o
 - **Linux (Debian/Ubuntu/Mint)**
 - **Docker Engine**
 - **Docker Compose V2**
+- **Go 1.21+** (For local development/compilation)
 
 ---
 
 ## 🛠️ Quick Start (APT)
-
-The recommended installation method for production systems.
 
 ```bash
 # 1. Add the M3TAL repository
@@ -51,41 +54,34 @@ sudo m3tal init
 m3tal up
 ```
 
-### 🌐 Optional Dashboard
-
-```bash
-m3tal dash up
-```
-
 ---
 
 ## 🔧 CLI Command Reference
 
-### Core Operations
-- `m3tal up`: Start the core infrastructure (Traefik, API, etc.)
-- `m3tal down`: Stop all managed services
-- `m3tal doctor`: Run system health and configuration diagnostics
-- `m3tal init`: Generate default secrets and initialize the filesystem
+### Core Orchestration
+- `m3tal up`: Initialize and start the core infrastructure.
+- `m3tal down`: Stop all managed container services.
+- `m3tal doctor`: Execute system-wide health and configuration diagnostics.
+- `m3tal init`: Initialize the `/etc/m3tal` environment and generate secrets.
 
-### Dashboard Operations
-- `m3tal dash up`: Start the Docker-based UI
-- `m3tal dash down`: Stop the UI
-- `m3tal dash status`: Check UI container health
-
----
-
-## 🔗 Integration Rules
-
-- **Core MUST NOT depend on Dash**: They communicate exclusively via HTTP API.
-- **Dash MUST NOT assume host paths**: It operates within the container context and uses API calls for system interaction.
-- **Traefik Ownership**: Core defines base entrypoints and networking; Dash defines only its specific router labels.
+### Dashboard & UI
+- `m3tal dash up`: Deploy the `m3tal-godash` container instance.
+- `m3tal dash down`: Terminate the UI stack.
+- `m3tal dash status`: Verify API connectivity and container health.
 
 ---
 
-## 🧭 Troubleshooting
+## 🔗 Ecosystem Integration Rules
 
-- **"Dashboard not installed"**: Run the quick install steps provided by the CLI when running `m3tal dash up`.
-- **Permission Errors**: Ensure you have access to the Docker socket or run configuration commands with `sudo`.
-- **Path Divergence**: The CLI always reports `/docker` as the stack path for UX consistency, even though files reside in `/opt/m3tal`.
+*   **API-Only Communication**: The Dashboard and Core do not share files. All data exchange must occur via the `m3tal-goback` API.
+*   **Decoupled Deployment**: The Orchestrator manages the lifecycle of the Backend and Dashboard, but they operate as independent processes for resilience.
+*   **Traefik Ownership**: The Orchestrator maintains the base Traefik proxy configuration. All sub-services (Dash/Back) must define their own middleware/routers via Docker labels.
 
-*M3TAL — Modular Infrastructure Platform.*
+---
+
+## 🏗️ Related Projects
+
+- [**m3tal-godash**](https://github.com/jakej985-rgb/m3tal-godash): The official web-based dashboard built with Go/WASM.
+- [**m3tal-goback**](https://github.com/jakej985-rgb/m3tal-goback): The backend engine providing API services to the ecosystem.
+
+*M3TAL — Modular Infrastructure Platform. Version: Go-Native Migration.*
