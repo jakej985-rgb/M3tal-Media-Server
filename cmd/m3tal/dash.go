@@ -97,8 +97,12 @@ func initDashCmd() *cobra.Command {
 
 func pullConfig() {
 	stackDir := system.GetStackDir()
-	composeFile := filepath.Join(stackDir, "m3tal-compose.yml")
-	url := "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.yml"
+	
+	urls := map[string]string{
+		"m3tal-compose.yml":         "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.yml",
+		"m3tal-compose.local.yml":   "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.local.yml",
+		"m3tal-compose.traefik.yml": "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.traefik.yml",
+	}
 
 	fmt.Printf("📥 Pulling latest dashboard config from GitHub...\n")
 
@@ -118,17 +122,18 @@ func pullConfig() {
 		os.Exit(1)
 	}
 
-	// Use curl for simplicity (handles redirects, etc.)
-	cmd := exec.Command("curl", "-fsSL", "-o", composeFile, url)
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("⚠️  Failed to download latest compose file: %v\n", err)
-		if _, err := os.Stat(composeFile); err == nil {
-			fmt.Println("ℹ️  Found existing manifest, proceeding with local version...")
-			return
+	for filename, url := range urls {
+		targetFile := filepath.Join(stackDir, filename)
+		cmd := exec.Command("curl", "-fsSL", "-o", targetFile, url)
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("⚠️  Failed to download %s: %v\n", filename, err)
+			if _, err := os.Stat(targetFile); err != nil {
+				log.Fatalf("❌ No local %s found and download failed.", filename)
+			}
+		} else {
+			fmt.Printf("✅ Saved to %s\n", targetFile)
 		}
-		log.Fatalf("❌ No local manifest found and download failed. Check connection or use sudo.")
 	}
-	fmt.Printf("✅ Saved to %s\n", composeFile)
 }
 
 func runDashCompose(action string, args ...string) {
@@ -148,7 +153,28 @@ func runDashCompose(action string, args ...string) {
 		cmdArgs = append(cmdArgs, "--env-file", envFile)
 	}
 	
-	cmdArgs = append(cmdArgs, "-f", composeFile, action)
+	cmdArgs = append(cmdArgs, "-f", composeFile)
+
+	mode := "local" // Default
+	if data, err := os.ReadFile(envFile); err == nil {
+		if val := getEnvValue(string(data), "DASHBOARD_EXPOSE_MODE"); val != "" {
+			mode = val
+		}
+	}
+
+	if mode == "local" {
+		localOverride := filepath.Join(stackDir, "m3tal-compose.local.yml")
+		if _, err := os.Stat(localOverride); err == nil {
+			cmdArgs = append(cmdArgs, "-f", localOverride)
+		}
+	} else {
+		traefikOverride := filepath.Join(stackDir, "m3tal-compose.traefik.yml")
+		if _, err := os.Stat(traefikOverride); err == nil {
+			cmdArgs = append(cmdArgs, "-f", traefikOverride)
+		}
+	}
+
+	cmdArgs = append(cmdArgs, action)
 	cmdArgs = append(cmdArgs, args...)
 
 	cmd := exec.Command("docker", cmdArgs...)

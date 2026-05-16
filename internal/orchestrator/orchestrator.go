@@ -29,14 +29,32 @@ func NewStackManager() *StackManager {
 func discoverComposeFiles() []string {
 	var files []string
 
+	dashboardExists := false
+	cmd := exec.Command("docker", "ps", "-a", "-q", "-f", "name=m3tal-dashboard")
+	if out, err := cmd.Output(); err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		dashboardExists = true
+	}
+
 	// Scan system paths from helper (prioritizes /docker or /opt/m3tal/stack)
 	stackDir := system.GetStackDir()
 	matches, _ := filepath.Glob(filepath.Join(stackDir, "*-compose.yml"))
-	files = append(files, matches...)
+	for _, match := range matches {
+		// Ignore dashboard compose so it is strictly managed by 'm3tal dash' commands
+		// UNLESS it has already been started and the container exists.
+		if !dashboardExists && filepath.Base(match) == "m3tal-compose.yml" {
+			continue
+		}
+		files = append(files, match)
+	}
 
 	// Also check for files in subdirectories (legacy/extra stacks)
 	subMatches, _ := filepath.Glob(filepath.Join(stackDir, "*", "*-compose.yml"))
-	files = append(files, subMatches...)
+	for _, match := range subMatches {
+		if !dashboardExists && filepath.Base(match) == "m3tal-compose.yml" {
+			continue
+		}
+		files = append(files, match)
+	}
 
 	// Deduplicate and sort for deterministic order
 	files = uniqueSorted(files)
@@ -118,11 +136,43 @@ func (s *StackManager) Run(action string, args ...string) error {
 		var cmdArgs []string
 		if hasEnv {
 			// Use --env-file for the central .env config
-			cmdArgs = []string{"compose", "-p", stackName, "--env-file", envFile, "-f", file, action}
+			cmdArgs = []string{"compose", "-p", stackName, "--env-file", envFile, "-f", file}
 		} else {
-			cmdArgs = []string{"compose", "-p", stackName, "-f", file, action}
+			cmdArgs = []string{"compose", "-p", stackName, "-f", file}
 		}
-		
+
+		// Inject override configs for the dashboard
+		if stackName == "m3tal" {
+			mode := "local" // Default
+			if data, err := os.ReadFile(envFile); err == nil {
+				// Inline getEnvValue implementation since it's defined in main.go, not here
+				lines := strings.Split(string(data), "\n")
+				for _, line := range lines {
+					trimmed := strings.TrimSpace(line)
+					if strings.HasPrefix(trimmed, "DASHBOARD_EXPOSE_MODE=") && !strings.HasPrefix(trimmed, "#") {
+						parts := strings.SplitN(trimmed, "=", 2)
+						if len(parts) == 2 {
+							mode = parts[1]
+							break
+						}
+					}
+				}
+			}
+
+			if mode == "local" {
+				localOverride := filepath.Join(stackDir, "m3tal-compose.local.yml")
+				if _, err := os.Stat(localOverride); err == nil {
+					cmdArgs = append(cmdArgs, "-f", localOverride)
+				}
+			} else {
+				traefikOverride := filepath.Join(stackDir, "m3tal-compose.traefik.yml")
+				if _, err := os.Stat(traefikOverride); err == nil {
+					cmdArgs = append(cmdArgs, "-f", traefikOverride)
+				}
+			}
+		}
+
+		cmdArgs = append(cmdArgs, action)
 		cmdArgs = append(cmdArgs, args...)
 		cmd := exec.Command("docker", cmdArgs...)
 
