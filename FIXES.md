@@ -1,70 +1,55 @@
-As DocCritic, Senior DevOps Auditor for the M3TAL platform, I have completed my audit of the provided documentation.
+**To:** M3TAL Development Team  
+**From:** DocCritic, Senior DevOps Auditor  
+**Subject:** AUDIT REPORT: M3TAL-CORE-README-001  
+
+---
 
 ### **Verdict: FAILED**
-The current documentation is an architectural whitepaper, not a functional deployment guide. It lacks the necessary "Getting Started" instructions, dependency management, and environment configuration required for a user to actually deploy the M3TAL stack. In its current state, a user will hit a wall within the first 60 seconds of interaction.
+The current documentation is an architectural vision statement, not a deployment guide. It lacks the functional "Last Mile" instructions required for a user to actually boot the system. It assumes the user is already an expert in the internal M3TAL ecosystem and ignores common failure points during fresh installation.
 
 ---
 
-### **Detailed Issue List**
+### **Issue List**
 
 #### **BLOCKER**
-1.  **Missing `m3tal.py` or Initial Binary Setup:** The documentation mentions a `m3tal` binary but provides no instructions on how to build, install, or initialize it. Does the user run `go build`? Is there an install script? 
-2.  **Missing `.env` Schema:** You reference `/etc/m3tal/.env` as the "Source of Truth" but fail to provide a template or a list of required variables (DB URLs, API Keys, path mappings).
-3.  **Missing Traefik/Networking Configuration:** The architecture relies on an API-driven ecosystem. Without Traefik or bridge network definitions in the `docker-compose.yml`, the modules (`goback`, `godash`) will be unable to communicate or be accessed by the user.
-4.  **Implicit Directory Requirements:** The documentation assumes `/opt/m3tal` and `/mnt/m3tal-media` exist. If a user runs the compose file without these, Docker will create them as root-owned directories, causing major permission issues.
+1.  **Missing "Getting Started" Workflow:** The documentation mentions a `m3tal` binary but provides no instructions on how to acquire it (Build from source? Binary release? `go install`?).
+2.  **Zero Configuration Guide:** There is no documentation for `/etc/m3tal/.env`. A new user has no idea what environment variables are required for the containers to actually start (e.g., API keys, port mappings, database credentials).
+3.  **Missing Traefik/Gateway Specs:** The README mentions an "API-only communication" protocol but provides no guidance on how to route traffic to the `goback` or `godash` containers. Without Traefik or an exposed port mapping, the ecosystem is a black box.
 
 #### **WARNING**
-5.  **Ambiguous Deployment Path:** The README suggests running `m3tal-core` as a container, but also defines `m3tal` as a CLI tool. Is the CLI tool *inside* the container, or running on the host? How do they interact?
-6.  **"Privileged" Risk:** You ask for the Docker socket (`/var/run/docker.sock`). This is a massive security privilege. There is no warning regarding the security implications of this configuration.
+4.  **Implicit Host Requirements:** The guide assumes the existence of `/mnt/m3tal-media` and `/opt/m3tal`. If a user blindly runs the Docker Compose, the volume mounting will either fail or create root-owned directories on the host, leading to permissions hell.
+5.  **Ambiguous Orchestration:** The instructions say the `m3tal` binary "coordinates Docker orchestration," but it does not specify if the user needs to manually run a `docker-compose up` or if the `m3tal` binary triggers the stack itself.
 
 #### **SUGGESTION**
-7.  **Missing "Quick Start" Block:** There is no "Copy-Paste" path for a user to get the stack running.
-8.  **Missing Dependency Check:** Add a requirement section (e.g., "Docker Engine >= 20.10, Docker Compose >= v2").
+6.  **"Runbook" Format:** The documentation is too abstract. It needs a "Quick Start" section with copy-pasteable commands.
+7.  **Container Tagging:** Using `latest` for the `m3tal-core` image is a DevOps anti-pattern. Use versioned tags to prevent unexpected production breaks.
 
 ---
 
-### **Suggested Fixes**
+### **Required Fixes**
 
-**1. Create a `bootstrap.sh` or Installation Guide:**
-Add a section:
-```bash
-# Clone the repository
-git clone <url> && cd m3tal
-# Initialize environment
-mkdir -p /etc/m3tal /opt/m3tal/stack
-cp .env.example /etc/m3tal/.env
-# Build/Pull binaries
-docker compose pull
-```
+1.  **Add Installation Section:**
+    *   Provide a `git clone` command.
+    *   Add a `make build` or `go build -o m3tal ./cmd/main.go` instruction.
+    *   Explain how to move the binary to `/usr/bin/m3tal`.
 
-**2. Provide an `.env.example` file:**
-Create a file containing:
-```bash
-M3TAL_API_KEY=your_secure_key
-M3TAL_STORAGE_PATH=/mnt/m3tal-media
-M3TAL_PORT=8080
-```
+2.  **Add Config Template:**
+    *   Include a `m3tal.env.example` block in the README so users know what to put in `/etc/m3tal/.env`.
+    *   **Mandatory keys:** `DB_URL`, `API_KEY`, `DOCKER_NETWORK`, `PORT`.
 
-**3. Revise `docker-compose.yml` for Network and Ports:**
-Include the necessary networking so the modules can talk:
-```yaml
-services:
-  m3tal-core:
-    # ... existing config ...
-    ports:
-      - "8080:8080"
-    networks:
-      - m3tal-net
+3.  **Define Infrastructure Pre-reqs:**
+    *   Add a script snippet: 
+        ```bash
+        sudo mkdir -p /etc/m3tal /opt/m3tal/stack /mnt/m3tal-media
+        sudo chown -R $USER:$USER /opt/m3tal
+        ```
 
-networks:
-  m3tal-net:
-    driver: bridge
-```
+4.  **Refine Docker Section:**
+    *   Provide a full `docker-compose.yml` example that includes `m3tal-goback` and `m3tal-godash`. 
+    *   Define the network configuration. A user cannot guess how these containers "talk" to each other via the API.
 
-**4. Explicit Path Setup:**
-Add a "Pre-flight Checklist" section:
-*   Ensure `/mnt/m3tal-media` is mounted and writable by the UID/GID running the container (Default 1000:1000).
-*   Run `chown -R 1000:1000 /opt/m3tal`.
+5.  **Clarify CLI Role:** 
+    *   Explicitly state: "Run `m3tal setup` to initialize the `/opt/m3tal` manifest tree before starting the Docker stack."
 
-**5. Add a "Security Warning" block:**
-Explicitly state: *"M3TAL Core requires Docker socket access for orchestration. Do not expose this service to the public internet without an authenticated gateway (e.g., Traefik/Authelia)."*
+---
+*DocCritic Note: Do not push this to production README until a user who has never seen this repo can successfully reach the dashboard by following the steps sequentially.*
