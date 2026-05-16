@@ -625,7 +625,7 @@ func runLogsMenu() {
 		var subChoice int
 		fmt.Scanln(&subChoice)
 		if subChoice == 2 {
-			orchestrator.RunRaw("journalctl", "-u", "m3tal", "-f", "-n", "50")
+			runWithSudoFallback("journalctl", "-u", "m3tal", "-f", "-n", "50")
 		} else {
 			fmt.Println("ℹ️  CLI logs are minimal and shown in terminal directly.")
 		}
@@ -662,7 +662,7 @@ func runLogsMenu() {
 			var cNum int
 			fmt.Scanln(&cNum)
 			if cNum > 0 && cNum <= len(list) {
-				orchestrator.RunRaw("docker", "logs", "--tail", "50", "-f", list[cNum-1].Names[0])
+				runWithSudoFallback("docker", "logs", "--tail", "50", "-f", list[cNum-1].Names[0])
 			}
 		}
 	case 3:
@@ -673,6 +673,16 @@ func runLogsMenu() {
 		return
 	default:
 		fmt.Println("❌ Invalid selection.")
+	}
+}
+
+func runWithSudoFallback(name string, args ...string) {
+	err := orchestrator.RunRaw(name, args...)
+	if err != nil {
+		fmt.Println("\n⚠️  Action failed. This might require elevated privileges.")
+		fmt.Println("👉 Retrying with sudo...")
+		sudoArgs := append([]string{name}, args...)
+		orchestrator.RunRaw("sudo", sudoArgs...)
 	}
 }
 
@@ -694,17 +704,17 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 
 	switch choice {
 	case 1:
-		orchestrator.RunRaw(exe, "up")
+		runWithSudoFallback(exe, "up")
 	case 2:
-		orchestrator.RunRaw(exe, "down")
+		runWithSudoFallback(exe, "down")
 	case 3:
-		orchestrator.RunRaw(exe, "logs")
+		runWithSudoFallback(exe, "logs")
 	case 4:
-		orchestrator.RunRaw(exe, "dash", "up")
+		runWithSudoFallback(exe, "dash", "up")
 	case 5:
-		orchestrator.RunRaw(exe, "config", "wizard")
+		runWithSudoFallback(exe, "config", "wizard")
 	case 6:
-		orchestrator.RunRaw(exe, "ps")
+		runWithSudoFallback(exe, "ps")
 	case 0:
 		return
 	default:
