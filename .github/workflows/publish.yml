@@ -8,6 +8,9 @@ on:
       - 'VERSION'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -16,6 +19,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Ensure Unique Version
+        id: check_version
+        run: |
+          git fetch --tags
+          VERSION=$(cat VERSION)
+          
+          if git tag -l | grep -q "^${VERSION}$"; then
+            echo "⚠️ Tag $VERSION already exists! Auto-bumping patch version..."
+            BASE=$(echo "$VERSION" | cut -d. -f1,2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="${BASE}.${NEW_PATCH}"
+            
+            echo "✅ Bumping to $NEW_VERSION"
+            echo "$NEW_VERSION" > VERSION
+            
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add VERSION
+            git commit -m "chore: auto-bump version to $NEW_VERSION [skip ci]"
+            git push origin HEAD:main
+            
+            VERSION=$NEW_VERSION
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -49,10 +79,6 @@ jobs:
           publish_dir: ./repo
           publish_branch: gh-pages
           force_orphan: false
-
-      - name: Get Version
-        id: get_version
-        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_ENV
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
