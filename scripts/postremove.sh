@@ -13,15 +13,21 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 
-# 2. Remove UX symlink if it points to our stack
+# 4. Clean up /docker symlink
 if [ -L /docker ]; then
-    LINK_TARGET=$(readlink /docker)
-    if [ "$LINK_TARGET" == "/opt/m3tal/stack" ]; then
-        echo "[m3tal] Removing /docker symlink"
-        rm /docker
-    fi
+    echo "[m3tal] Removing /docker symlink"
+    rm /docker
 fi
 
-echo "[m3tal] Removed."
-echo "[m3tal] NOTE: Configuration (/etc/m3tal) and Data (/var/lib/m3tal) have been preserved."
-echo "[m3tal] NOTE: Stack files (/opt/m3tal/stack) have also been preserved."
+# 5. Handle Purge (remove data and config)
+if [ "$1" = "purge" ]; then
+    echo "[m3tal] Purging all M3TAL data and configuration..."
+    rm -rf /opt/m3tal
+    rm -rf /etc/m3tal
+    rm -rf /var/lib/m3tal
+    echo "[m3tal] Purge complete."
+else
+    echo "[m3tal] Removed."
+    echo "[m3tal] NOTE: Configuration (/etc/m3tal) and Data (/var/lib/m3tal) have been preserved."
+    echo "[m3tal] NOTE: Stack files (/opt/m3tal/stack) have also been preserved."
+fi
