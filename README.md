@@ -41,8 +41,10 @@ To ensure operational stability, M3TAL enforces a strict path hierarchy. All ext
 
 ```bash
 # 1. Add the M3TAL repository
-curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -
-echo 'deb [arch=amd64] https://jakej985-rgb.github.io/m3tal-core stable main' | sudo tee /etc/apt/sources.list.d/m3tal.list
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo gpg --dearmor -o /etc/apt/keyrings/m3tal.gpg
+
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/m3tal.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list
 
 # 2. Install M3TAL
 sudo apt update && sudo apt install -y m3tal
