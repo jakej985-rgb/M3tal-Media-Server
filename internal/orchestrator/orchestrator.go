@@ -91,10 +91,6 @@ func (s *StackManager) Run(action string, args ...string) error {
 		return nil
 	}
 
-	// Auto-create required external networks
-	ensureNetworkExists("proxy")
-	ensureNetworkExists("m3tal")
-
 	envFile := system.GetConfigPath()
 	hasEnv := false
 	if _, err := os.Stat(envFile); err == nil {
@@ -178,16 +174,4 @@ func fixLegacyManifest(filePath, stackName string) error {
 		return os.WriteFile(filePath, []byte(sContent), 0664)
 	}
 	return nil
-}
-
-// ensureNetworkExists checks if a docker network exists and creates it if not.
-func ensureNetworkExists(name string) {
-	// check if exists
-	checkCmd := exec.Command("docker", "network", "inspect", name)
-	if err := checkCmd.Run(); err != nil {
-		// Doesn't exist, create it
-		fmt.Printf("🌐 Creating required external network: %s\n", name)
-		createCmd := exec.Command("docker", "network", "create", name)
-		_ = createCmd.Run()
-	}
 }
