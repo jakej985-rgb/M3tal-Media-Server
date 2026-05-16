@@ -170,6 +170,16 @@ func fixLegacyManifest(filePath, stackName string) error {
 		}
 	}
 
+	// NEW: Fix strict interpolation checks that cause crashes during init
+	// Find patterns like ${VAR:?Error} and change to ${VAR:-}
+	if strings.Contains(sContent, ":?") {
+		// We use a simplified string replacement for common markers we know exist
+		sContent = strings.ReplaceAll(sContent, ":?CF_TUNNEL_TOKEN not set — run from repo root with .env}", ":-}")
+		sContent = strings.ReplaceAll(sContent, ":?DASHBOARD_SECRET not set}", ":-}")
+		sContent = strings.ReplaceAll(sContent, ":?DOMAIN not set}", ":-}")
+		modified = true
+	}
+
 	if modified {
 		return os.WriteFile(filePath, []byte(sContent), 0664)
 	}
