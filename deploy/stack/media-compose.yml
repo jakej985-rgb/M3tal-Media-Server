@@ -316,6 +316,8 @@ services:
 networks:
   proxy:
     external: true
+  m3tal:
+    external: true
   default:
     name: none
 
