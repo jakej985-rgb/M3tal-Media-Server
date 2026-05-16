@@ -179,6 +179,15 @@ func fixLegacyManifest(filePath, stackName string) error {
 		modified = true
 	}
 
+	// NEW: Fix legacy Traefik volume mounts
+	if strings.Contains(sContent, "./dynamic/api.yml") {
+		// Remove the individual file mount
+		sContent = strings.ReplaceAll(sContent, "      - ./dynamic/api.yml:/etc/traefik/dynamic/api.yml:ro", "")
+		// Update the directory mount to the simplified local version
+		sContent = strings.ReplaceAll(sContent, "      - ${CONFIG_PATH:-/mnt/config}/traefik/dynamic:/etc/traefik/dynamic:ro", "      - ./dynamic:/etc/traefik/dynamic:ro")
+		modified = true
+	}
+
 	if modified {
 		return os.WriteFile(filePath, []byte(sContent), 0664)
 	}
