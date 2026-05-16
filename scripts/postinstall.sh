@@ -27,7 +27,7 @@ fi
 # 3. Stack Initialization (templates to /opt/m3tal/stack)
 if [ -d /usr/share/m3tal/stack ]; then
     echo "[m3tal] Initializing M3TAL Stack files at /opt/m3tal/stack"
-    # We use -n (no-clobber) to avoid overwriting user modifications if they already exist
+    mkdir -p /opt/m3tal/stack/dynamic
     cp -rn /usr/share/m3tal/stack/. /opt/m3tal/stack/
 fi
 

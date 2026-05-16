@@ -19,8 +19,7 @@ services:
       - no-new-privileges:true
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      - ${CONFIG_PATH:-/mnt/config}/traefik/dynamic:/etc/traefik/dynamic:ro
-      - ./dynamic/api.yml:/etc/traefik/dynamic/api.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
       - ${BASE_STORAGE_PATH:-/mnt}:/mnt
     networks:
       - proxy
