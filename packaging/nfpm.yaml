@@ -29,8 +29,7 @@ contents:
 
   # Stack Templates (source of truth for /opt/m3tal/stack)
   - src: ./deploy/stack/
-    dst: /usr/share/m3tal/stack
-    type: "dir"
+    dst: /usr/share/m3tal/stack/
 
   # Systemd Services
   - src: ./packaging/m3tal-api.service

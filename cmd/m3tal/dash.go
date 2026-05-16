@@ -60,8 +60,9 @@ func initDashCmd() *cobra.Command {
 
 	var upCmd = &cobra.Command{
 		Use:   "up",
-		Short: "Pull and start the dashboard service",
+		Short: "Pull config, image, and start dashboard",
 		Run: func(cmd *cobra.Command, args []string) {
+			pullConfig()
 			runDashCompose("pull")
 			runDashCompose("up", "-d")
 		},
@@ -69,14 +70,43 @@ func initDashCmd() *cobra.Command {
 
 	var pullCmd = &cobra.Command{
 		Use:   "pull",
-		Short: "Pull the dashboard image",
+		Short: "Pull dashboard image and config",
 		Run: func(cmd *cobra.Command, args []string) {
+			pullConfig()
 			runDashCompose("pull")
 		},
 	}
 
-	dashCmd.AddCommand(upCmd, pullCmd, startCmd, stopCmd, restartCmd, logsCmd, statusCmd)
+	var pullConfigCmd = &cobra.Command{
+		Use:   "pull-config",
+		Short: "Download the latest dashboard compose file from GitHub",
+		Run: func(cmd *cobra.Command, args []string) {
+			pullConfig()
+		},
+	}
+
+	dashCmd.AddCommand(upCmd, pullCmd, pullConfigCmd, startCmd, stopCmd, restartCmd, logsCmd, statusCmd)
 	return dashCmd
+}
+
+func pullConfig() {
+	stackDir := system.GetStackDir()
+	composeFile := filepath.Join(stackDir, "m3tal-compose.yml")
+	url := "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.yml"
+
+	fmt.Printf("📥 Pulling latest dashboard config from GitHub...\n")
+
+	// Ensure directory exists
+	if err := os.MkdirAll(stackDir, 0755); err != nil {
+		log.Fatalf("❌ Failed to create stack directory: %v", err)
+	}
+
+	// Use curl for simplicity (handles redirects, etc.)
+	cmd := exec.Command("curl", "-fsSL", "-o", composeFile, url)
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("❌ Failed to download compose file: %v", err)
+	}
+	fmt.Printf("✅ Saved to %s\n", composeFile)
 }
 
 func runDashCompose(action string, args ...string) {
