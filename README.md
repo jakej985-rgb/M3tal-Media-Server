@@ -4,74 +4,85 @@ The structure is now optimized for the M3TAL Go-native standard, ensuring the `m
 
 ***
 
-# 🚀 M3TAL Media Server: Core Orchestrator
+# M3TAL Media Server: Core Orchestrator
 
-**M3TAL** is the definitive Core Orchestrator of the M3TAL Ecosystem. Engineered as a robust, Go-native system, it delivers high-performance, low-latency control for complex media infrastructure. This design strategically decouples the Orchestrator CLI, Backend API, and Dashboard components, establishing M3TAL Core as the singular source of truth for all infrastructure state.
-
----
-
-## ⚠️ Current Repository Status: Core Infrastructure
-**Observation Report [M3TAL-ARCH-001]:** This repository serves as the **Core Orchestrator**. It provides the foundational Go-native logic for system-wide state coordination and container lifecycle management. 
-
-As the primary binary (`m3tal`), it is responsible for the execution of the ecosystem. It does not contain the presentation layer or the secondary API logic; it orchestrates the `m3tal-goback` and `m3tal-godash` modules via API-only communication, ensuring a strictly isolated, fault-tolerant operational stack.
+**M3TAL** is the Core Orchestrator of the M3TAL Ecosystem. It is a Go-native system designed for high-performance control of media infrastructure. This repository houses the orchestration logic, lifecycle management, and the CLI binary that maintains the system state.
 
 ---
 
-## 🧠 System Architecture: Mission Control Layout
+## Architecture Overview
 
-The M3TAL ecosystem operates on a stringent **"Core-First"** communication protocol:
+The M3TAL ecosystem is decoupled into three primary layers, interacting exclusively via network protocols and standardized file paths.
 
-*   **Orchestrator (`m3tal` CLI)**: The native Go binary. It manages local system state, coordinates Docker orchestration via the `/opt/m3tal` manifest tree, and oversees the configuration lifecycle.
-*   **Backend API (`m3tal-goback`)**: The server-side intelligence. It provides the data-layer for the Dashboard. It communicates with the Orchestrator to execute state changes, maintaining a strict separation between control logic and data presentation.
-*   **Dashboard (`m3tal-godash`)**: The containerized UI layer. It consumes data and initiates commands exclusively through the `m3tal-goback` API, enforcing a secure isolation boundary.
-
----
-
-## 📁 Filesystem & Path Consistency: Standard Operating Procedure
-
-M3TAL enforces a strict, standardized path hierarchy to ensure predictable container mounting and inter-process communication across the ecosystem.
-
-| Path | Purpose |
-| :--- | :--- |
-| `/usr/bin/m3tal` | Orchestrator CLI Binary |
-| `/etc/m3tal/.env` | Global Configuration Source of Truth |
-| `/var/lib/m3tal/` | Persistent State & System Data |
-| `/opt/m3tal/stack` | Docker Compose Manifests |
-| `/mnt/m3tal-media` | Standard mount point for all media assets |
+*   **Orchestrator (`cmd/m3tal`)**: The native Go CLI. It manages Docker lifecycle, validates configurations, and serves as the primary interface for system administration.
+*   **Backend API (`m3tal-goback`)**: The data layer. It provides the REST/gRPC interface used by the Dashboard to query infrastructure status.
+*   **Dashboard (`deploy/dashboard`)**: The web-based UI layer (Python/Flask). It communicates with the backend API to visualize system state.
 
 ---
 
-## 🛠️ Deployment: Docker Integration
+## Quick Start Guide
 
-To function as the Core Orchestrator, the service requires privileged access to the Docker socket to manage its sub-ecosystem. Ensure your `docker-compose.yml` aligns with the M3TAL standard:
+### 1. Prerequisites
+*   **Go 1.21+** installed on the host.
+*   **Docker & Docker Compose** installed.
+*   **OS**: Linux-based environment (recommended for path consistency).
 
-```yaml
-services:
-  m3tal-core:
-    image: m3tal/core:latest 
-    container_name: m3tal-core
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:rw 
-      - /opt/m3tal:/opt/m3tal:rw 
-      - /mnt:/mnt:rw 
-    environment:
-      - M3TAL_ENV=production 
+### 2. Build the Orchestrator
+Navigate to the root directory to build the Go-native binary:
+```bash
+go build -o m3tal ./cmd/m3tal/main.go
+sudo cp m3tal /usr/local/bin/
+```
+
+### 3. Deploy the Ecosystem
+The repository includes a standardized deployment stack. Deploy the secondary modules via the `deploy/stack` directory:
+```bash
+cd deploy/stack
+docker-compose up -d
 ```
 
 ---
 
-## 🔗 Ecosystem Integration Rules: Interoperability Protocol
+## Filesystem Standard
+To ensure the Orchestrator can manage assets and configuration across containers, the system follows these mandatory path conventions:
 
-*   **API-Only Communication**: All data exchange between modules MUST occur via defined API interfaces. No direct file-system manipulation between the Dashboard and Orchestrator is permitted.
-*   **Go-Native Migration**: The platform is fully committed to Go-native binaries. All new modules must be written in Go to maintain binary compatibility and performance parity.
-*   **Path Consistency**: All storage operations must resolve to the `/mnt` volume tree to ensure cross-container accessibility.
+| Path | Purpose |
+| :--- | :--- |
+| `/usr/bin/m3tal` | Orchestrator CLI Binary |
+| `/etc/m3tal/` | Configuration directory |
+| `/opt/m3tal/stack` | Docker Compose manifests |
+| `/mnt/m3tal-media` | Primary storage mount for media assets |
 
 ---
 
-## 🏗️ Related Projects: M3TAL Ecosystem Modules
+## Deployment: Docker Configuration
+The Orchestrator requires access to the Docker socket to manage the ecosystem. Ensure your environment matches this configuration:
 
-*   [**m3tal-godash**](https://github.com/jakej985-rgb/m3tal-godash): The official Go/WASM web dashboard.
-*   [**m3tal-goback**](https://github.com/jakej985-rgb/m3tal-goback): The Go-native backend engine API.
+```yaml
+services:
+  m3tal-orchestrator:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/m3tal:/opt/m3tal
+      - /mnt:/mnt
+    environment:
+      - M3TAL_ROOT=/opt/m3tal
+```
 
-*M3TAL — Modular Infrastructure Platform. Status: Go-Native Migration in progress.*
+---
+
+## Ecosystem Integration Rules
+
+*   **API-Only Communication**: Modules must not communicate via shared databases or direct file modification. All interaction between the Dashboard and Orchestrator occurs via the `m3tal-goback` API.
+*   **Go-Native Migration**: The platform is migrating to Go-native binaries. New modules should prioritize Go for performance and compatibility.
+*   **Path Consistency**: All media assets MUST be served from the `/mnt` volume tree to ensure accessibility across the Orchestrator and the media-handling containers.
+
+---
+
+## Related Projects
+*   [**m3tal-godash**](https://github.com/jakej985-rgb/m3tal-godash): The official web dashboard interface.
+*   [**m3tal-goback**](https://github.com/jakej985-rgb/m3tal-goback): The backend API engine for data persistence and orchestration hooks.
+
+*M3TAL — Modular Infrastructure Platform. Status: Go-Native Migration Active.*

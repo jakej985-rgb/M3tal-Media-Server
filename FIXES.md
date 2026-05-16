@@ -1,51 +1,51 @@
-### **DocCritic Audit Report: M3TAL Core Orchestrator**
+As a Senior DevOps Auditor, I have reviewed the provided documentation for the M3TAL Core Orchestrator. **Verdict: FAILED.**
 
-**Audit Date:** 2023-10-27
-**Auditor:** DocCritic, Senior DevOps Auditor
-**Verdict:** **FAILED (Deployment Impossibility)**
+The current documentation is a "hero's journey" narrative rather than a technical manual. It assumes the user is already inside the developer's head, fails to mention critical environment setup, and leaves the deployment in an inconsistent state.
 
-As a new user attempting to bootstrap this infrastructure, I am currently staring at a pile of architectural philosophy with zero actionable instructions. This documentation assumes the user already possesses the M3TAL binary, the environment configuration, and the filesystem structure, none of which are documented for creation.
+### Issue List
 
----
-
-### **Issue List**
-
-#### **1. BLOCKER: Missing Binary Provisioning**
-The documentation references `/usr/bin/m3tal` as the "nexus" but provides no instructions on how to obtain, compile, or install it. Is it a pre-compiled binary? Do I need to `go build`? If so, from where?
-*   **Fix:** Add a "Quick Start: Installation" section. Provide a `git clone` command and a standard `go build -o m3tal main.go` instruction.
-
-#### **2. BLOCKER: Missing Configuration Schema**
-The documentation cites `/etc/m3tal/.env` as the "Global Configuration Source of Truth," but fails to provide a template or list of required environment variables. A project cannot boot without defining secrets, API keys, or database pointers.
-*   **Fix:** Provide a `.env.example` file in the repo and a command to initialize it (e.g., `m3tal setup` or `cp .env.example /etc/m3tal/.env`).
-
-#### **3. BLOCKER: Filesystem Assumption**
-The docs demand the existence of `/mnt/m3tal-media` and `/opt/m3tal/stack`. If a user runs the Docker container without these existing on the host, Docker will create them as *root-owned directories*, often causing permission errors that brick the container startup.
-*   **Fix:** Provide an initialization script or a `mkdir` command block to ensure folder structure and permissions are correct before running the stack.
-
-#### **4. WARNING: Traefik/Networking Gap**
-The architecture mentions an API-only communication protocol but fails to mention how to handle external ingress. How does the user access the dashboard or the API? Is Traefik assumed? Which ports need to be exposed?
-*   **Fix:** Include a Networking section explaining port mapping or Traefik labels required to make the "Ecosystem" talk to one another.
-
-#### **5. SUGGESTION: Operational Workflow**
-There is no "How to run" section. I have a `docker-compose.yml` snippet, but I don't know if I should run `docker-compose up -d` or use the `m3tal` CLI to trigger the stack.
-*   **Fix:** Clearly define the startup sequence: 
-    1. Prepare environment. 
-    2. Deploy core via Docker. 
-    3. Initialize/register modules via `m3tal` CLI.
+*   **BLOCKER: Missing Initialization/Setup.** You build the binary, but there is zero instruction on how to initialize the configuration directory (`/etc/m3tal/`) or the required media mount points. The binary will likely crash immediately on startup due to missing config files.
+*   **BLOCKER: Inconsistent Pathing.** The "Filesystem Standard" table says the binary belongs in `/usr/bin/m3tal`, but your build instructions copy it to `/usr/local/bin/`. Which is it? Furthermore, you list `/mnt/m3tal-media` as mandatory but provide no instructions on how to create or mount this directory.
+*   **BLOCKER: Orphaned Deployment.** The "Deploy the Ecosystem" section instructs the user to run `docker-compose up` inside `deploy/stack`, but the "Docker Configuration" section provides a separate snippet for `m3tal-orchestrator`. Are these meant to be combined? If so, where is the master `docker-compose.yml`?
+*   **WARNING: Lack of Port Documentation.** The documentation references a "Dashboard" and "Backend API" but provides no mapping of ports (e.g., 80, 8080, 5000) or how to access them.
+*   **WARNING: Environment Variable Ambiguity.** You mention `M3TAL_ROOT`, but there are no instructions on creating or populating the files required within that root.
+*   **SUGGESTION: Remove Marketing Fluff.** Phrases like "The nexus of the ecosystem" or "Core Orchestrator architectural profile" provide zero functional value. Replace with: "This repo provides the CLI and service management logic."
 
 ---
 
-### **Suggested Remediation (Action Plan)**
+### Suggested Fixes
 
-1.  **Add an `INSTALL.md` or expand the README** to include a "First-Time Setup" section.
-2.  **Create a `setup.sh` script** that:
-    *   Creates `/etc/m3tal` and `/opt/m3tal`.
-    *   Copies the `.env.example`.
-    *   Sets appropriate directory permissions.
-3.  **Explicitly state dependencies:** (e.g., "Requires Docker Engine 20.10+ and Go 1.21+").
-4.  **Add a "Deployment Flow" visual or checklist:**
-    *   `Step 1: Build Core`
-    *   `Step 2: Configure Environment`
-    *   `Step 3: Orchestrate Stack`
+#### 1. Standardize Installation Steps
+Update the Build/Install section to use a single source of truth for the binary location:
+```bash
+# Recommended: /usr/local/bin
+go build -o m3tal ./cmd/m3tal/main.go
+sudo install -m 755 m3tal /usr/local/bin/m3tal
+```
 
-**DocCritic Note:** *Infrastructure without clear onboarding is just "shelf-ware." Fix these blockers immediately, or the M3TAL ecosystem will remain theoretical.*
+#### 2. Provide a Setup Script or Manual Init
+Document the bootstrap requirements. Add:
+```bash
+# Setup required directories
+sudo mkdir -p /etc/m3tal /opt/m3tal/stack /mnt/m3tal-media
+sudo chown $USER:$USER /etc/m3tal /opt/m3tal /mnt/m3tal-media
+# Copy template config
+cp configs/default.yaml /etc/m3tal/config.yaml
+```
+
+#### 3. Consolidate Docker Instructions
+Provide a single `docker-compose.yml` that orchestrates the *entire* ecosystem (Dashboard, API, and Orchestrator). Users should not be running disparate `up` commands.
+
+#### 4. Explicit Port Mapping
+Create a "Network Access" table:
+| Service | Internal Port | External Mapping |
+| :--- | :--- | :--- |
+| Dashboard | 5000 | 8080 |
+| API | 8000 | 8001 |
+
+#### 5. Documentation Style Guide
+*   **Remove:** "The nexus of the ecosystem."
+*   **Replace with:** "The `m3tal` binary acts as the primary interface for managing infrastructure lifecycle and configuration."
+*   **Remove:** "Go-native migration active." (Irrelevant to the end-user).
+
+**Final Note to DocSmith:** Stop writing like a product brochure. Start writing like a sysadmin. A technical guide is a contract between the developer and the user—currently, this contract is void.
