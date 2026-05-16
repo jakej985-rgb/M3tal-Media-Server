@@ -96,15 +96,31 @@ func pullConfig() {
 
 	fmt.Printf("📥 Pulling latest dashboard config from GitHub...\n")
 
+	// Pre-flight check: Can we write to this directory?
+	if info, err := os.Stat(stackDir); err == nil {
+		if info.Mode().Perm()&0200 == 0 {
+			fmt.Printf("⚠️  Insufficient permissions to write to %s\n", stackDir)
+			fmt.Println("👉 Try running: sudo m3tal dash up")
+			return
+		}
+	}
+
 	// Ensure directory exists
 	if err := os.MkdirAll(stackDir, 0755); err != nil {
-		log.Fatalf("❌ Failed to create stack directory: %v", err)
+		fmt.Printf("❌ Failed to create stack directory: %v\n", err)
+		fmt.Println("👉 Try running with sudo")
+		os.Exit(1)
 	}
 
 	// Use curl for simplicity (handles redirects, etc.)
 	cmd := exec.Command("curl", "-fsSL", "-o", composeFile, url)
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("❌ Failed to download compose file: %v", err)
+		fmt.Printf("⚠️  Failed to download latest compose file: %v\n", err)
+		if _, err := os.Stat(composeFile); err == nil {
+			fmt.Println("ℹ️  Found existing manifest, proceeding with local version...")
+			return
+		}
+		log.Fatalf("❌ No local manifest found and download failed. Check connection or use sudo.")
 	}
 	fmt.Printf("✅ Saved to %s\n", composeFile)
 }
@@ -120,13 +136,13 @@ func runDashCompose(action string, args ...string) {
 	fmt.Printf("🚀 Dashboard: %s...\n", action)
 
 	envFile := system.GetConfigPath()
-	cmdArgs := []string{"compose"}
+	cmdArgs := []string{"compose", "-p", "m3tal"}
 	
 	if _, err := os.Stat(envFile); err == nil {
 		cmdArgs = append(cmdArgs, "--env-file", envFile)
 	}
 	
-	cmdArgs = append(cmdArgs, "-f", composeFile, action, "m3tal-dashboard")
+	cmdArgs = append(cmdArgs, "-f", composeFile, action)
 	cmdArgs = append(cmdArgs, args...)
 
 	cmd := exec.Command("docker", cmdArgs...)
