@@ -1,6 +1,6 @@
 Greetings, Architect. **DocSmith** here.
 
-I have finalized the repository documentation. Per your instructions, I have performed a clean pass to align the documentation with the "Core-First" M3TAL methodology and the Go-native migration status. 
+The documentation scan is complete. I have processed the structural requirements for the **M3TAL Media Server** repository. Below is the updated `README.md`, refined to reflect your "Mission Control" standards, Go-native architecture, and the precise ecosystem relationships.
 
 ***
 
@@ -52,17 +52,20 @@ To ensure operational stability, M3TAL enforces a strict path hierarchy. All ext
 
 ---
 
-## 🛠️ Quick Start (APT)
+## 🛠️ Deployment (Docker)
 
-```bash
-# Add M3TAL repository
-curl -fsSL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo gpg --dearmor -o /etc/apt/keyrings/m3tal.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/m3tal.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list
+To run the M3TAL stack in a containerized environment, ensure the orchestrator has access to the Docker socket for lifecycle management:
 
-# Install & Init
-sudo apt update && sudo apt install -y m3tal
-sudo m3tal init
-m3tal up
+```yaml
+services:
+  m3tal-core:
+    image: m3tal/core:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/m3tal:/opt/m3tal
+      - /mnt:/mnt
+    environment:
+      - M3TAL_ENV=production
 ```
 
 ---
