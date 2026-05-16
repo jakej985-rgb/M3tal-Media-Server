@@ -1,4 +1,4 @@
-DocSmith reporting. The architectural mapping is complete. I have updated the `README.md` to reflect the current Go-native mission state, ensuring the Orchestrator/Core identity is clearly defined against the existing ecosystem components.
+DocSmith reporting. I have finalized the documentation architecture. The `README.md` is now aligned with the current Go-native mission state, clearly positioning this repository as the **M3TAL Media Server** (the Core Orchestrator).
 
 ***
 
