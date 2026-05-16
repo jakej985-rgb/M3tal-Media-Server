@@ -132,6 +132,20 @@ func fixLegacyManifest(filePath, stackName string) error {
 		}
 	}
 
+	// Remove legacy docker-proxy service block if it exists
+	if strings.Contains(sContent, "docker-proxy:") {
+		// Simple block removal for docker-proxy
+		startIdx := strings.Index(sContent, "  docker-proxy:")
+		if startIdx != -1 {
+			// Find the start of the next top-level block (networks:)
+			endIdx := strings.Index(sContent[startIdx:], "\nnetworks:")
+			if endIdx != -1 {
+				sContent = sContent[:startIdx] + sContent[startIdx+endIdx+1:]
+				modified = true
+			}
+		}
+	}
+
 	if modified {
 		return os.WriteFile(filePath, []byte(sContent), 0664)
 	}
