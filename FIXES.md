@@ -1,64 +1,56 @@
-**Audit Report: M3TAL Core Orchestrator README**
-**Auditor:** DocCritic, Senior DevOps Auditor
-**Verdict:** **FAILED (REJECTED)**
+## Audit Report: M3TAL Core Orchestrator
+**Auditor:** DocCritic, Senior DevOps Auditor  
+**Status:** **FAILED - BLOCKER PRESENT**
 
-The documentation is currently insufficient for production deployment. It relies on dangerous assumptions regarding filesystem layout and fails to explain critical infrastructure requirements (networking, security, and storage initialization). The tone leans toward "marketing brochure" rather than "technical manual."
+The current README suffers from "Developer Tunnel Vision." It assumes a pristine, pre-configured environment and fails to provide actionable deployment steps. You are treating this like a marketing brochure rather than a technical manual.
 
 ---
 
 ### Issue List
 
-#### BLOCKER
-1. **Missing Storage Initialization:** The documentation assumes `/mnt/m3tal-media` exists. A new user will encounter a `bind mount` failure if this directory is not created or permissions are not set.
-2. **Missing Port Mapping/Access Info:** There is no documentation regarding Traefik, reverse proxy requirements, or which ports the Dashboard/API bind to on the host machine.
-3. **Incomplete Docker Instructions:** While a snippet is provided, there is no `docker-compose.yml` boilerplate or instructions on how to bridge the CLI (`m3tal up`) with the actual network-accessible services.
+#### 1. BLOCKER: Missing Mount Point Enforcement
+**Issue:** The documentation references `/mnt/m3tal-media` as a strict requirement but provides no instructions on how to create, mount, or persist this directory. If a user runs `m3tal up` on a fresh system, it will fail or hang due to missing volumes.
+**Fix:** Add a "Storage Preparation" section detailing `mkdir -p /mnt/m3tal-media` and a note regarding fstab/mounting external storage.
 
-#### WARNING
-4. **Dev-Only Assumptions:** The assumption that a user is running on Debian/Ubuntu with root access to `/etc/` and `/opt/` is standard, but the guide fails to mention necessary `user` permissions for the Docker socket.
-5. **Lack of Configuration Validation:** `m3tal setup` is mentioned, but what happens if it fails? There is no "Troubleshooting" or "Logs" section.
+#### 2. BLOCKER: Missing Traefik/Port Exposure
+**Issue:** The project uses a Dashboard and an API, yet nowhere in the documentation does it specify which ports are exposed or how the user accesses the UI (e.g., `http://localhost:8080`). There is no mention of Traefik or reverse proxy configuration, which is critical for an "Orchestrator."
+**Fix:** Add an "Accessing your M3TAL Instance" section specifying default ports and any required Traefik labels.
 
-#### SUGGESTION
-6. **Marketing Buzzwords:** Phrases like "Go-Native Architectural Requirements" and "Modular Infrastructure Platform" add zero value to an operator. Strip the fluff; focus on the state machine.
-7. **Implicit Dependencies:** It is unclear if `m3tal-goback` and `m3tal-godash` need to be cloned manually or if `m3tal up` pulls them via Docker Compose.
+#### 3. WARNING: Ambiguous Docker Deployment
+**Issue:** You provide a `docker-compose.yaml` snippet but don't explain *how* the Orchestrator binary interacts with it. Does `m3tal up` trigger a `docker compose -f ... up`? The user needs to know where the Compose files live and how to modify them safely.
+**Fix:** Explicitly state the CLI commands that trigger the Docker stack and explain the folder structure expectation for custom overrides.
+
+#### 4. WARNING: "Marketing Bloat"
+**Issue:** Phrases like "Go-Native Architectural Requirements" and "Modular Infrastructure Platform" are buzzwords that provide zero utility to an operator trying to fix a broken container. 
+**Fix:** Strip the flavor text. Keep the descriptions functional: e.g., "The CLI governs the Docker lifecycle."
+
+#### 5. SUGGESTION: Dependency Gaps
+**Issue:** You mention Debian-based systems for APT but fail to mention that `docker-ce` and `docker-compose-plugin` should be installed *before* the CLI, or the CLI will return "Docker socket not found" errors immediately.
+**Fix:** Reorder the Prereqs section to ensure Docker is verified (`docker ps`) before the M3TAL installation.
 
 ---
 
-### Suggested Fixes
+### Suggested README Refactor (Critical Sections)
 
-#### 1. Correcting Storage Assumptions (Blocker)
-Add a "System Preparation" section before Installation:
+#### Storage Preparation
+The Orchestrator requires a dedicated mount point to ensure persistence across container restarts.
 ```bash
-# Ensure storage is mounted and accessible
+# Create the required storage tree
 sudo mkdir -p /mnt/m3tal-media
-sudo chown -R $USER:$USER /mnt/m3tal-media
+sudo chown $USER:$USER /mnt/m3tal-media
 ```
 
-#### 2. Network/Access Documentation (Blocker)
-Add an "Access & Networking" table:
-| Service | Host Port | Internal Port | Description |
-| :--- | :--- | :--- | :--- |
-| Dashboard | 8080 | 80 | UI Access |
-| API | 9090 | 9090 | Backend Data |
+#### Accessing the Dashboard
+Once `m3tal dash up` has been executed, the services bind to the following ports:
+*   **Dashboard UI:** `http://<your-host-ip>:8080`
+*   **Backend API:** `http://<your-host-ip>:9000`
+*   *Note: Ensure your firewall allows traffic on these ports.*
 
-*Include a warning that Traefik or an equivalent reverse proxy must be configured to point to these ports.*
-
-#### 3. Clarifying Docker Orchestration (Blocker)
-You state `m3tal up` runs the stack. Clarify if the user needs to clone the repository to a specific location:
-> "The `m3tal up` command expects the repository to be cloned to `/opt/m3tal/stack`. Please ensure you have cloned this repository and initialized the submodules."
-
-#### 4. Clean Up Marketing Copy (Suggestion)
-*   **Remove:** "Go-Native Migration Active" (Irrelevant to the user).
-*   **Replace:** "Core Orchestrator" with "CLI Manager".
-*   **Action:** Change "Ecosystem Integration Rules" to "Operational Constraints".
-
-#### 5. Verify APT instructions (Warning)
-Add a sanity check:
-```bash
-# Verify installation
-m3tal --version
-# Should return the current semver release
-```
+#### Understanding the Orchestrator
+The `m3tal` binary acts as a wrapper for `docker compose`.
+1. `m3tal up` executes `docker compose -f /opt/m3tal/stack/docker-compose.yml up -d`.
+2. Any manual modifications to the stack should be performed in `/opt/m3tal/stack/`.
 
 ---
 
-**DocCritic’s Note:** Do not treat your users as developers who already know the codebase. Treat them as system administrators who want to deploy a service without their server crashing due to missing mount points. **Revise and resubmit.**
+**Verdict:** **REJECTED.** The documentation is currently an "insider's guide." Fix the storage requirements and network exposure documentation before proceeding to public release.
