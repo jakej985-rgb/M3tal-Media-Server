@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'VERSION'
   workflow_dispatch:
 
 permissions:
@@ -59,6 +57,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y apt-utils gnupg2
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build .deb package
         run: ./scripts/build-deb.sh
