@@ -1,55 +1,38 @@
-## **DocCritic Audit Report: M3TAL Core Orchestrator**
-
-**To:** DocSmith / M3TAL Architectural Team
-**From:** DocCritic, Senior DevOps Auditor
-**Subject:** Documentation Audit – M3TAL Media Server
+To: DocSmith, M3TAL Orchestration Lead
+From: DocCritic, Senior DevOps Auditor
+Subject: Audit Report [M3TAL-ARCH-001] – Deployment Documentation
 
 ---
 
-### **Verdict: REJECTED**
-The current documentation is an architectural vision document, not an operational manual. As a new user, I am left with a pile of assumptions, missing environment requirements, and no clear path to verify the deployment. You are assuming the user has a perfectly configured system environment that matches your internal lab; real-world users will fail at step 3.
+### **Verdict: FAILED**
+The current documentation is an architectural whitepaper, not a functional deployment guide. As a new user, I cannot deploy this system. It assumes a "perfect" environment, lacks critical configuration details, and provides no recovery path if the environment assumptions are unmet.
 
 ---
 
-### **Detailed Issue List**
+### **Issue List**
 
 #### **BLOCKER**
-1. **Missing `.env` Configuration:** The documentation references `/etc/m3tal/.env` as the "Source of Truth" but provides no template, no variable list (e.g., API keys, database credentials, volume paths), and no instructions on how to generate it.
-2. **Missing Filesystem Pre-requisites:** You reference `/mnt/m3tal-media` and `/opt/m3tal/stack`. If these directories do not exist on a clean install, does the `m3tal init` command create them with the correct permissions (chown/chmod)? If not, the deployment will crash on permission errors.
-3. **Traefik Configuration Silence:** You claim "Traefik ownership" but provide zero instructions on how to expose the services. Which ports need to be open on the host firewall? Where is the Traefik entry point configuration?
+1.  **Missing Repository/Package Validation:** The Quick Start relies on a `curl` and `apt` process that assumes these assets are live and populated. Without verification of the GPG key/APT repo content, the user is left dead-in-the-water if the URL is unreachable or 404.
+2.  **Missing `.env` Template:** The orchestrator requires global configuration, but there is no example of the required contents for `/etc/m3tal/.env`. What variables (API keys, DB URLs, persistence paths) must be defined before `m3tal up`?
+3.  **Traefik Gateway Omission:** The documentation mentions "Traefik Ownership" but provides zero instructions on how to configure, start, or secure the Traefik entry point. Users need to know which ports (80/443) are required and how Traefik maps to the internal stack.
+4.  **Hardware Path Assumptions:** The docs assume `/mnt` and `/mnt/m3tal-media` exist. If a user runs `m3tal up` without these mount points present, will the Docker containers fail to start (Volume bind-mount errors)? 
 
 #### **WARNING**
-4. **"Magic" APT Repository:** The `curl` command to add the repository assumes the user is root or has global sudo privileges. It fails to mention that `m3tal` binary might need `CAP_NET_BIND_SERVICE` or Docker socket access.
-5. **Lack of "Doctor" Logic:** If `m3tal up` fails, the documentation provides no troubleshooting steps. 
-6. **Docker-Compose Ambiguity:** You refer to `/docker` as a "User Entry Point" (symlink to `/opt/m3tal/stack`), but you never explain if the user needs to manually create this symlink or if the CLI does it.
+5.  **Ambiguous `m3tal init`:** It is unclear what `m3tal init` performs. Does it generate secrets? Does it require sudo? Does it create the directories specified in the "Filesystem" table?
+6.  **"Source/m3tal-stack" usage:** The table mentions `/opt/m3tal/stack` but doesn't explain if the user is responsible for populating this or if `m3tal init` generates the manifests.
 
 #### **SUGGESTION**
-7. **Developer vs. Operator Clarity:** The README mentions Go 1.21+ requirements. Clarify if the user *needs* to compile the code or if the APT install is sufficient. A binary-consumer doesn't need a Go toolchain.
-8. **Logging/Observability:** Where do the logs live? If the dashboard fails to connect to the backend, there is no mention of `m3tal logs` or log file paths.
+7.  **Diagnostic Feedback:** The documentation mentions `m3tal doctor`. It should be listed as a mandatory post-install step to verify the environment before the first `m3tal up`.
+8.  **Port Mapping Table:** Add a table defining exposed ports (e.g., Dashboard, API, Traefik Dashboard) so firewall/security group rules can be configured in advance.
 
 ---
 
-### **Suggested Fixes**
+### **Required Remediation Plan**
 
-1.  **Environment Setup:** 
-    *   Add a section: `Configuration Setup`. Provide a sample `.env` file structure.
-    *   `m3tal init` must explicitly state that it checks for `/mnt/m3tal-media` and logs a warning/error if it is missing or unmounted.
-2.  **Port Mapping Table:** Add a table to the README:
-    | Service | Port | Access |
-    | :--- | :--- | :--- |
-    | Traefik Web | 80/443 | External |
-    | M3TAL API | 8080 | Internal (Traefik) |
-    | M3TAL Dash | 3000 | Internal (Traefik) |
-3.  **Deployment Verification:** Add a "Verification" section after `m3tal up`:
-    *   *Check container status:* `docker ps | grep m3tal`
-    *   *Check logs:* `m3tal logs`
-    *   *Check connectivity:* `curl -v http://localhost:8080/health`
-4.  **Permission Safety:** Ensure the `post-install` script for the APT package creates the directories:
-    ```bash
-    sudo mkdir -p /etc/m3tal /opt/m3tal/stack /var/lib/m3tal
-    sudo chown $USER:$USER /etc/m3tal /var/lib/m3tal
-    ```
-5.  **Standardize Pathing:** Remove the ambiguity about the `/docker` symlink. Either state "Run `ln -s /opt/m3tal/stack /docker`" or have the CLI `init` process handle it automatically.
+1.  **Environment Setup:** Add a command `m3tal setup-dirs` or clarify that `m3tal init` performs `mkdir -p` on all required paths (`/etc/m3tal`, `/var/lib/m3tal`, `/mnt/m3tal-media`).
+2.  **Configuration Reference:** Include a `SAMPLE_ENV` block in the README. Users cannot "guess" the keys required for a Go-based backend.
+3.  **Traefik Bootstrapping:** Add a "Network Prerequisites" section. Explain that the user must open port 80/443 and that the Orchestrator will provision the Traefik container automatically upon first run.
+4.  **Failure States:** Explicitly state what happens if the APT install fails. Is there a manual binary download path?
+5.  **Cleanup the "Ghost" Modules:** Your "Current Repository Status" note admits there is no code. The README should include a "Development" section with instructions for building from source for early adopters, as the APT repo might not be production-ready yet.
 
----
-*DocCritic Note: Do not push this to production until a "Troubleshooting" section is added. Currently, this documentation forces a support ticket on every user.*
+**DocCritic’s Final Word:** *Stop describing the architecture and start describing the machine. If a user has to ask "what goes in my .env?", the documentation has failed.*
