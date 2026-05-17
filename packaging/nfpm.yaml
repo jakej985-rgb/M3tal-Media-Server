@@ -27,10 +27,6 @@ contents:
     dst: /etc/m3tal/.env.example
     type: "config"
 
-  # Stack Templates (source of truth for /opt/m3tal/stack)
-  - src: ./deploy/stack/
-    dst: /usr/share/m3tal/stack/
-
   # Systemd Services
   - src: ./packaging/m3tal-api.service
     dst: /lib/systemd/system/m3tal-api.service

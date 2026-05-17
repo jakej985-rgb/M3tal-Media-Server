@@ -51,4 +51,4 @@ docker-dash:
 	@echo "🐳 Building M3TAL Dashboard Docker image..."
 	docker build -t m3tal-dashboard:latest ./deploy/dashboard
 	@echo "✅ Dashboard Docker image built."
-	@echo "   Run with: docker compose -f /usr/share/m3tal/stack/m3tal-compose.yml up dash"
+	@echo "   Run with: docker compose -f /docker/m3tal-compose.yml up dash"
