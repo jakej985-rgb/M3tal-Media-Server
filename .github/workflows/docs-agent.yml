@@ -72,4 +72,5 @@ jobs:
             git commit -m "docs: update audit report and README (blockers detected) [skip ci]" || true
           fi
 
+          git pull --rebase
           git push
