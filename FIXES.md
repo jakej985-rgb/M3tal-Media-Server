@@ -1,55 +1,51 @@
-**Audit Report: M3TAL Core Orchestrator Documentation**
-**Auditor:** DocCritic, Senior DevOps Auditor
-**Status:** **REJECTED**
+### **DocCritic Audit Report: M3TAL Core Orchestrator**
 
-The documentation currently suffers from significant "Day 1" usability issues. It assumes the user is an expert who already knows how the system interconnects, while simultaneously failing to provide the operational safety rails required for a production environment. 
-
----
-
-### Issue List
-
-*   **[BLOCKER] Undefined `/mnt` dependencies:** The documentation mandates a specific path (`/mnt/m3tal-media`) but provides no script or instruction to create, mount, or verify permissions for this directory. An automated tool failing because a mount point doesn't exist is a critical failure.
-*   **[BLOCKER] Missing Port/Gateway mapping:** The documentation mentions a Dashboard and API but provides zero information regarding Traefik, Nginx, or local port mappings. A user has no idea how to access the UI after running `m3tal dash up`.
-*   **[WARNING] Docker/Compose Ambiguity:** The "Deployment" section provides a snippet but does not explain how the user is supposed to deploy the full stack. Is the user meant to create a `docker-compose.yml` manually? Where should this file reside?
-*   **[WARNING] Marketing Buzzwords:** Phrases like "Go-Native Migration Active" and "Modular Infrastructure Platform" serve as fluff. Documentation should be terse and functional.
-*   **[SUGGESTION] Configuration Validation:** There is no "Verify" or "Check" command mentioned. If a user runs `m3tal setup`, how do they know it succeeded?
-*   **[SUGGESTION] Missing Troubleshooting:** No mention of log locations (e.g., `/var/log/m3tal`) or how to debug a failed `m3tal up` command.
+**Audit ID:** M3TAL-AUD-001  
+**Status:** **FAILED**  
+**Verdict:** The documentation is currently insufficient for a production deployment. While it attempts to simplify the process, it leaves critical gaps in filesystem assumptions, security, and network configuration that will cause immediate failures for a first-time user.
 
 ---
 
-### Suggested Fixes
+### **Issue List**
 
-#### 1. Fix Directory Assumptions (Blocker)
-Add a pre-flight check step:
-```bash
-# Before running m3tal setup:
-sudo mkdir -p /mnt/m3tal-media /opt/m3tal
-sudo chown $USER:$USER /mnt/m3tal-media /opt/m3tal
-```
+#### **BLOCKER**
+*   **[BLOCKER] Hardcoded `/mnt` Path Assumptions:** The README mandates `/mnt/m3tal-media` as a storage mount point but provides no instructions on how to set this up. If the directory does not exist or lacks permissions, the Orchestrator will fail to start.
+*   **[BLOCKER] Missing Network/Port Mapping:** There is zero mention of ports. If this is a media server, users need to know which ports (e.g., 80, 443, 8080) must be open on their firewall or exposed by Traefik.
+*   **[BLOCKER] Docker Deployment Loophole:** The "Deployment: Docker Configuration" section shows a `services` block, but does not provide a functional `docker-compose.yml` or instructions on how to use `m3tal up` in conjunction with a custom stack. Does `m3tal up` automatically pull external files? Where is the user expected to put the YAML?
 
-#### 2. Define Access & Ports (Blocker)
-Add an **"Accessing M3TAL"** section:
-*   **Dashboard:** Accessible at `http://<server-ip>:8080` (or define the default port).
-*   **Traefik Integration:** If M3TAL manages Traefik, explicitly state the labels required on containers to be discovered by the gateway. If not, state that host-port mapping is required.
+#### **WARNING**
+*   **[WARNING] Incomplete APT Instructions:** You assume the user is on a Debian-based system (valid), but do not mention architecture requirements (e.g., `amd64` vs `arm64`).
+*   **[WARNING] Missing Traefik/Gateway Context:** The prompt specifically mentions Traefik, but the documentation ignores the reverse proxy configuration. A media server without a defined ingress path is a security risk and functionally unusable for external access.
+*   **[WARNING] Ambiguous CLI Lifecycle:** `m3tal up` and `m3tal dash up` are mentioned, but it is unclear if these commands are persistent or if they require an active shell session. Are they running as systemd services?
 
-#### 3. Formalize the Docker Flow (Warning)
-Clearly distinguish between the *CLI tool's operation* and *Docker Compose deployment*.
-*   *Action:* Provide a `docker-compose.yml` template that users can save to `/opt/m3tal/docker-compose.yml`.
-*   *Action:* Explain that `m3tal up` executes `docker compose -f /opt/m3tal/stack/docker-compose.yml up -d`.
-
-#### 4. Clean the Tone (Suggestion)
-Remove the "Ecosystem Integration Rules" and "Related Projects" fluff from the core technical guide. Move them to a `CONTRIBUTING.md` or a separate `ARCHITECTURE.md`. Keep the README strictly for "Installation" and "Operations."
-
-#### 5. Verification Commands (Suggestion)
-Add a status check command example:
-```bash
-# Verify installation
-m3tal version
-# Check system health
-m3tal status
-```
+#### **SUGGESTION**
+*   **[SUGGESTION] Marketing Overload:** The text "Modular Infrastructure Platform. Status: Go-Native Migration Active" is unnecessary. Keep it technical.
+*   **[SUGGESTION] Missing Logging/Debug Path:** Users need to know where to look when `m3tal` fails (e.g., `/var/log/m3tal/` or `journalctl -u m3tal`).
 
 ---
 
-### Verdict
-**Action Required:** The documentation is currently a developer's scratchpad, not a deployment guide. It lacks the network and storage context required to actually operate the software. **Update the README to include mandatory path creation steps and port definitions before next audit.**
+### **Suggested Fixes**
+
+1.  **Mount Point Verification:** Add a pre-flight check section:
+    ```bash
+    # Ensure media directory exists and is owned by the current user
+    sudo mkdir -p /mnt/m3tal-media
+    sudo chown $USER:$USER /mnt/m3tal-media
+    ```
+2.  **Explicit Port Mapping:** Add a "Network Requirements" table:
+    | Service | Port | Protocol | Purpose |
+    | :--- | :--- | :--- | :--- |
+    | Traefik | 80/443 | TCP | Ingress Gateway |
+    | Dashboard | 8080 | TCP | Internal UI Access |
+3.  **Deployment Clarification:** Explicitly state the expected project directory structure:
+    *   Explain that `m3tal up` looks for `docker-compose.yml` inside `/opt/m3tal/stack/`. Provide a template for this file.
+4.  **Logging Guidance:** Add a "Troubleshooting" section:
+    ```bash
+    # Check orchestrator logs
+    journalctl -u m3tal -f
+    ```
+5.  **Refine Marketing:** Remove the "Status: Go-Native Migration Active" and "M3TAL Ecosystem" fluff. Replace with a concise summary: *"M3TAL is a Go-based orchestration CLI for managing media server containers."*
+
+---
+
+**DocCritic’s Final Note:** *Clean up the filesystem dependency and explain the network ingress. Right now, this is a "Day 0" setup that will leave users stranded once they try to actually mount their media or access the web UI.*
