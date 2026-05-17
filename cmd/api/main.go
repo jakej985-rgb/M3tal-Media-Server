@@ -2,52 +2,39 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
-	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/store"
 )
 
 func main() {
-	stateDir := os.Getenv("STATE_DIR")
-	if stateDir == "" {
-		stateDir = filepath.Join("..", "state")
-	}
-
 	apiToken := os.Getenv("API_TOKEN")
 	if apiToken == "" {
 		apiToken = "m3tal-secret-token"
 	}
 
-	srv := api.NewServer(apiToken)
+	port := os.Getenv("API_PORT")
+	if port == "" {
+		port = "5050"
+	}
 
-	log.Println("🚀 M3TAL API Interface starting on :5050...")
+	// Initialize SQLite store
+	dbPath := store.GetStatePath()
+	db, err := store.Open(dbPath)
+	if err != nil {
+		log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
+		log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
+		if err := api.StartServer(port, apiToken); err != nil {
+			log.Fatalf("❌ API server failed: %v", err)
+		}
+		return
+	}
+	defer db.Close()
 
-	http.HandleFunc("/api/containers", srv.AuthMiddleware(srv.GetServices))
-	http.HandleFunc("/api/containers/list", srv.AuthMiddleware(srv.GetServices))
-	http.HandleFunc("/api/metrics", srv.AuthMiddleware(srv.GetStats))
+	log.Printf("📦 State database: %s\n", dbPath)
 
-	http.HandleFunc("/api/containers/start", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.StartContainer)
-	}))
-	http.HandleFunc("/api/containers/stop", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.StopContainer)
-	}))
-	http.HandleFunc("/api/containers/restart", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.RestartContainer)
-	}))
-
-	http.HandleFunc("/api/health", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		srv.GetHealth(w, r)
-	}))
-
-	if err := http.ListenAndServe(":5050", nil); err != nil {
+	if err := api.StartServerWithStore(port, apiToken, db); err != nil {
 		log.Fatalf("❌ API server failed: %v", err)
 	}
 }

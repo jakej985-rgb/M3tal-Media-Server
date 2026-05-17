@@ -1,46 +1,130 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/store"
 )
 
-// StartServer starts the API server on the specified port
+// StartServer starts the API server on the specified port.
+// This is the legacy entrypoint that creates an in-memory server without a store.
 func StartServer(port string, token string) error {
+	return StartServerWithStore(port, token, nil)
+}
+
+// StartServerWithStore starts the API server with an optional SQLite store
+// for the v2 engine endpoints.
+func StartServerWithStore(port string, token string, db *store.Store) error {
 	srv := NewServer(token)
 
 	log.Printf("🚀 M3TAL API Interface starting on :%s...\n", port)
 
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
 
-	// Required endpoints from master plan
-	mux.HandleFunc("/health", srv.AuthMiddleware(srv.GetHealth))
-	mux.HandleFunc("/services", srv.AuthMiddleware(srv.GetServices))
-	mux.HandleFunc("/stack", srv.AuthMiddleware(srv.GetStack))
-	mux.HandleFunc("/config", srv.AuthMiddleware(srv.GetConfig))
+	// Global middleware
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RealIP)
 
-	// Backward compatibility and convenience
-	mux.HandleFunc("/api/health", srv.AuthMiddleware(srv.GetHealth))
-	mux.HandleFunc("/api/services", srv.AuthMiddleware(srv.GetServices))
-	mux.HandleFunc("/api/stack", srv.AuthMiddleware(srv.GetStack))
-	mux.HandleFunc("/api/config", srv.AuthMiddleware(srv.GetConfig))
-	mux.HandleFunc("/api/containers", srv.AuthMiddleware(srv.GetServices))
+	// ─── v1 Legacy Endpoints (backward compatible) ───
+	r.Group(func(r chi.Router) {
+		r.Use(srv.chiAuthMiddleware)
 
-	// Actions
-	mux.HandleFunc("/api/containers/start", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.StartContainer)
-	}))
-	mux.HandleFunc("/api/containers/stop", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.StopContainer)
-	}))
-	mux.HandleFunc("/api/containers/restart", srv.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		mgr, _ := containers.GetProvider()
-		srv.HandleContainerAction(w, r, mgr.RestartContainer)
-	}))
+		// Original endpoints
+		r.Get("/health", srv.GetHealth)
+		r.Get("/services", srv.GetServices)
+		r.Get("/stack", srv.GetStack)
+		r.Get("/config", srv.GetConfig)
 
-	return http.ListenAndServe(":"+port, mux)
+		// /api/* prefixed duplicates
+		r.Get("/api/health", srv.GetHealth)
+		r.Get("/api/services", srv.GetServices)
+		r.Get("/api/stack", srv.GetStack)
+		r.Get("/api/config", srv.GetConfig)
+		r.Get("/api/containers", srv.GetServices)
+		r.Get("/api/containers/list", srv.GetServices)
+		r.Get("/api/metrics", srv.GetStats)
+
+		// Container actions
+		r.Post("/api/containers/start", func(w http.ResponseWriter, r *http.Request) {
+			mgr, _ := containers.GetProvider()
+			srv.HandleContainerAction(w, r, mgr.StartContainer)
+		})
+		r.Post("/api/containers/stop", func(w http.ResponseWriter, r *http.Request) {
+			mgr, _ := containers.GetProvider()
+			srv.HandleContainerAction(w, r, mgr.StopContainer)
+		})
+		r.Post("/api/containers/restart", func(w http.ResponseWriter, r *http.Request) {
+			mgr, _ := containers.GetProvider()
+			srv.HandleContainerAction(w, r, mgr.RestartContainer)
+		})
+	})
+
+	// ─── v2 Engine Endpoints ───
+	if db != nil {
+		routeH := &RouteHandlers{Store: db}
+		stackH := &StackHandlers{Store: db}
+		mwH := &MiddlewareHandlers{Store: db}
+
+		r.Route("/api/v2", func(r chi.Router) {
+			r.Use(srv.chiAuthMiddleware)
+
+			// Routes
+			r.Get("/routes", routeH.ListRoutes)
+			r.Post("/routes", routeH.CreateRoute)
+			r.Delete("/routes/{id}", routeH.DeleteRoute)
+			r.Post("/routes/preview", routeH.GetRouteLabels)
+
+			// Stacks
+			r.Get("/stacks", stackH.ListStacks)
+			r.Post("/stacks/load", stackH.LoadStack)
+			r.Post("/stacks/deploy", stackH.DeployStack)
+
+			// Services (pass-through to Docker provider)
+			r.Get("/services", srv.GetServices)
+
+			// Middleware
+			r.Get("/middleware", mwH.ListMiddleware)
+			r.Post("/middleware", mwH.CreateMiddleware)
+		})
+
+		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
+	} else {
+		log.Println("⚠️  v2 engine endpoints disabled (no store configured)")
+	}
+
+	return http.ListenAndServe(":"+port, r)
+}
+
+// chiAuthMiddleware is a chi-compatible version of AuthMiddleware.
+func (s *Server) chiAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("X-API-Token")
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token != s.APIToken {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// writeJSON encodes a value as JSON and writes it to the response.
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+// writeError writes a JSON error response.
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
 }
