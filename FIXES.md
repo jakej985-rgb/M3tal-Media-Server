@@ -1,62 +1,53 @@
-# DocCritic Audit Report: M3TAL Core Orchestrator
+**DocCritic Audit Report: M3TAL Core Orchestrator**
 
-**Auditor:** DocCritic, Senior DevOps Auditor  
-**Verdict:** **REJECTED - REQUIRES REWORK**
-
-While the documentation provides a baseline for installation, it suffers from "Developer Tunnel Vision." It assumes the user has a pre-configured filesystem, lacks critical networking information, and relies on marketing fluff rather than technical specification. 
+**Verdict:** **FAIL.** 
+While the installation section was improved, the documentation suffers from "developer-tunnel-vision." It assumes the user is an expert on your infrastructure layout and fails to provide necessary network configuration or environment handling, rendering the system unusable for a fresh deployment.
 
 ---
 
 ### Issue List
 
-#### 1. BLOCKER: Missing Network/Access Requirements
-The documentation mentions a Dashboard and API, but fails to define **ports**. Users cannot access the services if they do not know which host ports to open or which Traefik/Reverse Proxy configurations are expected.
-*   **Fix:** Add a "Network Requirements" section listing standard ports (e.g., 8080, 9000) and indicate if a reverse proxy is required for the dashboard.
+#### 1. BLOCKER: Missing Network/Port Access Documentation
+The README mentions a Dashboard and an API but provides zero information on how to access them.
+*   **Fix:** Add an "Accessing the Services" section. Define default ports (e.g., Dashboard on 8080) and explain that the system utilizes Traefik or local port mapping.
 
-#### 2. BLOCKER: Dev-Only Assumption (`/mnt` existence)
-The documentation mandates `/mnt/m3tal-media` but provides no instruction on how to provision this. A fresh Debian install does not automatically mount external drives to this path. 
-*   **Fix:** Add a step for directory initialization (`sudo mkdir -p /mnt/m3tal-media && sudo chown $USER:$USER /mnt/m3tal-media`) or explain that this is a placeholder for a mount point.
+#### 2. BLOCKER: `/mnt` Path Assumption
+The "Filesystem Standard" table explicitly requires `/mnt/m3tal-media`. If a user does not have this mount point existing on their host, the Docker containers will either fail to start or inadvertently create a directory owned by `root`, leading to permission nightmares.
+*   **Fix:** Explicitly state the need for this path. Add a pre-flight check warning or include a `mkdir -p /mnt/m3tal-media` command in the `m3tal setup` process.
 
-#### 3. WARNING: Ambiguous "Docker Deployment"
-The provided `docker-compose.yaml` snippet is an orphan. It is unclear if the user is supposed to create this file, where to save it, or if `m3tal up` generates it automatically.
-*   **Fix:** Explicitly state: "The `m3tal up` command automatically triggers a `docker compose -f /opt/m3tal/stack/docker-compose.yml up -d` operation. Ensure your stack file is located at [path]."
+#### 3. WARNING: Missing `docker-compose` lifecycle context
+The "Deployment: Docker Configuration" section shows a snippet of a YAML file, but does not explain how to trigger it. Does `m3tal up` automatically pull this from the filesystem? Where does the user place their `docker-compose.yml` file?
+*   **Fix:** Clarify if `m3tal up` expects a specific file structure inside `/opt/m3tal/stack`. Provide a sample `docker-compose.yml` file that a user can actually copy-paste to get started.
 
-#### 4. WARNING: Missing Lifecycle Management
-There is no information on how to update, stop, or remove the services. "Up" is only half the lifecycle.
-*   **Fix:** Add a section for `m3tal down` and `m3tal status` or `m3tal logs`.
+#### 4. WARNING: Ecosystem "Dependency Hell"
+The README mentions `m3tal-goback` and `m3tal-godash` but does not explicitly state if the user needs to clone/build these manually. The "Quick Demo" implies these services appear magically via `m3tal up`. 
+*   **Fix:** Clarify if `m3tal up` handles the fetching of these external Docker images/repositories or if the user must perform manual setup for these components.
 
-#### 5. SUGGESTION: "Marketing vs. Manual"
-The footer ("Modular Infrastructure Platform. Status: Go-Native Migration Active") is fluff. Documentation should be terse and functional.
-*   **Fix:** Remove marketing slogans. Replace with a "System Requirements" table (CPU/RAM/Kernel version).
-
-#### 6. SUGGESTION: Clarification on `m3tal setup`
-The command `m3tal setup` is mentioned, but the user is not warned about what it does (e.g., does it overwrite existing configs? Does it require root?).
-*   **Fix:** Add a disclaimer: "Warning: `m3tal setup` creates `/etc/m3tal/config.yaml`. If this file exists, it will not be overwritten by default."
+#### 5. SUGGESTION: Remove Marketing Buzzwords
+Phrases like "Modular Infrastructure Platform" and "Go-Native Migration Active" add zero value to an operator. 
+*   **Fix:** Replace marketing copy with an "Architecture Diagram" or "System Flow" section.
 
 ---
 
-### Suggested README Refinements
+### Suggested README Improvements (Drafting Content)
 
-**Replace the "Deployment" section with this:**
+#### Add this to "Quick Start":
+**Accessing the System:**
+Once `m3tal up` and `m3tal dash up` are executed, the following endpoints are available:
+*   **Dashboard:** `http://<host-ip>:8080`
+*   **API Gateway:** `http://<host-ip>:9000`
+*   **Traefik Dashboard (Internal):** `http://<host-ip>:8081`
 
-#### Deployment & Networking
-The Orchestrator manages the container lifecycle. Ensure your system meets the following prerequisites:
+#### Add to "Deployment":
+**Important:** M3TAL expects media to be hosted at `/mnt/m3tal-media`. Before running `m3tal up`, ensure the directory exists and has correct permissions:
+```bash
+sudo mkdir -p /mnt/m3tal-media
+sudo chown $USER:$USER /mnt/m3tal-media
+```
 
-1.  **Storage:** Create the media mount point:
-    ```bash
-    sudo mkdir -p /mnt/m3tal-media
-    sudo chown -R $USER:$USER /mnt/m3tal-media
-    ```
-2.  **Ports:** Ensure the following ports are available on the host:
-    *   `8080`: Dashboard UI
-    *   `9000`: Backend API
-    *   `9001`: Metrics/Health-check
-
-**Replace "Ecosystem Integration" with a "System Lifecycle" section:**
-*   `m3tal up`: Pulls images and initializes the stack defined in `/opt/m3tal/stack/`.
-*   `m3tal down`: Safely shuts down containers.
-*   `m3tal status`: Returns a JSON object containing container health and API connectivity status.
+#### Clarification on `m3tal up`:
+*Note: The `m3tal up` command expects a standard `docker-compose.yml` to be present in `/opt/m3tal/stack`. If this directory is empty, the orchestrator will initialize the default stack.*
 
 ---
 
-**DocCritic Final Note:** *Stop treating your users like they already know how you built the tool. Define your expectations for the host environment explicitly. If the system crashes because `/mnt` doesn't exist, that's a failure of the documentation, not the user.*
+**Auditor Note:** Stop trying to sell the "Go-Native" aspect and start focusing on the "How-To." An orchestrator is only as good as its ability to be reliably deployed by someone who has never seen your code before.
