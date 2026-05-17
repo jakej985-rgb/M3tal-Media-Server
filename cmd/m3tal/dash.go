@@ -63,12 +63,12 @@ func initDashCmd() *cobra.Command {
 		Short: "Pull config, start API, and start dashboard",
 		Run: func(cmd *cobra.Command, args []string) {
 			pullConfig()
-			
+
 			fmt.Println("🚀 Starting M3TAL API service...")
 			if err := exec.Command("sudo", "systemctl", "start", "m3tal-api.service").Run(); err != nil {
 				fmt.Println("⚠️  Could not start m3tal-api.service. It may already be running or systemd is not available.")
 			}
-			
+
 			runDashCompose("pull")
 			runDashCompose("up", "-d")
 		},
@@ -97,7 +97,7 @@ func initDashCmd() *cobra.Command {
 
 func pullConfig() {
 	stackDir := system.GetStackDir()
-	
+
 	urls := map[string]string{
 		"m3tal-compose.yml":         "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.yml",
 		"m3tal-compose.local.yml":   "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.local.yml",
@@ -148,7 +148,7 @@ func runDashCompose(action string, args ...string) {
 
 	envFile := system.GetConfigPath()
 	cmdArgs := []string{"compose", "-p", "m3tal"}
-	
+
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
 		fmt.Printf("⚠️  Configuration missing at %s\n", envFile)
 		fmt.Println("👉 Launching Configuration Wizard...")
@@ -158,7 +158,7 @@ func runDashCompose(action string, args ...string) {
 	if _, err := os.Stat(envFile); err == nil {
 		cmdArgs = append(cmdArgs, "--env-file", envFile)
 	}
-	
+
 	cmdArgs = append(cmdArgs, "-f", composeFile)
 
 	mode := "local" // Default

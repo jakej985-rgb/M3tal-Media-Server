@@ -41,10 +41,10 @@ func GenerateLabels(input RouteInput) map[string]string {
 
 	labels := map[string]string{
 		"traefik.enable": "true",
-		fmt.Sprintf("traefik.http.routers.%s.rule", svc):                         fmt.Sprintf("Host(`%s`)", input.Domain),
-		fmt.Sprintf("traefik.http.routers.%s.entrypoints", svc):                  entrypoints,
-		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", svc):     fmt.Sprintf("%d", input.Port),
-		"traefik.docker.network": network,
+		fmt.Sprintf("traefik.http.routers.%s.rule", svc):                      fmt.Sprintf("Host(`%s`)", input.Domain),
+		fmt.Sprintf("traefik.http.routers.%s.entrypoints", svc):               entrypoints,
+		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", svc): fmt.Sprintf("%d", input.Port),
+		"traefik.docker.network":                                              network,
 	}
 
 	return labels

@@ -132,7 +132,7 @@ func (s *StackManager) Run(action string, args ...string) error {
 		_ = fixLegacyManifest(file, stackName)
 
 		fmt.Printf("🚀 Running docker compose %s on %s...\n", action, file)
-		
+
 		var cmdArgs []string
 		if hasEnv {
 			// Use --env-file for the central .env config
@@ -197,7 +197,7 @@ func fixLegacyManifest(filePath, stackName string) error {
 	// We look for common legacy patterns and replace with the local ./<stack>.env
 	brokenPaths := []string{"../../.env", "../m3tal-core/.env"}
 	newPath := fmt.Sprintf("./%s.env", stackName)
-	
+
 	modified := false
 	sContent := string(content)
 	for _, old := range brokenPaths {

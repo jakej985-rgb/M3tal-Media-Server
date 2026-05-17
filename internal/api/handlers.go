@@ -56,7 +56,6 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 // GetServices returns the list of managed containers
 func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
 	mgr, err := containers.GetProvider()

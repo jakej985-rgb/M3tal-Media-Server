@@ -239,7 +239,7 @@ func main() {
 				runLogsMenu()
 				return
 			}
-			
+
 			// Legacy behavior for direct arguments
 			stack := orchestrator.NewStackManager()
 			target := args[0]
@@ -250,7 +250,7 @@ func main() {
 				}
 			}
 			stack.Files = filtered
-			
+
 			if len(stack.Files) > 0 {
 				stack.Run("logs", "--tail", "50", "-f")
 			} else {
@@ -357,12 +357,12 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			target, _ := cmd.Flags().GetString("target")
 			composeFile, _ := cmd.Flags().GetString("compose")
 			isGlobal := false
-			
+
 			if target == "" {
 				target = system.GetConfigPath()
 				isGlobal = true
 			}
-			
+
 			runWizard(target, composeFile, true, isGlobal)
 		},
 	}
@@ -452,21 +452,21 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					composePath := filepath.Join(stackDir, name)
 					templatePath := filepath.Join(stackDir, stack+".env.template")
 					envPath := filepath.Join(stackDir, stack+".env")
-					
+
 					hasTemplate := false
 					hasEnv := false
-					
+
 					if _, err := os.Stat(templatePath); err == nil {
 						hasTemplate = true
 					}
 					if _, err := os.Stat(envPath); err == nil {
 						hasEnv = true
 					}
-					
+
 					if !hasTemplate && !hasEnv {
 						continue
 					}
-					
+
 					info := stackInfo{Compose: composePath}
 					if hasTemplate {
 						info.Template = templatePath
@@ -474,7 +474,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if hasEnv {
 						info.Env = envPath
 					}
-					
+
 					stacks[stack] = info
 				}
 			}
@@ -495,11 +495,11 @@ func parseComposeVariables(composeFile string) map[string]string {
 	if err != nil {
 		return nil
 	}
-	
+
 	// Regex matches ${VAR} or ${VAR:-default} or ${VAR-default}
 	re := regexp.MustCompile(`\$\{([A-Z0-9_]+)(?::?-([^}]+))?\}`)
 	matches := re.FindAllStringSubmatch(string(data), -1)
-	
+
 	vars := make(map[string]string)
 	for _, match := range matches {
 		if len(match) > 1 {
@@ -591,7 +591,7 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 	var finalLines []string
 	for _, key := range orderedKeys {
 		defaultVal := requiredVars[key]
-		
+
 		val := defaultVal
 		if existing, ok := existingVars[key]; ok {
 			val = existing
@@ -606,7 +606,7 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 
 		colorReset := "\033[0m"
 		colorRed := "\033[31m"
-		
+
 		promptStr := fmt.Sprintf("%s [%s]: ", key, val)
 		if val == "" {
 			fmt.Printf("%s%s%s", colorRed, promptStr, colorReset)
@@ -635,7 +635,7 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 				parts := strings.SplitN(line, "=", 2)
 				key := parts[0]
 				val := parts[1]
-				
+
 				if strings.Contains(sharedContent, key+"=") {
 					sharedContent = replaceSecret(sharedContent, key+"=", val)
 				} else {
@@ -745,7 +745,7 @@ func runLogsMenu() {
 	fmt.Println("|     |-- 2.) Containers")
 	fmt.Println("|-- 3.) All (Aggregated)")
 	fmt.Println("|-- 0.) Exit")
-	
+
 	fmt.Print("\n👉 Selection: ")
 	var choice int
 	fmt.Scanln(&choice)
@@ -828,7 +828,7 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 	fmt.Println("|-- 4.) Configuration & Secrets")
 	fmt.Println("|-- 5.) System Health Check (Doctor)")
 	fmt.Println("|-- 0.) Exit")
-	
+
 	fmt.Print("\n👉 Selection: ")
 	var choice int
 	fmt.Scanln(&choice)
@@ -903,7 +903,7 @@ func runMainMenu(cmd *cobra.Command, args []string) {
 					stackName := stacks[sNum-1]
 					composePath := filepath.Join(stackDir, stackName+"-compose.yml")
 					targetPath := filepath.Join(stackDir, stackName+".env")
-					
+
 					runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--compose", composePath)
 				}
 			}

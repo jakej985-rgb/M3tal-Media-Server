@@ -19,24 +19,25 @@ type ComposeFile struct {
 
 // Service represents a single service in a compose file
 type Service struct {
-	Image       string      `yaml:"image"`
-	Ports       []string    `yaml:"ports,omitempty"`
-	Labels      yamlLabels  `yaml:"labels,omitempty"`
-	Environment yamlEnvList `yaml:"environment,omitempty"`
-	Networks    yamlList    `yaml:"networks,omitempty"`
-	VolumesRaw  []string    `yaml:"volumes,omitempty"`
-	EnvFile     yamlList    `yaml:"env_file,omitempty"`
-	ContainerName string   `yaml:"container_name,omitempty"`
-	Restart     string      `yaml:"restart,omitempty"`
-	Command     string      `yaml:"command,omitempty"`
+	Image         string      `yaml:"image"`
+	Ports         []string    `yaml:"ports,omitempty"`
+	Labels        yamlLabels  `yaml:"labels,omitempty"`
+	Environment   yamlEnvList `yaml:"environment,omitempty"`
+	Networks      yamlList    `yaml:"networks,omitempty"`
+	VolumesRaw    []string    `yaml:"volumes,omitempty"`
+	EnvFile       yamlList    `yaml:"env_file,omitempty"`
+	ContainerName string      `yaml:"container_name,omitempty"`
+	Restart       string      `yaml:"restart,omitempty"`
+	Command       string      `yaml:"command,omitempty"`
 }
 
 // yamlLabels handles both map and list label formats in compose files.
 // Docker compose supports:
-//   labels:
-//     key: value          (map form)
-//   labels:
-//     - "key=value"       (list form)
+//
+//	labels:
+//	  key: value          (map form)
+//	labels:
+//	  - "key=value"       (list form)
 type yamlLabels struct {
 	Values map[string]string
 }
