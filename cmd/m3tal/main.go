@@ -529,15 +529,27 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 	_ = os.MkdirAll("./data", 0755)
 
 	var existingData []byte
-	if update {
-		if _, err := os.Stat(targetFile); err == nil {
-			info, _ := os.Lstat(targetFile)
-			if info.Mode()&os.ModeSymlink != 0 {
-				fmt.Printf("⚠️  Target %s is a symlink. Breaking symlink for independent configuration...\n", filepath.Base(targetFile))
-				os.Remove(targetFile)
-			} else {
-				existingData, _ = os.ReadFile(targetFile)
+	var realTargetFile = targetFile
+	isSymlink := false
+
+	if _, err := os.Lstat(targetFile); err == nil {
+		info, _ := os.Lstat(targetFile)
+		if info.Mode()&os.ModeSymlink != 0 {
+			isSymlink = true
+			linkTarget, err := os.Readlink(targetFile)
+			if err == nil {
+				if !filepath.IsAbs(linkTarget) {
+					linkTarget = filepath.Join(filepath.Dir(targetFile), linkTarget)
+				}
+				realTargetFile = linkTarget
+				fmt.Printf("👉 Target %s is a symlink pointing to %s. Keeping symlink and updating the shared configuration.\n", filepath.Base(targetFile), filepath.Base(linkTarget))
 			}
+		}
+	}
+
+	if update {
+		if _, err := os.Stat(realTargetFile); err == nil {
+			existingData, _ = os.ReadFile(realTargetFile)
 		}
 	}
 
@@ -611,11 +623,39 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 		}
 	}
 
-	content := strings.Join(finalLines, "\n")
-	if err := os.WriteFile(targetFile, []byte(content), 0600); err != nil {
-		log.Fatal(err)
+	if isSymlink {
+		sharedContentBytes, err := os.ReadFile(realTargetFile)
+		var sharedContent string
+		if err == nil {
+			sharedContent = string(sharedContentBytes)
+		}
+
+		for _, line := range finalLines {
+			if strings.Contains(line, "=") {
+				parts := strings.SplitN(line, "=", 2)
+				key := parts[0]
+				val := parts[1]
+				
+				if strings.Contains(sharedContent, key+"=") {
+					sharedContent = replaceSecret(sharedContent, key+"=", val)
+				} else {
+					sharedContent = strings.TrimSuffix(sharedContent, "\n") + fmt.Sprintf("\n%s=%s\n", key, val)
+				}
+			}
+		}
+
+		if err := os.WriteFile(realTargetFile, []byte(sharedContent), 0600); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("\n✅ Shared configuration updated inline: %s\n", realTargetFile)
+	} else {
+		content := strings.Join(finalLines, "\n")
+		if err := os.WriteFile(targetFile, []byte(content), 0600); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("\n✅ Configuration saved to %s\n", targetFile)
 	}
-	fmt.Printf("\n✅ Configuration saved to %s\n", targetFile)
+
 	if isGlobal {
 		fmt.Println("👉 You may also want to symlink this to .env for local stack commands.")
 	}
