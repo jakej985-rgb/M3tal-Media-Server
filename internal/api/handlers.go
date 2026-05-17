@@ -39,11 +39,23 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // GetHealth returns system health status
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "healthy",
-		"version": "1.0.0",
+	var list []containers.ContainerInfo
+	mgr, err := containers.GetProvider()
+	if err == nil {
+		if clist, err := mgr.ListContainers(); err == nil {
+			list = clist
+		}
+	}
+	if list == nil {
+		list = []containers.ContainerInfo{}
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "healthy",
+		"version":    "1.0.0",
+		"containers": list,
 	})
 }
+
 
 // GetServices returns the list of managed containers
 func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
