@@ -183,7 +183,7 @@ func (s *StackManager) Run(action string, args ...string) error {
 		cmd.Stderr = &errTracker
 
 		if err := cmd.Run(); err != nil {
-			handleOrchestratorError(action, file, err, errTracker.buffer.String())
+			handleOrchestratorError(file, errTracker.buffer.String())
 			return fmt.Errorf("failed to run %s on %s: %w", action, file, err)
 		}
 	}
@@ -265,7 +265,7 @@ func (e *errorTracker) Write(p []byte) (n int, err error) {
 	return os.Stderr.Write(p)
 }
 
-func handleOrchestratorError(action, file string, err error, errStr string) {
+func handleOrchestratorError(file string, errStr string) {
 	if strings.Contains(errStr, "tried to kill container, but did not receive an exit event") {
 		fmt.Println("\n⚠️  [M3TAL Diagnostician] Stuck Container Lockup Detected!")
 		fmt.Println("==========================================================")
