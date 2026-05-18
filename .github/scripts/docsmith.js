@@ -193,12 +193,14 @@ const targets = [
 Generate the primary README.md based on the REAL system architecture documented below.
 
 STRICT RULES:
-- NO marketing copy. No "robust", "cohesive", "autonomous" buzzwords. Write like a DevOps engineer, not a salesperson.
+- NO marketing copy. No "robust", "cohesive", "autonomous" buzzwords. Write strictly technical text like a DevOps engineer.
+- Rephrase the "Overview" section to be strictly direct and technical: "This document provides technical details and operational procedures for the M3TAL system." Avoid any sales or marketing phrases.
 - NO placeholders. Every section must contain real, actionable content.
-- Explain the actual runtime: M3TAL uses Docker Engine + Docker Compose V2. State this explicitly.
+- MUST include a dedicated "Prerequisites" section at the very beginning of the document explicitly stating: "Docker Engine and Docker Compose V2 are strictly REQUIRED and must be installed prior to M3TAL installation and operation."
 - MUST include the exact APT installation block from the context below. Do not invent a different install method.
 - MUST include a "Deployment Lifecycle" section explaining:
   - How stacks work: compose files in /docker/, brought up with \`m3tal up\`
+  - MUST explicitly clarify that \`/docker\` is a user-facing symlink pointing directly to the canonical stack directory \`/opt/m3tal/stack/\`.
   - How to add a new stack (place compose file in /docker/, run \`m3tal up\`)
 - MUST include a "Dashboard Access" section clearly explaining BOTH modes:
   - **Local mode** (default, \`DASHBOARD_EXPOSE_MODE=local\`): Direct port binding at \`http://HOST_IP:8082\`. No Traefik needed. Best for home/LAN setups.
@@ -209,10 +211,25 @@ STRICT RULES:
   - Services are exposed by adding Traefik labels to their compose service definition
   - \`api.DOMAIN\` routes to the Go API daemon via dynamic config
   - \`dash.DOMAIN\` routes to the dashboard container
+  - MUST show a concrete YAML example of how to expose a custom user service via Traefik labels. Show a snippet for a hypothetical \`my-app-compose.yml\` with labels like:
+    \`\`\`yaml
+    services:
+      my-app:
+        image: nginx:alpine
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.myapp.rule=Host(\`app.DOMAIN\`)\"
+          - "traefik.http.services.myapp.loadbalancer.server.port=80"
+          - "traefik.http.routers.myapp.entrypoints=web"
+        networks:
+          - proxy
+    \`\`\`
 - MUST include a "Service Management" section showing systemctl commands for m3tal-api.service
-- MUST include a Quick Demo section with: install → config wizard → m3tal dash up → open browser
-- MUST include a port table (80, 8080, 8081, 8082)
-- Firewall note: remind users to allow port 80 in ufw/iptables for Traefik
+- MUST include a Quick Demo section explaining:
+  - How to run \`m3tal dash up\` to start the dashboard container specifically.
+  - Clarify that \`m3tal up\` orchestrates and deploys all other stacks in the directory.
+- MUST include a Port Map table (80, 8080, 8081, 8082) with a clear note below indicating that these are the *primary* M3TAL ports, and that user-added stacks may expose additional ports on their own.
+- Firewall note: remind users to allow port 80 in ufw/iptables for Traefik, placed prominently near the Traefik Gateway or Installation section.
 
 ${context}
 `
