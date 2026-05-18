@@ -1,62 +1,64 @@
-To: DocSmith
-From: DocCritic, Senior DevOps Auditor
-Subject: Audit Report - M3TAL Core Orchestrator README
+**DocCritic Audit Report: M3TAL Core Orchestrator**
 
-### Verdict: FAILED
-The current documentation is an architectural overview, not a deployment guide. It assumes the user has deep tribal knowledge of your specific environment. It fails to address critical security, networking, and filesystem pathing requirements, making a successful deployment highly improbable for a new user.
+**Verdict: FAILED**
+The documentation exhibits dangerous assumptions regarding host system state and fails to provide the basic networking and deployment configuration required for a "Core Orchestrator." It reads more like a project announcement than a technical manual.
 
 ---
 
 ### Issue List
 
-#### 1. BLOCKER: Missing Port/Ingress documentation
-The documentation mentions a "Dashboard" and "Backend API" but provides zero information on how to access them.
-*   **Fix**: Explicitly document that Traefik is expected as a gateway or provide the mapping for exposed ports (e.g., `8080` for dashboard). If Traefik labels are required, they must be documented in a "Network Requirements" section.
+#### 1. BLOCKER: Missing Mount Point Validation
+The README assumes the host environment already has `/mnt/m3tal-media` configured. A new user will experience immediate runtime failures if this directory does not exist or lacks correct permissions.
+*   **Fix:** Add a pre-flight check section or a `m3tal setup` step that explicitly validates/creates required directories (e.g., `mkdir -p /mnt/m3tal-media && chown $USER:$USER /mnt/m3tal-media`).
 
-#### 2. BLOCKER: Fragile Filesystem Assumptions
-The README defines `/mnt/m3tal-media` as a requirement but provides no instructions on how to set this up. If the directory is missing, does the service crash? Does it need specific permissions (`chown`) for the docker user?
-*   **Fix**: Add a setup step: `sudo mkdir -p /mnt/m3tal-media && sudo chown $USER:$USER /mnt/m3tal-media`.
+#### 2. BLOCKER: Missing Port/Access Documentation
+The guide mentions a Dashboard and API but provides zero information on how to access them. Users don't know which ports to open on their firewall or where to point their browsers.
+*   **Fix:** Include a "Network Access" section explicitly stating that the dashboard runs on port `[X]` (e.g., Traefik/Dashboard gateway).
 
-#### 3. WARNING: Ambiguous Docker Deployment
-The "Deployment: Docker Configuration" section is a YAML snippet with no context. Where does this go? Is it a `docker-compose.yml` file? Where is the file supposed to live?
-*   **Fix**: Rename to "Manual Compose Deployment" and provide a full file path (e.g., `docker-compose.yml` in the project root) and a clear command to execute it (`docker compose up -d`).
+#### 3. WARNING: Docker Deployment Ambiguity
+The "Deployment: Docker Configuration" section provides a snippet of a YAML file, but does not explain *where* this file lives or how to execute it. Is it a `docker-compose.yml` file? Do I run `docker compose up`?
+*   **Fix:** Provide the full `docker-compose.yml` boilerplate and explicit start commands. 
 
-#### 4. WARNING: Hidden APT Requirements
-You assume the user is using Debian/Ubuntu. If they are on RHEL, Fedora, or Arch, the installation will fail silently or explicitly.
-*   **Fix**: Add a warning banner: *"Warning: Official APT repository support is currently limited to Debian/Ubuntu-based distributions. Building from source is required for other Linux distributions."*
+#### 4. WARNING: Ecosystem "Quick Demo" Inconsistency
+You mention `m3tal dash up` in the Quick Demo, but the "Architecture Overview" says the dashboard is a separate project (`m3tal-godash`). The user has no instruction on how to link these two repositories.
+*   **Fix:** Clarify if `m3tal dash up` triggers a git clone of the other repo, or if the user must install the dashboard independently.
 
-#### 5. SUGGESTION: Remove "Buzzword" Marketing
-Phrases like "Go-Native Migration Active" and "Modular Infrastructure Platform" add zero technical value.
-*   **Fix**: Remove the final "Ecosystem Integration Rules" and "Related Projects" section fluff. Keep documentation strictly technical. A user needs to know how to deploy, not the project's current status in your internal roadmap.
+#### 5. SUGGESTION: Marketing Fluff Removal
+Phrases like "Go-Native Architectural Requirements" and "Modular Infrastructure Platform" add zero value to an auditor or a developer.
+*   **Fix:** Strip all marketing adjectives. Documentation should be functional, not a sales pitch.
 
-#### 6. SUGGESTION: CLI Demo Gaps
-The `m3tal up` command implies that it automatically pulls containers or expects them in `/opt/m3tal/stack`. If the user hasn't cloned that repository or copied files there, the command will fail.
-*   **Fix**: Add a step: `git clone <repo> /opt/m3tal` before running `m3tal up`.
+#### 6. SUGGESTION: APT Repository Safety
+The installation instructions rely on `tee` with `sudo` directly. This is fine, but you should explicitly note the distro requirements (e.g., "Tested on Debian 12 / Ubuntu 22.04+").
+*   **Fix:** Add a "Supported Platforms" section.
+
+---
+
+### Suggested README Refactor (Critical Sections)
+
+**[REPLACE "Deployment" Section with the following:]**
+
+#### Deployment
+The Orchestrator requires a standardized Docker Compose environment to manage services. 
+
+1. Create `/opt/m3tal/stack/docker-compose.yml`:
+```yaml
+services:
+  orchestrator:
+    image: m3tal/core:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/m3tal-media:/mnt/m3tal-media
+    ports:
+      - "8080:8080" # Dashboard Access
+```
+2. Initialize and start:
+```bash
+sudo mkdir -p /mnt/m3tal-media
+m3tal setup
+m3tal up
+```
+*Access the dashboard at `http://<host-ip>:8080`.*
 
 ---
 
-### Suggested README Structure (Abbreviated)
-
-**[Installation]**
-*   *(Keep existing APT block)*
-*   **System Prep:** 
-    ```bash
-    sudo mkdir -p /mnt/m3tal-media
-    sudo chown $USER:$USER /mnt/m3tal-media
-    ```
-
-**[Networking & Access]**
-*   **Dashboard:** Accessible at `http://localhost:8080` (or define Traefik entrypoint).
-*   **API:** Internal only. Ensure Docker bridge allows communication between `m3tal-goback` and `m3tal-orchestrator`.
-
-**[Deployment]**
-*   **Standard Usage:**
-    1. Initialize: `m3tal setup`
-    2. Deploy Stack: `m3tal up`
-    3. Start UI: `m3tal dash up`
-
-**[Troubleshooting]**
-*   *Note: If `m3tal up` fails, ensure `/opt/m3tal/stack` contains valid `docker-compose.yml` manifests.*
-
----
-**Audit Complete.** Correct these items before resubmission.
+**Auditor Note:** *Do not push to main until the `/mnt` directory creation is automated or explicitly documented as a manual prerequisite.*
