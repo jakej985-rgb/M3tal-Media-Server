@@ -1,18 +1,20 @@
 import fs from "fs";
-
-if (!fs.existsSync("docs")) {
-  fs.mkdirSync("docs");
-}
 import path from "path";
 import yaml from "js-yaml";
 
-const stackDir = "source/m3tal-stack";
+fs.mkdirSync("docs", { recursive: true });
+
+// Correct path: compose files live in deploy/stack/
+const stackDir = "deploy/stack";
 if (!fs.existsSync(stackDir)) {
-  console.log("No stack directory found.");
+  console.warn(`Stack directory not found at ${stackDir}. Writing empty docker.json.`);
+  fs.writeFileSync("docs/docker.json", "[]");
   process.exit(0);
 }
 
-const composeFiles = fs.readdirSync(stackDir).filter(f => f.endsWith("-compose.yml") || f === "docker-compose.yml");
+const composeFiles = fs.readdirSync(stackDir)
+  .filter(f => f.endsWith("-compose.yml") || f === "docker-compose.yml");
+
 const allServices = [];
 
 for (const file of composeFiles) {
@@ -33,8 +35,5 @@ for (const file of composeFiles) {
   }
 }
 
-fs.writeFileSync(
-  "docs/docker.json",
-  JSON.stringify(allServices, null, 2)
-);
-console.log(`Parsed ${allServices.length} Docker services.`);
+fs.writeFileSync("docs/docker.json", JSON.stringify(allServices, null, 2));
+console.log(`Parsed ${allServices.length} Docker services from ${composeFiles.length} compose files.`);
