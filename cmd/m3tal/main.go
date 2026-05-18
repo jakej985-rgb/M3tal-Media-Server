@@ -275,9 +275,20 @@ func main() {
 	var dashpassCmd = &cobra.Command{
 		Use:   "dashpass [username] [password]",
 		Short: "Manage dashboard users",
-		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			username := args[0]
+			username := ""
+			if len(args) > 0 {
+				username = args[0]
+			} else {
+				fmt.Print("Enter username: ")
+				fmt.Scanln(&username)
+				username = strings.TrimSpace(username)
+				if username == "" {
+					fmt.Println("❌ Username cannot be empty.")
+					return
+				}
+			}
+
 			password := ""
 			if len(args) > 1 {
 				password = args[1]
