@@ -309,7 +309,7 @@ function postProcessOutput(content) {
   let cleaned = content;
 
   // Regex to match any variant of the echo "deb [signed-by=... m3tal repository line and replace it with the perfectly formed, full command
-  const aptRepoRegex = /echo\s+"deb\s+\[signed-by=\/usr\/share\/keyrings\/m3tal-archive-keyring\.gpg\]\s+https:\/\/jakej985-rgb\.github\.io\/[^\n"]*"?/gi;
+  const aptRepoRegex = /echo\s+"deb\s+\[signed-by=\/usr\/share\/keyrings\/m3tal-archive-keyring\.gpg\]\s+https:\/\/jakej985-rgb\.github\.io\/[^\n]*/gi;
   cleaned = cleaned.replace(aptRepoRegex, 'echo "deb [signed-by=/usr/share/keyrings/m3tal-archive-keyring.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list');
 
   // Ensure GPG key download command is perfectly formatted
