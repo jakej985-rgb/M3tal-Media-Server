@@ -365,6 +365,10 @@ async function generateWithFallback(target) {
     }
   }
   console.error(`[${target.name}] ❌ All Gemini models failed to generate content.`);
+  if (target.path === "README.md" && fs.existsSync("README.generated.md")) {
+    fs.copyFileSync("README.generated.md", target.path);
+    console.log(`[${target.name}] ⚠️ Fallback to README.generated.md applied successfully.`);
+  }
 }
 
 async function run() {

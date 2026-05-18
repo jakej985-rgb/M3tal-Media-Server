@@ -178,7 +178,7 @@ func (s *StackManager) Run(action string, args ...string) error {
 
 		cmd.Env = os.Environ()
 		cmd.Stdout = os.Stdout
-		
+
 		var errTracker errorTracker
 		cmd.Stderr = &errTracker
 
@@ -310,7 +310,7 @@ func attemptStuckContainerFix(errStr string) {
 	}
 
 	fmt.Printf("👉 Found stuck container ID: %s\n", id[:12])
-	
+
 	// Scan /proc to find containerd-shim PID for this container ID
 	pid := 0
 	files, err := os.ReadDir("/proc")
