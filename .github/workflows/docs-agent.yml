@@ -61,10 +61,8 @@ jobs:
             git add FIXES.md
           fi
 
-          # Add README if it exists
-          if [[ -f README.md ]]; then
-            git add README.md
-          fi
+          # Add README and all active documentation files
+          git add README.md docs/
 
           if [[ ! -f .doc-failed ]]; then
             git commit -m "docs: auto-update from system state [skip ci]" || true
