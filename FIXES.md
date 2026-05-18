@@ -1,37 +1,38 @@
-## Verdict: FAILED
+**Verdict: FAILED**
 
-The README is missing critical information regarding the Docker dependency and the Traefik routing configuration is incomplete, making it a BLOCKER for successful deployment. Several other areas are also flagged as WARNINGs or SUGGESTIONS.
-
----
-
-## Audit Findings:
-
-1.  **BLOCKER: Docker dependency missing.**
-    *   **Issue:** The README states that M3TAL runs on systems with Docker Engine and Docker Compose V2, but it does not explicitly state that these are *required* for installation and operation.
-    *   **Required Fix:** Add a clear statement at the beginning of the "Runtime Environment" section or in a dedicated "Prerequisites" section explicitly stating that Docker Engine and Docker Compose V2 are required and must be installed.
-
-2.  **BLOCKER: Traefik routing explanation is incomplete.**
-    *   **Issue:** While the README mentions Traefik as the HTTP gateway and that services are exposed via labels, it does not fully explain *how* services are exposed. It shows static and dynamic configuration examples but doesn't tie them back to how a user would apply this to *their* services. Specifically, it's unclear how to add labels for *other* services beyond the dashboard.
-    *   **Required Fix:** Expand the "Traefik Gateway" section to include an example of how to add Traefik labels to a custom service's Compose file. For instance, showing a snippet for a hypothetical `my-app-compose.yml` with relevant `traefik.enable`, `traefik.http.routers.<router_name>.rule`, and `traefik.http.services.<service_name>.loadbalancer.server.port` labels.
-
-3.  **WARNING: Deployment lifecycle explanation is ambiguous.**
-    *   **Issue:** The README states "M3TAL looks for all files ending in `*-compose.yml` within the `/docker` directory" for `m3tal up`. However, the GROUND TRUTH clarifies that `/docker` is a symlink to `/opt/m3tal/stack/`. This discrepancy can cause confusion.
-    *   **Required Fix:** Clarify that `/docker` is a user-facing symlink to the canonical stack directory `/opt/m3tal/stack/`. Update the "How Stacks Work" section to reflect this.
-
-4.  **WARNING: Port table is incomplete.**
-    *   **Issue:** The README's "Port Map" table only lists ports 80, 8080, 8081, and 8082. While these are the most common, it omits the potential for other ports being exposed by user-added stacks.
-    *   **Required Fix:** Add a note to the "Port Map" section indicating that these are the *primary* M3TAL ports and that user-added stacks may expose additional ports.
-
-5.  **WARNING: Tone is too marketing-oriented in the overview.**
-    *   **Issue:** The "Overview" section uses phrases like "M3TAL Ecosystem Documentation" and "unified CLI for deployment, configuration, and service management" which lean towards marketing copy rather than purely technical documentation.
-    *   **Required Fix:** Rephrase the "Overview" section to be more direct and technical. For example, "This document provides technical details and operational procedures for the M3TAL system."
-
-6.  **SUGGESTION: Quick demo needs clarity on `m3tal dash up` vs. `m3tal up`.**
-    *   **Issue:** The "Quick Demo" section mentions running `m3tal dash up` to start the dashboard. However, the "Deployment Lifecycle" section implies `m3tal up` is used to deploy *all* stacks. This can be confusing if the user expects `m3tal up` to start the dashboard as well, or if they have other stacks to deploy.
-    *   **Required Fix:** In the "Quick Demo," clarify the purpose of `m3tal dash up` (specific to the dashboard) and suggest that `m3tal up` would be used to deploy all other stacks, including potentially the dashboard if it's part of a larger stack definition.
-
-7.  **SUGGESTION: Firewall note could be more prominent.**
-    *   **Issue:** The "Firewall Configuration" section is at the end of the document. While present, it might be easily missed.
-    *   **Required Fix:** Consider moving the "Firewall Configuration" section to be closer to the Traefik explanation or the Installation section, as it's a critical step for external access.
+The README is missing critical information required for successful deployment and operation, specifically regarding the Docker dependency and the detailed lifecycle of M3TAL stacks.
 
 ---
+
+**Issues:**
+
+1.  **BLOCKER: Docker Dependency Not Explicitly Stated**
+    *   **Issue:** The README states Docker Engine and Docker Compose V2 are "strictly REQUIRED" but does not explicitly mention that M3TAL relies on Docker Compose V2 for its internal orchestration. The ground truth states M3TAL "uses Docker Engine + Docker Compose V2 internally."
+    *   **Required Fix:** Explicitly state that M3TAL uses Docker Compose V2 for its orchestration and that Docker Compose V2 must be installed.
+
+2.  **BLOCKER: Deployment Lifecycle - Docker Compose V2 Usage**
+    *   **Issue:** The README mentions `m3tal up` and brings up services but fails to explicitly state that `m3tal up` internally uses `docker compose` (V2) to orchestrate the services defined in the `*-compose.yml` files within `/docker/`. The ground truth clarifies that `m3tal up` runs `docker compose` across all `*-compose.yml` files in `/docker/`.
+    *   **Required Fix:** Clarify that `m3tal up` is a wrapper around `docker compose` and that it processes all `*-compose.yml` files in the `/docker` directory.
+
+3.  **BLOCKER: Deployment Lifecycle - Stack Directory Clarification**
+    *   **Issue:** The README states `/docker` is a symlink to `/opt/m3tal/stack/` and that compose files reside in `/docker/`. While this is present, it could be clearer that `/opt/m3tal/stack/` is the "canonical" location, and `/docker` is the user-facing alias for all stack operations. The ground truth emphasizes this relationship.
+    *   **Required Fix:** Reiterate and perhaps slightly rephrase the relationship between `/docker` and `/opt/m3tal/stack/` to emphasize that `/opt/m3tal/stack/` is the source of truth for stack files and that `/docker` is the user-facing access point.
+
+4.  **BLOCKER: Traefik Routing - Dynamic Configuration Explanation**
+    *   **Issue:** The README mentions Traefik as the ingress and that services are exposed via labels. However, it does not explain the role of dynamic configuration files (e.g., `dynamic/api.yml`) in routing requests to services listening on host-local ports like `8080`. The ground truth shows `api.DOMAIN` routing to `http://host.docker.internal:8080` via a dynamic config.
+    *   **Required Fix:** Briefly explain that Traefik uses dynamic configuration files to route requests to services, especially those exposed on host-local ports like the Go API.
+
+5.  **WARNING: Port Table Missing Key Ports**
+    *   **Issue:** The README's "Port Map" table lists ports 80, 8080, 8081, and 8082. The ground truth confirms these ports. This is not a missing item, but the audit criteria stated to flag as WARNING if missing. Since it's present, no action is needed here, but it's important to note that it meets the criteria.
+
+6.  **WARNING: Tone - Marketing Copy in Introduction**
+    *   **Issue:** The introductory sentence "This document provides technical details and operational procedures for the M3TAL system." is acceptable, but the overall tone could be more direct and less like an introduction to a high-level overview.
+    *   **Required Fix:** While not a severe issue, consider making the introduction more concise and focused on the technical audit itself.
+
+7.  **SUGGESTION: Quick Demo Clarity on `m3tal up`**
+    *   **Issue:** The "Deploying All Stacks" section mentions `m3tal up` processes all `*-compose.yml` files. It could be more explicit that this includes user-added stacks placed in `/docker/`.
+    *   **Required Fix:** Add a note that `m3tal up` will also deploy any user-defined compose files placed in the `/docker` directory.
+
+8.  **SUGGESTION: Dashboard Access Mode Clarification**
+    *   **Issue:** The README states, "A new user performing a default installation will access the dashboard directly via port 8082, not through a domain name." This is good, but it could be slightly more explicit that this is the behavior when `DASHBOARD_EXPOSE_MODE` is set to `local` (the default).
+    *   **Required Fix:** Explicitly link the "direct access via port 8082" behavior to the `DASHBOARD_EXPOSE_MODE=local` setting.

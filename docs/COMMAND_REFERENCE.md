@@ -1,242 +1,342 @@
 # M3TAL CLI Command Reference
 
-This document provides a comprehensive reference for all commands available through the M3TAL CLI.
+This document serves as a comprehensive cheat-sheet for the M3TAL CLI. It details each command, its purpose, and provides real-world usage examples.
+
+---
 
 ## Table of Contents
 
-* [General Commands](#general-commands)
-* [Configuration Management](#configuration-management)
-* [Dashboard Management](#dashboard-management)
-* [System Management](#system-management)
-* [Docker and Compose Management](#docker-and-compose-management)
-* [Systemd Service Management](#systemd-service-management)
-* [Direct Docker Compose Fallback](#direct-docker-compose-fallback)
+1.  [M3TAL Core Commands](#m3tal-core-commands)
+2.  [Dashboard Management](#dashboard-management)
+3.  [Configuration Management](#configuration-management)
+4.  [System Service Management](#system-service-management)
+5.  [Direct Docker Compose Fallback](#direct-docker-compose-fallback)
 
 ---
 
-## General Commands
+## 1. M3TAL Core Commands
+
+These commands are the primary interface for managing the M3TAL ecosystem.
 
 ### `sudo m3tal`
-Opens the interactive TUI Control Center, providing a numbered menu for various operations.
 
-**Usage:**
+**Description:**
+Launches the interactive M3TAL TUI (Text User Interface) Control Center. This provides a numbered menu-driven interface for common operations.
+
+**Usage Example:**
 ```bash
 sudo m3tal
 ```
-
----
-
-## Configuration Management
+*(This will display the TUI menu, allowing you to select actions like starting stacks, managing the dashboard, and more.)*
 
 ### `m3tal init`
-Generates the `/etc/m3tal/.env` configuration file from default values. This command should be used on the first install or when a fresh configuration is desired.
 
-**Usage:**
+**Description:**
+Generates the default `/etc/m3tal/.env` configuration file. This command should be used during the initial installation of M3TAL to establish a baseline configuration.
+
+**Usage Example:**
 ```bash
-sudo m3tal init
+m3tal init
 ```
 
 ### `m3tal doctor`
-Performs a pre-flight health check of your M3TAL system. It verifies Docker connectivity, the validity of your `.env` file, and checks for port availability.
 
-**Usage:**
+**Description:**
+Performs a pre-flight health check of your M3TAL installation. It verifies Docker connectivity, checks the validity of your `.env` file, and ensures necessary ports are available.
+
+**Usage Example:**
 ```bash
-sudo m3tal doctor
+m3tal doctor
 ```
 
 ### `m3tal config wizard`
-Launches an interactive wizard to guide you through configuring your `/etc/m3tal/.env` file. This is the recommended method for detailed configuration.
 
-**Usage:**
+**Description:**
+Starts an interactive wizard to guide you through the configuration of your `/etc/m3tal/.env` file. This is the recommended way to set up your environment variables.
+
+**Usage Example:**
 ```bash
-sudo m3tal config wizard
+m3tal config wizard
 ```
+*(Follow the on-screen prompts to configure various M3TAL settings.)*
 
 ### `m3tal config set KEY VALUE`
-Sets a single environment variable in the `/etc/m3tal/.env` file.
 
-**Usage:**
+**Description:**
+Sets a single environment variable in your `/etc/m3tal/.env` file.
+
+**Usage Example:**
 ```bash
-sudo m3tal config set DOMAIN mydomain.com
+m3tal config set DOMAIN my-m3tal-domain.com
 ```
 
 ### `m3tal config get KEY`
-Reads and displays the value of a single environment variable from the `/etc/m3tal/.env` file.
 
-**Usage:**
+**Description:**
+Reads and displays the value of a specific environment variable from your `/etc/m3tal/.env` file.
+
+**Usage Example:**
 ```bash
-sudo m3tal config get DOMAIN
+m3tal config get DASHBOARD_PORT
 ```
+*(This might output `8082` if that's the configured value.)*
 
 ### `m3tal config scan`
-Lists all environment variables known to M3TAL across all managed stacks, including their current values and defaults.
 
-**Usage:**
+**Description:**
+Lists all environment variables across all configured M3TAL stacks, including their current values and any default values.
+
+**Usage Example:**
 ```bash
-sudo m3tal config scan
+m3tal config scan
 ```
 
 ### `m3tal config list`
-Displays the current contents of the `/etc/m3tal/.env` file.
 
-**Usage:**
+**Description:**
+Displays the entire contents of your current `/etc/m3tal/.env` file.
+
+**Usage Example:**
 ```bash
-sudo m3tal config list
+m3tal config list
 ```
-
----
-
-## Dashboard Management
-
-### `m3tal dashpass [username] [password]`
-Updates the password for a dashboard user. If `username` and `password` are omitted, the command will prompt for them interactively.
-
-**Usage (interactive):**
-```bash
-sudo m3tal dashpass
-```
-*Follow the prompts to enter the username and new password.*
-
-**Usage (non-interactive):**
-```bash
-sudo m3tal dashpass admin new_secure_password_here
-```
-
-### `m3tal dash up`
-Pulls the latest dashboard Docker Compose configuration from GitHub and then starts the dashboard container. This command ensures you are running the most up-to-date version of the dashboard.
-
-**Usage:**
-```bash
-sudo m3tal dash up
-```
-
-### `m3tal dash down`
-Stops and removes the dashboard Docker container.
-
-**Usage:**
-```bash
-sudo m3tal dash down
-```
-
-### `m3tal dash restart`
-Restarts the dashboard Docker container.
-
-**Usage:**
-```bash
-sudo m3tal dash restart
-```
-
-### `m3tal dash logs`
-Streams the real-time logs from the dashboard Docker container. This is useful for debugging.
-
-**Usage:**
-```bash
-sudo m3tal dash logs
-```
-
-### `m3tal dash status`
-Shows the current status of the dashboard Docker container (e.g., running, exited).
-
-**Usage:**
-```bash
-sudo m3tal dash status
-```
-
----
-
-## System Management
 
 ### `m3tal up`
-Runs `docker compose up` across all `*-compose.yml` files found in the `/docker/` directory. This command starts all your deployed M3TAL stacks.
 
-**Usage:**
+**Description:**
+Initiates the startup of all services defined in `*-compose.yml` files within the `/docker/` directory. This brings up your entire M3TAL environment.
+
+**Usage Example:**
 ```bash
 sudo m3tal up
 ```
+*(Ensure you are in the `/docker` directory or that M3TAL can access it.)*
 
 ### `m3tal down`
-Runs `docker compose down` across all managed Docker Compose stacks. This command stops and removes all containers, networks, and volumes associated with your M3TAL services.
 
-**Usage:**
+**Description:**
+Shuts down all services managed by M3TAL, stopping the containers defined in `*-compose.yml` files in `/docker/`.
+
+**Usage Example:**
 ```bash
 sudo m3tal down
 ```
 
 ### `m3tal logs`
-Streams aggregated logs from all currently running M3TAL stacks. This provides a consolidated view of your system's output.
 
-**Usage:**
+**Description:**
+Streams aggregated logs from all currently running M3TAL stacks. This is invaluable for debugging.
+
+**Usage Example:**
 ```bash
 sudo m3tal logs
 ```
+*(Press `Ctrl+C` to stop streaming.)*
 
 ---
 
-## Systemd Service Management
+## 2. Dashboard Management
 
-The M3TAL API daemon is managed by systemd. You can interact with it using `systemctl` and `journalctl`.
+Commands specifically for managing the M3TAL dashboard container.
+
+### `m3tal dashpass [username] [password]`
+
+**Description:**
+Updates the password for a dashboard user. If `username` and `password` are omitted, the command becomes interactive, prompting for the username and new password.
+
+**Usage Example (Interactive):**
+```bash
+m3tal dashpass
+```
+*(You will be prompted to enter the username and then the new password twice.)*
+
+**Usage Example (Non-Interactive):**
+```bash
+m3tal dashpass admin newSecurePassword123
+```
+
+### `m3tal dash up`
+
+**Description:**
+Pulls the latest dashboard compose configuration from GitHub and then starts the dashboard container. It respects the `DASHBOARD_EXPOSE_MODE` setting in your `.env` file.
+
+**Usage Example:**
+```bash
+sudo m3tal dash up
+```
+
+### `m3tal dash down`
+
+**Description:**
+Stops the `m3tal-dashboard` container.
+
+**Usage Example:**
+```bash
+sudo m3tal dash down
+```
+
+### `m3tal dash restart`
+
+**Description:**
+Restarts the `m3tal-dashboard` container.
+
+**Usage Example:**
+```bash
+sudo m3tal dash restart
+```
+
+### `m3tal dash logs`
+
+**Description:**
+Streams the logs from the `m3tal-dashboard` container.
+
+**Usage Example:**
+```bash
+sudo m3tal dash logs
+```
+*(Press `Ctrl+C` to stop streaming.)*
+
+### `m3tal dash status`
+
+**Description:**
+Displays the current status of the `m3tal-dashboard` container.
+
+**Usage Example:**
+```bash
+m3tal dash status
+```
+
+---
+
+## 3. Configuration Management
+
+These commands focus on interacting with M3TAL's environment variables and configuration files.
+
+### `m3tal config wizard`
+
+**Description:**
+Starts an interactive wizard to guide you through the configuration of your `/etc/m3tal/.env` file. This is the recommended way to set up your environment variables.
+
+**Usage Example:**
+```bash
+m3tal config wizard
+```
+*(Follow the on-screen prompts to configure various M3TAL settings.)*
+
+### `m3tal config set KEY VALUE`
+
+**Description:**
+Sets a single environment variable in your `/etc/m3tal/.env` file.
+
+**Usage Example:**
+```bash
+m3tal config set DOMAIN my-m3tal-domain.com
+```
+
+### `m3tal config get KEY`
+
+**Description:**
+Reads and displays the value of a specific environment variable from your `/etc/m3tal/.env` file.
+
+**Usage Example:**
+```bash
+m3tal config get DASHBOARD_PORT
+```
+*(This might output `8082` if that's the configured value.)*
+
+### `m3tal config scan`
+
+**Description:**
+Lists all environment variables across all configured M3TAL stacks, including their current values and any default values.
+
+**Usage Example:**
+```bash
+m3tal config scan
+```
+
+### `m3tal config list`
+
+**Description:**
+Displays the entire contents of your current `/etc/m3tal/.env` file.
+
+**Usage Example:**
+```bash
+m3tal config list
+```
+
+---
+
+## 4. System Service Management
+
+M3TAL's API daemon is managed via `systemd`.
 
 ### `systemctl status m3tal-api`
-Displays the current status of the `m3tal-api.service`.
 
-**Usage:**
+**Description:**
+Checks the current status of the `m3tal-api.service` systemd unit.
+
+**Usage Example:**
 ```bash
-sudo systemctl status m3tal-api
+systemctl status m3tal-api
 ```
 
 ### `journalctl -u m3tal-api -f`
-Streams the logs from the `m3tal-api.service` in real-time. Use `-f` to follow the log output.
 
-**Usage:**
+**Description:**
+Streams the logs from the `m3tal-api.service` in real-time. Use this for detailed debugging of the API daemon.
+
+**Usage Example:**
 ```bash
-sudo journalctl -u m3tal-api -f
+journalctl -u m3tal-api -f
 ```
+*(Press `Ctrl+C` to stop streaming.)*
 
 ---
 
-## Direct Docker Compose Fallback
+## 5. Direct Docker Compose Fallback
 
-In situations where the `m3tal` CLI commands may not be sufficient, you can interact directly with Docker Compose. M3TAL orchestrates your stacks using Docker Compose V2.
+In certain scenarios, you might need to interact with Docker Compose directly. M3TAL manages services within the `/docker/` directory.
 
-**Note:** All direct Docker Compose commands should be executed from the `/docker/` directory, as this is where M3TAL expects to find your `*-compose.yml` files.
+### `docker compose up`
 
-### Listing Docker Compose Files
-M3TAL uses all `*-compose.yml` files in `/docker/`.
+**Description:**
+Manually starts all services defined in `*-compose.yml` files within the current directory (or specified via `-f`). This is what `m3tal up` essentially does.
 
-### Starting All Stacks
+**Usage Example (from `/docker/` directory):**
 ```bash
-cd /docker
 sudo docker compose up -d
 ```
+*(The `-d` flag runs containers in detached mode.)*
 
-### Stopping All Stacks
+### `docker compose down`
+
+**Description:**
+Manually stops and removes all services defined in `*-compose.yml` files within the current directory. This is what `m3tal down` essentially does.
+
+**Usage Example (from `/docker/` directory):**
 ```bash
-cd /docker
 sudo docker compose down
 ```
 
-### Streaming All Logs
+### `docker compose logs [service_name]`
+
+**Description:**
+Manually streams logs for a specific service or all services if `service_name` is omitted. This can be an alternative to `m3tal logs`.
+
+**Usage Example:**
 ```bash
-cd /docker
-sudo docker compose logs -f
+sudo docker compose logs -f m3tal-dashboard
+```
+*(The `-f` flag streams logs. Press `Ctrl+C` to stop.)*
+
+### `docker compose ps`
+
+**Description:**
+Lists the containers for the current Docker Compose project.
+
+**Usage Example:**
+```bash
+sudo docker compose ps
 ```
 
-### Starting a Specific Stack
-If you have a file named `my-app-compose.yml` in `/docker/`:
-```bash
-cd /docker
-sudo docker compose -f my-app-compose.yml up -d
-```
-
-### Stopping a Specific Stack
-```bash
-cd /docker
-sudo docker compose -f my-app-compose.yml down
-```
-
-### Viewing a Specific Stack's Logs
-```bash
-cd /docker
-sudo docker compose -f my-app-compose.yml logs -f
-```
 ---
