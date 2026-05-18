@@ -47,7 +47,7 @@ func main() {
 		Short: "M3TAL Core Orchestrator",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				runMainMenu(cmd, args)
+				runMainMenu()
 				return
 			}
 			cmd.Help()
@@ -802,7 +802,8 @@ func runLogsMenu() {
 		fmt.Scanln(&subChoice)
 
 		stackMgr := orchestrator.NewStackManager()
-		if subChoice == 1 {
+		switch subChoice {
+		case 1:
 			fmt.Println("\n📦 Available Stacks:")
 			for i, f := range stackMgr.Files {
 				name := strings.TrimSuffix(filepath.Base(f), "-compose.yml")
@@ -815,7 +816,7 @@ func runLogsMenu() {
 				stackMgr.Files = []string{stackMgr.Files[sNum-1]}
 				stackMgr.Run("logs", "--tail", "50", "-f")
 			}
-		} else if subChoice == 2 {
+		case 2:
 			fmt.Println("\n🐳 Running Containers:")
 			mgr, _ := containers.GetProvider()
 			list, _ := mgr.ListContainers()
@@ -850,7 +851,7 @@ func runWithSudoFallback(name string, args ...string) {
 	}
 }
 
-func runMainMenu(cmd *cobra.Command, args []string) {
+func runMainMenu() {
 	fmt.Println("\n🛠️  M3TAL Control Center")
 	fmt.Println("|-- 1.) Container Management")
 	fmt.Println("|-- 2.) View Logs Explorer")
