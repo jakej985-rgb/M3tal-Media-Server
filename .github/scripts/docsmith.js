@@ -196,20 +196,21 @@ STRICT RULES:
 - NO marketing copy. No "robust", "cohesive", "autonomous" buzzwords. Write strictly technical text like a DevOps engineer.
 - Rephrase the "Overview" section to be strictly direct and technical: "This document provides technical details and operational procedures for the M3TAL system." Avoid any sales or marketing phrases.
 - NO placeholders. Every section must contain real, actionable content.
-- MUST include a dedicated "Prerequisites" section at the very beginning of the document explicitly stating: "Docker Engine and Docker Compose V2 are strictly REQUIRED and must be installed prior to M3TAL installation and operation."
+- MUST include a dedicated "Prerequisites" section at the very beginning of the document explicitly stating: "Docker Engine and Docker Compose V2 are strictly REQUIRED and must be installed prior to M3TAL installation and operation. M3TAL relies on Docker Compose V2 for its internal orchestration and uses Docker Engine + Docker Compose V2 internally."
 - MUST include the exact APT installation block from the context below. Do not invent a different install method.
 - MUST include a "Deployment Lifecycle" section explaining:
   - How stacks work: compose files in /docker/, brought up with \`m3tal up\`
-  - MUST explicitly clarify that \`/docker\` is a user-facing symlink pointing directly to the canonical stack directory \`/opt/m3tal/stack/\`.
-  - How to add a new stack (place compose file in /docker/, run \`m3tal up\`)
+  - MUST explicitly state that \`m3tal up\` is a wrapper around \`docker compose\`, and that it internally runs \`docker compose\` across all \`*-compose.yml\` files in the \`/docker/\` directory (including user-defined compose files).
+  - MUST explicitly clarify the relationship between \`/docker\` and \`/opt/m3tal/stack/\` to emphasize that \`/opt/m3tal/stack/\` is the canonical source of truth directory where all stack files reside, and that \`/docker\` is the user-facing symlink alias for all stack operations.
+  - How to add a new stack (place compose file in /docker/, run \`m3tal up\`) and explicitly clarify that \`m3tal up\` will also deploy any user-defined compose files placed in the \`/docker/\` directory.
 - MUST include a "Dashboard Access" section clearly explaining BOTH modes:
-  - **Local mode** (default, \`DASHBOARD_EXPOSE_MODE=local\`): Direct port binding at \`http://HOST_IP:8082\`. No Traefik needed. Best for home/LAN setups.
+  - **Local mode** (default, \`DASHBOARD_EXPOSE_MODE=local\`): Direct port binding at \`http://HOST_IP:8082\`. No Traefik needed. Best for home/LAN setups. Explicitly state that a new user performing a default installation will access the dashboard directly via port 8082, and link this "direct access via port 8082" behavior to the default setting \`DASHBOARD_EXPOSE_MODE=local\`.
   - **Traefik mode** (\`DASHBOARD_EXPOSE_MODE=traefik\`): Domain routing at \`http://dash.DOMAIN\` via Traefik labels. Requires Traefik running.
   - Make it crystal clear that a new user using the default install gets access at port 8082 directly, NOT via a domain.
 - MUST include a "Traefik Gateway" section explaining:
   - Traefik runs as a container, binds port 80
   - Services are exposed by adding Traefik labels to their compose service definition
-  - \`api.DOMAIN\` routes to the Go API daemon via dynamic config
+  - \`api.DOMAIN\` routes to the Go API daemon via dynamic config. MUST explicitly explain the role of dynamic configuration files (such as \`dynamic/api.yml\`) in routing requests to services listening on host-local ports (specifically, routing \`api.DOMAIN\` to the Go API daemon on host-local port \`8080\` via \`http://host.docker.internal:8080\`).
   - \`dash.DOMAIN\` routes to the dashboard container
   - MUST show a concrete YAML example of how to expose a custom user service via Traefik labels. Show a snippet for a hypothetical \`my-app-compose.yml\` with labels like:
     \`\`\`yaml
@@ -227,7 +228,7 @@ STRICT RULES:
 - MUST include a "Service Management" section showing systemctl commands for m3tal-api.service
 - MUST include a Quick Demo section explaining:
   - How to run \`m3tal dash up\` to start the dashboard container specifically.
-  - Clarify that \`m3tal up\` orchestrates and deploys all other stacks in the directory.
+  - Clarify that \`m3tal up\` orchestrates and deploys all other stacks in the directory, including any user-defined compose files.
 - MUST include a Port Map table (80, 8080, 8081, 8082) with a clear note below indicating that these are the *primary* M3TAL ports, and that user-added stacks may expose additional ports on their own.
 - Firewall note: remind users to allow port 80 in ufw/iptables for Traefik, placed prominently near the Traefik Gateway or Installation section.
 
