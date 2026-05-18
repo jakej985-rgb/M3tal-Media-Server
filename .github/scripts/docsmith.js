@@ -305,6 +305,20 @@ const modelsToTry = [
   "gemini-pro"               // Universal
 ];
 
+function postProcessOutput(content) {
+  let cleaned = content;
+
+  // Regex to match any variant of the echo "deb [signed-by=... m3tal repository line and replace it with the perfectly formed, full command
+  const aptRepoRegex = /echo\s+"deb\s+\[signed-by=\/usr\/share\/keyrings\/m3tal-archive-keyring\.gpg\]\s+https:\/\/jakej985-rgb\.github\.io\/[^\n"]*"?/gi;
+  cleaned = cleaned.replace(aptRepoRegex, 'echo "deb [signed-by=/usr/share/keyrings/m3tal-archive-keyring.gpg] https://jakej985-rgb.github.io/m3tal-core stable main" | sudo tee /etc/apt/sources.list.d/m3tal.list');
+
+  // Ensure GPG key download command is perfectly formatted
+  const gpgRegex = /curl\s+-fsSL\s+https:\/\/jakej985-rgb\.github\.io\/m3tal-core\/KEY\.gpg\s*\|\s*sudo\s+gpg\s+--dearmor\s+-o\s+\/usr\/share\/keyrings\/m3tal-archive-keyring\.gpg/gi;
+  cleaned = cleaned.replace(gpgRegex, 'curl -fsSL https://jakej985-rgb.github.io/m3tal-core/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/m3tal-archive-keyring.gpg');
+
+  return cleaned;
+}
+
 async function generateWithFallback(target) {
   for (const modelName of modelsToTry) {
     try {
@@ -312,7 +326,8 @@ async function generateWithFallback(target) {
       const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(target.prompt);
       const output = result.response.text();
-      fs.writeFileSync(target.path, output);
+      const processed = postProcessOutput(output);
+      fs.writeFileSync(target.path, processed);
       console.log(`[${target.name}] ✅ ${target.path} updated using ${modelName}.`);
       return;
     } catch (error) {
