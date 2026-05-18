@@ -1,0 +1,77 @@
+[
+  {
+    "name": "api",
+    "type": "CLI binary",
+    "path": "cmd/api"
+  },
+  {
+    "name": "m3tal",
+    "type": "CLI binary",
+    "path": "cmd/m3tal"
+  },
+  {
+    "name": "api",
+    "type": "Go package",
+    "path": "internal/api"
+  },
+  {
+    "name": "auth",
+    "type": "Go package",
+    "path": "internal/auth"
+  },
+  {
+    "name": "config",
+    "type": "Go package",
+    "path": "internal/config"
+  },
+  {
+    "name": "containers",
+    "type": "Go package",
+    "path": "internal/containers"
+  },
+  {
+    "name": "engine",
+    "type": "Go package",
+    "path": "internal/engine"
+  },
+  {
+    "name": "health",
+    "type": "Go package",
+    "path": "internal/health"
+  },
+  {
+    "name": "orchestrator",
+    "type": "Go package",
+    "path": "internal/orchestrator"
+  },
+  {
+    "name": "preflight",
+    "type": "Go package",
+    "path": "internal/preflight"
+  },
+  {
+    "name": "store",
+    "type": "Go package",
+    "path": "internal/store"
+  },
+  {
+    "name": "system",
+    "type": "Go package",
+    "path": "internal/system"
+  },
+  {
+    "name": "dashboard",
+    "type": "Deploy artifact",
+    "path": "deploy/dashboard"
+  },
+  {
+    "name": "stack",
+    "type": "Deploy artifact",
+    "path": "deploy/stack"
+  },
+  {
+    "name": "github.com/jakej985-rgb/m3tal-core",
+    "type": "Go module",
+    "path": "go.mod"
+  }
+]
