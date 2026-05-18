@@ -29,6 +29,14 @@ const m3talCompose = fs.existsSync(path.join(rootDir, "deploy/stack/m3tal-compos
   ? fs.readFileSync(path.join(rootDir, "deploy/stack/m3tal-compose.yml"), "utf-8")
   : "(not present)";
 
+const m3talComposeLocal = fs.existsSync(path.join(rootDir, "deploy/stack/m3tal-compose.local.yml"))
+  ? fs.readFileSync(path.join(rootDir, "deploy/stack/m3tal-compose.local.yml"), "utf-8")
+  : "(not present)";
+
+const m3talComposeTraefik = fs.existsSync(path.join(rootDir, "deploy/stack/m3tal-compose.traefik.yml"))
+  ? fs.readFileSync(path.join(rootDir, "deploy/stack/m3tal-compose.traefik.yml"), "utf-8")
+  : "(not present)";
+
 const envExample = fs.existsSync(path.join(rootDir, ".env.example"))
   ? fs.readFileSync(path.join(rootDir, ".env.example"), "utf-8")
   : "(not present)";
@@ -67,7 +75,30 @@ dynamic/api.yml (routes api.DOMAIN → Go API on host:8080):
 ${traefikDynamic}
 \`\`\`
 
-### Dashboard compose
+### Dashboard Access — TWO MODES (this is how the system ACTUALLY works)
+The dashboard access mode is controlled by \`DASHBOARD_EXPOSE_MODE\` in \`/etc/m3tal/.env\`:
+
+**Mode 1: local (default, \`DASHBOARD_EXPOSE_MODE=local\`)**
+- Uses override file: \`m3tal-compose.local.yml\` which adds a direct port binding.
+- Access via: \`http://HOST_IP:8082\` — no Traefik required.
+- For LAN-only setups and first-time users.
+
+**Mode 2: traefik (\`DASHBOARD_EXPOSE_MODE=traefik\`)**
+- Uses override file: \`m3tal-compose.traefik.yml\` which adds Traefik labels.
+- Access via: \`http://dash.DOMAIN\` — requires Traefik running.
+- For domain-based setups behind a reverse proxy.
+
+\`m3tal-compose.local.yml\` (local mode override):
+\`\`\`yaml
+${m3talComposeLocal}
+\`\`\`
+
+\`m3tal-compose.traefik.yml\` (traefik mode override):
+\`\`\`yaml
+${m3talComposeTraefik}
+\`\`\`
+
+### Dashboard compose base (\`m3tal-compose.yml\`):
 \`\`\`yaml
 ${m3talCompose}
 \`\`\`
