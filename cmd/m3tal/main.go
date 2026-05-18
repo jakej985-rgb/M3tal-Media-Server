@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -302,6 +303,8 @@ func main() {
 			if err := auth.UpdateUser(usersFile, username, password); err != nil {
 				log.Fatal(err)
 			}
+			// Restart dashboard container to apply new credentials and remount users.json immediately
+			_ = exec.Command("docker", "restart", "m3tal-dashboard").Run()
 		},
 	}
 
@@ -665,6 +668,22 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 			log.Fatal(err)
 		}
 		fmt.Printf("\n✅ Configuration saved to %s\n", targetFile)
+	}
+
+	// Synchronize ADMIN_PASSWORD to users.json if set in the global wizard
+	if isGlobal {
+		adminPass := ""
+		for _, line := range finalLines {
+			if strings.HasPrefix(line, "ADMIN_PASSWORD=") {
+				adminPass = strings.TrimPrefix(line, "ADMIN_PASSWORD=")
+				break
+			}
+		}
+		if adminPass != "" {
+			usersFile := filepath.Join(system.GetStackDir(), "users.json")
+			_ = auth.UpdateUser(usersFile, "admin", adminPass)
+			_ = exec.Command("docker", "restart", "m3tal-dashboard").Run()
+		}
 	}
 
 	if isGlobal {
