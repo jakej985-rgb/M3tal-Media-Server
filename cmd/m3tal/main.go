@@ -907,6 +907,7 @@ func runMainMenu() bool {
 	fmt.Println("|-- 3.) Start Dashboard & API")
 	fmt.Println("|-- 4.) Configuration & Secrets")
 	fmt.Println("|-- 5.) System Health Check (Doctor)")
+	fmt.Println("|-- 6.) Start System Tray Monitor")
 	fmt.Println("|-- 0.) Exit")
 
 	fmt.Print("\n👉 Selection: ")
@@ -996,6 +997,8 @@ func runMainMenu() bool {
 		}
 	case 5:
 		runWithSudoFallback(exe, "doctor")
+	case 6:
+		runWithSudoFallback(exe, "tray", "--port", "18088")
 	case 0:
 		return false
 	default:
