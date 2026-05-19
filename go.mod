@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/docker/docker v24.0.9+incompatible
 	github.com/go-chi/chi/v5 v5.2.5
+	github.com/gogpu/systray v0.1.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.48.0
@@ -20,6 +21,8 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-webgpu/goffi v0.5.0 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -41,7 +44,7 @@ require (
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	gotest.tools/v3 v3.5.1 // indirect

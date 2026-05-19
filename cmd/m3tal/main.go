@@ -528,7 +528,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd())
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
