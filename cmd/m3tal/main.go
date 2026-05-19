@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -47,13 +49,24 @@ func main() {
 		Short: "M3TAL Core Orchestrator",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				runMainMenu()
+				persist, _ := cmd.Flags().GetBool("persist")
+				if persist {
+					setupPersistentSignalHandler()
+					for {
+						if !runMainMenu() {
+							break
+						}
+					}
+				} else {
+					runMainMenu()
+				}
 				return
 			}
 			cmd.Help()
 		},
 	}
 
+	rootCmd.Flags().BoolP("persist", "p", false, "Keep the interactive menu open and loop continuously")
 	rootCmd.PersistentFlags().String("api-url", "http://localhost:8080", "M3TAL API URL")
 	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
 	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
@@ -814,7 +827,9 @@ func runLogsMenu() {
 			fmt.Scanln(&sNum)
 			if sNum > 0 && sNum <= len(stackMgr.Files) {
 				stackMgr.Files = []string{stackMgr.Files[sNum-1]}
-				stackMgr.Run("logs", "--tail", "50", "-f")
+				runAsSubcommand(func() {
+					stackMgr.Run("logs", "--tail", "50", "-f")
+				})
 			}
 		case 2:
 			fmt.Println("\n🐳 Running Containers:")
@@ -833,7 +848,9 @@ func runLogsMenu() {
 	case 3:
 		fmt.Println("\n🚀 Streaming Aggregated Logs...")
 		stackMgr := orchestrator.NewStackManager()
-		stackMgr.Run("logs", "--tail", "20", "-f")
+		runAsSubcommand(func() {
+			stackMgr.Run("logs", "--tail", "20", "-f")
+		})
 	case 0:
 		return
 	default:
@@ -842,16 +859,18 @@ func runLogsMenu() {
 }
 
 func runWithSudoFallback(name string, args ...string) {
-	err := orchestrator.RunRaw(name, args...)
-	if err != nil {
-		fmt.Println("\n⚠️  Action failed. This might require elevated privileges.")
-		fmt.Println("👉 Retrying with sudo...")
-		sudoArgs := append([]string{name}, args...)
-		orchestrator.RunRaw("sudo", sudoArgs...)
-	}
+	runAsSubcommand(func() {
+		err := orchestrator.RunRaw(name, args...)
+		if err != nil {
+			fmt.Println("\n⚠️  Action failed. This might require elevated privileges.")
+			fmt.Println("👉 Retrying with sudo...")
+			sudoArgs := append([]string{name}, args...)
+			orchestrator.RunRaw("sudo", sudoArgs...)
+		}
+	})
 }
 
-func runMainMenu() {
+func runMainMenu() bool {
 	fmt.Println("\n🛠️  M3TAL Control Center")
 	fmt.Println("|-- 1.) Container Management")
 	fmt.Println("|-- 2.) View Logs Explorer")
@@ -948,8 +967,38 @@ func runMainMenu() {
 	case 5:
 		runWithSudoFallback(exe, "doctor")
 	case 0:
-		return
+		return false
 	default:
 		fmt.Println("❌ Invalid selection.")
 	}
+	return true
+}
+
+var (
+	isRunningSubcommand bool
+)
+
+func setupPersistentSignalHandler() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		for sig := range sigChan {
+			if isRunningSubcommand {
+				// Swallow signal for parent; child process handles it
+				continue
+			}
+			signal.Stop(sigChan)
+			if sig == os.Interrupt {
+				os.Exit(130)
+			} else {
+				os.Exit(1)
+			}
+		}
+	}()
+}
+
+func runAsSubcommand(f func()) {
+	isRunningSubcommand = true
+	defer func() { isRunningSubcommand = false }()
+	f()
 }
