@@ -134,6 +134,28 @@ func pullConfig() {
 			fmt.Printf("✅ Saved to %s\n", targetFile)
 		}
 	}
+
+	// Ensure users.json exists as a file (to prevent docker from auto-creating it as a directory)
+	usersPath := filepath.Join(stackDir, "users.json")
+	if info, err := os.Stat(usersPath); err == nil && info.IsDir() {
+		fmt.Printf("⚠️  Found directory named users.json. Removing to recreate as file...\n")
+		_ = os.RemoveAll(usersPath)
+	}
+	if _, err := os.Stat(usersPath); os.IsNotExist(err) {
+		defaultUsers := `[
+  {
+    "username": "admin",
+    "token_hash": "$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2",
+    "role": "admin"
+  }
+]
+`
+		if err := os.WriteFile(usersPath, []byte(defaultUsers), 0664); err != nil {
+			fmt.Printf("⚠️  Failed to initialize users.json: %v\n", err)
+		} else {
+			fmt.Println("✅ Initialized default users.json configuration file.")
+		}
+	}
 }
 
 func runDashCompose(action string, args ...string) {
