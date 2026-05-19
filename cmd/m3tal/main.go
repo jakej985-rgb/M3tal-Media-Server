@@ -50,7 +50,24 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				persist, _ := cmd.Flags().GetBool("persist")
-				if persist {
+				newWindow, _ := cmd.Flags().GetBool("new-window")
+				windowAlias, _ := cmd.Flags().GetBool("window")
+
+				globalLocal, _ = cmd.Flags().GetBool("local")
+				globalAPIURL, _ = cmd.Flags().GetString("api-url")
+				globalAPIToken, _ = cmd.Flags().GetString("api-token")
+
+				if newWindow || windowAlias {
+					fmt.Println("🖥️  Launching M3TAL interactive menu in a new terminal window...")
+					if err := launchInNewWindow(); err != nil {
+						fmt.Printf("❌ Failed to launch in new window: %v\n", err)
+						fmt.Println("👉 Falling back to current terminal window...")
+					} else {
+						return
+					}
+				}
+
+				if persist || newWindow || windowAlias {
 					setupPersistentSignalHandler()
 					for {
 						if !runMainMenu() {
@@ -67,6 +84,8 @@ func main() {
 	}
 
 	rootCmd.Flags().BoolP("persist", "p", false, "Keep the interactive menu open and loop continuously")
+	rootCmd.Flags().BoolP("new-window", "n", false, "Launch the interactive menu in a new terminal window")
+	rootCmd.Flags().BoolP("window", "w", false, "Alias for --new-window")
 	rootCmd.PersistentFlags().String("api-url", "http://localhost:8080", "M3TAL API URL")
 	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
 	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
@@ -859,6 +878,17 @@ func runLogsMenu() {
 }
 
 func runWithSudoFallback(name string, args ...string) {
+	if name == os.Args[0] {
+		if globalLocal {
+			args = append(args, "--local")
+		}
+		if globalAPIURL != "" {
+			args = append(args, "--api-url", globalAPIURL)
+		}
+		if globalAPIToken != "" {
+			args = append(args, "--api-token", globalAPIToken)
+		}
+	}
 	runAsSubcommand(func() {
 		err := orchestrator.RunRaw(name, args...)
 		if err != nil {
@@ -976,7 +1006,60 @@ func runMainMenu() bool {
 
 var (
 	isRunningSubcommand bool
+	globalLocal         bool
+	globalAPIURL        string
+	globalAPIToken      string
 )
+
+func launchInNewWindow() error {
+	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return fmt.Errorf("no graphical display detected (DISPLAY and WAYLAND_DISPLAY environment variables are empty)")
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		exe = os.Args[0]
+	}
+
+	args := []string{"-p"}
+	if globalLocal {
+		args = append(args, "--local")
+	}
+	if globalAPIURL != "" {
+		args = append(args, "--api-url", globalAPIURL)
+	}
+	if globalAPIToken != "" {
+		args = append(args, "--api-token", globalAPIToken)
+	}
+
+	cmdStr := exe + " " + strings.Join(args, " ")
+
+	terminals := [][]string{
+		{"x-terminal-emulator", "-e", cmdStr},
+		{"gnome-terminal", "--", exe},
+		{"konsole", "-e", cmdStr},
+		{"xfce4-terminal", "-e", cmdStr},
+		{"xterm", "-e", cmdStr},
+	}
+
+	for _, term := range terminals {
+		termExe := term[0]
+		if _, err := exec.LookPath(termExe); err == nil {
+			var cmd *exec.Cmd
+			if termExe == "gnome-terminal" {
+				gnomeArgs := append([]string{"--", exe}, args...)
+				cmd = exec.Command("gnome-terminal", gnomeArgs...)
+			} else {
+				cmd = exec.Command(termExe, term[1:]...)
+			}
+			err := cmd.Start()
+			if err == nil {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("could not find a supported terminal emulator (tried x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm)")
+}
 
 func setupPersistentSignalHandler() {
 	sigChan := make(chan os.Signal, 1)
