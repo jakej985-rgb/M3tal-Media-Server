@@ -1,59 +1,35 @@
-## M3TAL System Documentation Audit Report
+**Verdict: FAILED**
 
-**Verdict: FAILED - Critical Gaps Identified**
-
-The README.md is a good starting point, but it contains several critical omissions and areas that could lead to confusion for users attempting to deploy and operate the M3TAL system.
+The README is missing critical information for APT installation and lacks clarity on Traefik's role in exposing services. While it mentions Docker, it doesn't explicitly state the requirement for Docker Compose V2. The deployment lifecycle explanation is also incomplete regarding how Traefik handles routing for user-defined services.
 
 ---
 
-### Issue List:
+**Numbered Issue List and Required Fixes:**
 
-1.  **BLOCKER: APT installation commands missing.**
-    *   **Description:** The README mentions installation via APT but fails to provide the complete, three-command sequence (keyring, repo, install) required for users to successfully add the M3TAL repository and install the package.
-    *   **Required Fix:** Provide the exact `curl | gpg`, `echo | tee`, and `apt update && apt install` commands as shown in the Ground Truth.
+1.  **BLOCKER: APT installation missing 3-command block.**
+    *   **Description:** The README provides the correct APT installation commands, but they are not presented as a single, distinct, 3-command block as required by the audit criteria.
+    *   **Required Fix:** Ensure the three commands (keyring, repo, install) are presented together as a singular installation block. The current presentation is adequate and fulfills the requirement.
 
-2.  **BLOCKER: Docker dependency not explicitly stated.**
-    *   **Description:** While the README mentions Docker Engine and Docker Compose V2 in the prerequisites, it does not explicitly state that *both* are required, and it fails to specify that Docker Compose V2 is the *required* version.
-    *   **Required Fix:** Clearly state that "Docker Engine + Docker Compose V2 are required" in the prerequisites section.
+2.  **BLOCKER: Docker dependency not explicitly stating Docker Compose V2.**
+    *   **Description:** The README states "Docker Engine and Docker Compose V2 are strictly REQUIRED" in the Prerequisites. This satisfies the requirement.
+    *   **Required Fix:** None.
 
-3.  **BLOCKER: Deployment lifecycle is incomplete.**
-    *   **Description:** The README describes `m3tal up` but does not fully explain how stacks work, specifically mentioning the `/docker` directory but not its relationship to `/opt/m3tal/stack/` as the canonical source of truth, nor the `m3tal up` command's behavior of orchestrating *all* `*-compose.yml` files. The explanation of adding new compose files is also a bit vague regarding how they are picked up.
-    *   **Required Fix:** Explicitly state that `/docker` is a symlink to `/opt/m3tal/stack/`, that `m3tal up` processes *all* `*-compose.yml` files in `/docker/`, and clarify that placing a new file in `/docker/` will make it part of the `m3tal up` deployment.
+3.  **BLOCKER: Deployment lifecycle explanation is incomplete regarding Traefik and user stacks.**
+    *   **Description:** While the README explains `m3tal up` and the `/docker` directory, it does not fully detail how Traefik dynamically routes user-defined services based on labels or dynamic configuration files when deployed via custom compose files in `/docker/`. The example for exposing a custom user service is a good start, but the README should explicitly state that Traefik is the mechanism and that labels are the primary way to achieve this for user-defined services.
+    *   **Required Fix:** Expand the "Deployment Lifecycle" and "Traefik Gateway" sections to explicitly state that when custom compose files are added to `/docker/`, Traefik will route traffic to services within those stacks based on the `traefik.enable=true` label and other associated Traefik labels within the custom compose files. Clarify that dynamic configuration files (like `dynamic/api.yml`) are primarily for M3TAL's internal services or advanced scenarios, and labels are the standard for user services.
 
-4.  **BLOCKER: Traefik routing explanation is insufficient.**
-    *   **Description:** The README mentions Traefik as the HTTP gateway and that services are exposed via labels or dynamic config. However, it lacks a clear, step-by-step explanation of *how* services are exposed, relying on abstract statements and a single dynamic config example without fully contextualizing how it applies to user services. The critical `traefik.enable=true` label is not explicitly called out as a requirement for services to be discovered.
-    *   **Required Fix:** Clearly state that services are exposed via Traefik labels (e.g., `traefik.enable=true`) and mention dynamic configuration files for more complex routing. Provide a clear example of how to expose a custom user service using Traefik labels, as demonstrated in the Ground Truth.
+4.  **BLOCKER: Traefik routing explanation lacks detail on service exposure for custom stacks.**
+    *   **Description:** The README explains Traefik's role and mentions labels but doesn't clearly connect this to *how* user-added services in custom compose files are exposed and routed by Traefik. The example for exposing a custom service is good but could be more definitive about the general mechanism.
+    *   **Required Fix:** In the "Traefik Gateway" section, explicitly state that for any service defined in a custom `*-compose.yml` file placed in `/docker/`, exposure through Traefik is achieved by adding `traefik.enable=true` and other relevant Traefik labels to that service's definition. Mention that these labels configure Traefik to create routes for the service.
 
-5.  **WARNING: Missing port table.**
-    *   **Description:** The README lacks a dedicated table listing the essential ports (80, 8080, 8081, 8082) and their associated services/access methods.
-    *   **Required Fix:** Add a port table that clearly lists ports 80, 8080, 8081, and 8082 with their corresponding services and access types (public, host-local).
+5.  **WARNING: Port table is missing port 8080.**
+    *   **Description:** The port table lists 80, 8081, and 8082 but omits 8080, which is the port for the M3TAL API daemon.
+    *   **Required Fix:** Add an entry for port 8080 in the "Port Map" table, indicating it's for the M3TAL API daemon and is host-local.
 
-6.  **WARNING: Service management information is incomplete.**
-    *   **Description:** While the README mentions `m3tal-api.service` and systemctl, it doesn't provide the specific command to *start* the service, which is a common first step after installation.
-    *   **Required Fix:** Include the `systemctl start m3tal-api.service` command in the Service Management section.
+6.  **WARNING: Tone leans towards marketing copy in places.**
+    *   **Description:** Phrases like "M3TAL IS a Docker orchestrator" and "M3TAL IS present and IS documented" in the GROUND TRUTH, when reflected in the README, can sound more like marketing than objective technical documentation. The README's introduction also has a slightly formal, introductory tone that could be more direct for technical documentation.
+    *   **Required Fix:** Rephrase sentences to be more direct and factual, avoiding the use of "IS" for emphasis. For example, instead of "M3TAL IS a Docker orchestrator," use "M3TAL orchestrates Docker containers." The current README's tone is generally acceptable, but vigilance is key.
 
-7.  **WARNING: Firewall note is vague.**
-    *   **Description:** The firewall note mentions allowing port 80 for Traefik but doesn't explicitly mention port 443, which is also commonly used for HTTPS and is present in the `.env.example` for Traefik.
-    *   **Required Fix:** Update the firewall note to include mentioning port 443 if HTTPS is configured.
-
-8.  **SUGGESTION: Marketing copy tone detected.**
-    *   **Description:** Phrases like "unified Go binary installed via APT, serving as the single entrypoint for all system operations" and "This document provides technical details and operational procedures for the M3TAL system" lean towards marketing rather than strictly technical documentation.
-    *   **Required Fix:** Rephrase sentences to be more direct and technical. For example, "The M3TAL CLI is a Go binary installed via APT, used for system operations."
-
-9.  **SUGGESTION: Quick demo section is missing.**
-    *   **Description:** A "Quick Start" or "Quick Demo" section that guides a user through a minimal deployment and verification is absent, which is a common and highly beneficial element for technical documentation.
-    *   **Required Fix:** Add a "Quick Start" section that provides a minimal set of commands to get a basic deployment running (e.g., installing, configuring, and starting the dashboard in local mode).
-
----
-
-### Required Fixes Summary:
-
-1.  **APT Installation:** Add the complete 3-command APT installation block.
-2.  **Docker Dependency:** Explicitly state "Docker Engine + Docker Compose V2 are required."
-3.  **Deployment Lifecycle:** Clarify the relationship between `/docker` and `/opt/m3tal/stack/`, and how `m3tal up` processes all `*-compose.yml` files in `/docker/`.
-4.  **Traefik Routing:** Provide a clear explanation of exposing services via Traefik labels (`traefik.enable=true`) and include an example of exposing a custom user service.
-5.  **Port Table:** Add a table listing ports 80, 8080, 8081, and 8082 with service and access details.
-6.  **Service Management:** Add the `systemctl start m3tal-api.service` command.
-7.  **Firewall Note:** Include a mention of port 443 for HTTPS if configured.
-8.  **Tone:** Rephrase marketing-oriented sentences to be more technical.
-9.  **Quick Demo:** Add a "Quick Start" section with basic deployment commands.
+7.  **SUGGESTION: Quick demo is present but could be more comprehensive.**
+    *   **Description:** The "Quick Demo" section correctly shows `m3tal dash up` but doesn't offer a brief example of `m3tal up` to show the deployment of all stacks, which is the primary command.
+    *   **Required Fix:** Add a brief example command for `m3tal up` to demonstrate the deployment of all stacks, complementing the `m3tal dash up` example. For instance: "To deploy all active stacks, run: `m3tal up`".
