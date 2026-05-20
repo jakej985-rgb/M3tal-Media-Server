@@ -25,6 +25,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/auth"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/orchestrator"
+	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 	"github.com/spf13/cobra"
@@ -382,6 +383,15 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					}
 				}
 			}
+
+			// Initialize plugin directory structure
+			if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+				for _, subdir := range system.PluginSubdirs {
+					path := filepath.Join(system.UserPluginsDir, subdir)
+					_ = os.MkdirAll(path, 0755)
+				}
+				fmt.Printf("✅ Plugin directories initialized (%s)\n", system.UserPluginsDir)
+			}
 		},
 	}
 
@@ -528,7 +538,99 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, initDashCmd(), trayCmd)
+
+	// ─── Plugin Commands ───
+	var pluginCmd = &cobra.Command{
+		Use:   "plugin",
+		Short: "Manage M3TAL plugins",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
+	}
+
+	var pluginListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List all discovered plugins",
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+
+			fmt.Printf("\n🔌 %s\n\n", reg.Summary())
+
+			if len(reg.ListStacks()) > 0 {
+				fmt.Println("📦 Stack Plugins:")
+				for _, s := range reg.ListStacks() {
+					pri := ""
+					if s.Priority > 0 {
+						pri = fmt.Sprintf(" (priority: %d)", s.Priority)
+					}
+					fmt.Printf("   %-20s %s%s\n", s.Metadata.Name, s.Metadata.Description, pri)
+				}
+				fmt.Println()
+			}
+
+			if len(reg.ListRoutes()) > 0 {
+				fmt.Println("🚦 Route Plugins:")
+				for _, r := range reg.ListRoutes() {
+					fmt.Printf("   %-20s %s → %s:%d\n", r.Metadata.Name, r.Domain, r.Service, r.Port)
+				}
+				fmt.Println()
+			}
+
+			if len(reg.ListMiddlewares()) > 0 {
+				fmt.Println("🔐 Middleware Plugins:")
+				for _, m := range reg.ListMiddlewares() {
+					fmt.Printf("   %-20s [%s] %s\n", m.Metadata.Name, m.Type, m.Metadata.Description)
+				}
+				fmt.Println()
+			}
+
+			fmt.Println("Scanned directories:")
+			for _, d := range dirs {
+				marker := "  ✗"
+				if _, err := os.Stat(d); err == nil {
+					marker = "  ✓"
+				}
+				fmt.Printf("%s %s\n", marker, d)
+			}
+		},
+	}
+
+	var pluginValidateCmd = &cobra.Command{
+		Use:   "validate [path]",
+		Short: "Validate a plugin YAML file",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			path := args[0]
+			data, err := os.ReadFile(path)
+			if err != nil {
+				log.Fatalf("❌ Cannot read file: %v", err)
+			}
+
+			p, err := plugin.ParsePlugin(data)
+			if err != nil {
+				log.Fatalf("❌ Parse error: %v", err)
+			}
+
+			if err := p.Validate(); err != nil {
+				log.Fatalf("❌ Validation failed: %v", err)
+			}
+
+			fmt.Printf("✅ Valid %s plugin: %s\n", p.Kind, p.Metadata.Name)
+			if p.Metadata.Description != "" {
+				fmt.Printf("   Description: %s\n", p.Metadata.Description)
+			}
+			if p.Metadata.Version != "" {
+				fmt.Printf("   Version:     %s\n", p.Metadata.Version)
+			}
+		},
+	}
+
+	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

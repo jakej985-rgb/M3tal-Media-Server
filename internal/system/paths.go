@@ -22,7 +22,29 @@ const (
 
 	// StacksDir is where individual stack env files live
 	StacksDir = "/etc/m3tal/stacks"
+
+	// SystemPluginsDir is where built-in plugin definitions are installed (via DEB)
+	SystemPluginsDir = "/opt/m3tal/plugins"
+
+	// UserPluginsDir is where user-customized plugin definitions live
+	UserPluginsDir = "/etc/m3tal/plugins"
 )
+
+// PluginSubdirs lists the standard plugin category subdirectories.
+var PluginSubdirs = []string{"routes", "stacks", "middleware", "providers", "ai"}
+
+// GetPluginDirs returns the ordered list of plugin directories to scan.
+// System dir is first, user dir is second (user takes precedence in dedup).
+func GetPluginDirs() []string {
+	dirs := []string{SystemPluginsDir, UserPluginsDir}
+
+	// Also check local deploy/plugins for development
+	if _, err := os.Stat("deploy/plugins"); err == nil {
+		dirs = append([]string{"deploy/plugins"}, dirs...)
+	}
+
+	return dirs
+}
 
 // GetConfigPath returns the active configuration path, supporting overrides
 func GetConfigPath() string {

@@ -1,0 +1,10 @@
+apiVersion: m3tal/v1
+kind: Stack
+metadata:
+  name: network
+  description: "Docker network definitions — proxy and internal networks"
+  version: "1.0.0"
+spec:
+  composePath: network-compose.yml
+  priority: 1
+  category: infra
