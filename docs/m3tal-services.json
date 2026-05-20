@@ -45,6 +45,11 @@
     "path": "internal/orchestrator"
   },
   {
+    "name": "plugin",
+    "type": "Go package",
+    "path": "internal/plugin"
+  },
+  {
     "name": "preflight",
     "type": "Go package",
     "path": "internal/preflight"
@@ -63,6 +68,11 @@
     "name": "dashboard",
     "type": "Deploy artifact",
     "path": "deploy/dashboard"
+  },
+  {
+    "name": "plugins",
+    "type": "Deploy artifact",
+    "path": "deploy/plugins"
   },
   {
     "name": "stack",
