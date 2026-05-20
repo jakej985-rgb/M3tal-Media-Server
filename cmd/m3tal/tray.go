@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,11 +11,43 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/gogpu/systray"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 	"github.com/spf13/cobra"
 )
+
+// Minimal placeholder HTML for the tray interface
+var TrayHTML = `<!DOCTYPE html><html><head><title>M3TAL Tray</title></head><body></body></html>`
+
+// Base64-encoded 1x1 transparent PNG icon
+var IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAAWgmWQ0AAAAAElFTkSuQmCC"
+
+var IconData []byte
+
+func init() {
+	decoded, err := base64.StdEncoding.DecodeString(IconBase64)
+	if err == nil {
+		IconData = decoded
+	}
+}
+
+// hasStatusNotifier checks if org.kde.StatusNotifierWatcher is registered on the session bus
+func hasStatusNotifier() bool {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+
+	var owner string
+	err = conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, "org.kde.StatusNotifierWatcher").Store(&owner)
+	if err != nil {
+		return false
+	}
+	return owner != ""
+}
 
 var trayCmd = &cobra.Command{
 	Use:   "tray",
@@ -31,27 +64,10 @@ func init() {
 }
 
 func runTray(port string) {
-	// Try to bind listener first
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+	// Bind a TCP listener on the specified port
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", port))
 	if err != nil {
-		log.Printf("Port %s is already in use, scanning for an available port...\n", port)
-		var startPort int
-		fmt.Sscanf(port, "%d", &startPort)
-		if startPort == 0 {
-			startPort = 18088
-		}
-		for i := 1; i <= 100; i++ {
-			nextPort := fmt.Sprintf("%d", startPort+i)
-			l, err2 := net.Listen("tcp", net.JoinHostPort("127.0.0.1", nextPort))
-			if err2 == nil {
-				listener = l
-				port = nextPort
-				break
-			}
-		}
-	}
-	if listener == nil || err != nil {
-		log.Fatalf("Tray web server failed to bind to any port: %v", err)
+		log.Fatalf("Tray web server failed to bind to port %s: %v", port, err)
 	}
 
 	fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
@@ -63,7 +79,7 @@ func runTray(port string) {
 		fmt.Printf("   stats web interface remains fully accessible at http://localhost:%s/tray\n", port)
 	}
 
-	// Start HTTP server in a goroutine using the listener
+	// Start HTTP server serving the tray interface and API endpoints
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tray", func(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +115,16 @@ func runTray(port string) {
 	}()
 
 	// Run systray (pure Go, zero CGO, blocks on Run)
+	mode := os.Getenv("M3TAL_TRAY")
+	if mode == "off" {
+		log.Println("[tray] M3TAL_TRAY is set to off; system tray disabled")
+		return
+	}
+	if mode != "force" && !hasStatusNotifier() {
+		log.Println("[tray] StatusNotifierWatcher not available; system tray disabled")
+		return
+	}
+
 	tray := systray.New()
 	tray.SetIcon(IconData)
 	tray.SetTooltip("M3TAL Core System Tray")

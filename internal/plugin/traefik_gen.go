@@ -76,7 +76,7 @@ func (r *Registry) GenerateTraefikConfig() ([]byte, error) {
 			continue
 		}
 		name := rp.Metadata.Name
-		
+
 		entrypoints := []string{"web"}
 		if rp.Entrypoints != "" {
 			entrypoints = strings.Split(rp.Entrypoints, ",")
