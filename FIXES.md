@@ -1,66 +1,72 @@
-## Audit Verdict
+**Verdict: FAILED**
 
-**FAILED** - The README is missing critical information regarding the Docker dependency and deployment lifecycle.
-
----
-
-## Audit Issues
-
-### 1. BLOCKER: Docker Dependency Missing
-*   **Description**: The README fails to explicitly state that Docker Engine and Docker Compose V2 are required. While the "Prerequisites" section mentions them, it's not a clear, direct statement of requirement for M3TAL's internal operations.
-*   **Required Fix**: Add a clear and unambiguous statement in the README, ideally in the "Prerequisites" section, explicitly detailing the requirement for Docker Engine and Docker Compose V2.
-
-### 2. BLOCKER: Deployment Lifecycle Explanation Missing
-*   **Description**: The README does not adequately explain how M3TAL manages stacks. It mentions `m3tal up` and the `/docker` directory but fails to connect this to Docker Compose V2's behavior or how new compose files are integrated. TheGround Truth indicates `m3tal up` runs `docker compose` across all `*-compose.yml` files in `/docker/`. This crucial detail about how multiple compose files are handled by `m3tal up` is missing.
-*   **Required Fix**:
-    *   Clarify that `m3tal up` orchestrates `docker compose` for all `*-compose.yml` files within the `/docker` directory.
-    *   Explicitly state that `/docker` is a symlink to `/opt/m3tal/stack/`.
-    *   Explain that `m3tal dash up` specifically manages the dashboard container.
-
-### 3. BLOCKER: Traefik Routing Explanation Missing
-*   **Description**: The README mentions Traefik as the HTTP gateway but does not clearly explain *how* services get exposed through it. The Ground Truth shows Traefik using both labels on services and static/dynamic configuration files. The README only alludes to labels in the "Example: Exposing a Custom Service via Traefik" section, which is insufficient on its own. It does not mention the role of dynamic configuration files or how Traefik interacts with services not directly labeled (like the Go API).
-*   **Required Fix**:
-    *   Clearly state that Traefik is the HTTP gateway.
-    *   Explain that services can be exposed via Traefik labels.
-    *   Crucially, explain that Traefik also uses static configuration (Traefik.yml) and dynamic configuration files (e.g., in `/docker/dynamic/`) for routing.
-    *   Provide a more comprehensive explanation of how Traefik routes traffic, referencing both labeled services and dynamically configured services (like the Go API).
-
-### 4. WARNING: Port Table Incomplete
-*   **Description**: The README's "Port Map" section is missing port 8080 (M3TAL Go API daemon).
-*   **Required Fix**: Add port 8080 to the "Port Map" table with its corresponding service (M3TAL API daemon) and access description (Host-local).
-
-### 5. WARNING: Service Management Mentioned, but Lacks Systemctl Detail
-*   **Description**: While the "Service Management" section mentions `systemctl` for `m3tal-api.service`, it does not provide the specific commands for checking status, restarting, or viewing logs, which are standard and expected for systemd service management. The Ground Truth provides these exact commands.
-*   **Required Fix**: Include the `systemctl status m3tal-api`, `systemctl restart m3tal-api`, and `journalctl -u m3tal-api -f` commands in the "Service Management" section.
-
-### 6. WARNING: Firewall Note Lacks Specificity
-*   **Description**: The "Firewall Considerations" section correctly advises to allow port 80 in `ufw/iptables` but does not mention the need to allow port 443 if HTTPS is configured, which is a common scenario for a reverse proxy like Traefik. The Ground Truth example for Traefik shows port 443 being configured as well.
-*   **Required Fix**: Update the "Firewall Considerations" section to also remind users to allow port 443 if HTTPS is being used.
-
-### 7. WARNING: Marketing Copy Tone
-*   **Description**: The "Overview" section uses phrasing like "M3TAL is designed to orchestrate and manage Docker containers, providing a unified CLI, an API daemon, and a web dashboard for system administration," which leans towards marketing rather than purely technical documentation.
-*   **Required Fix**: Rephrase the "Overview" section to be more direct and technical, focusing on what M3TAL *is* and *does* from an operational perspective.
-
-### 8. SUGGESTION: Quick Demo Section is Present but Lacks Detail
-*   **Description**: The "Quick Demo" section provides commands for `m3tal dash up` and `m3tal up`. However, it doesn't provide a concrete example of what a user would *see* or *do* after running these commands, making it less of a "demo" and more of a command listing. For instance, it doesn't mention how to access the dashboard after starting it.
-*   **Required Fix**: Enhance the "Quick Demo" section by adding a step that guides the user on how to access the M3TAL Dashboard (e.g., "After running `m3tal dash up`, you can access the dashboard at `http://localhost:8082` (if `DASHBOARD_EXPOSE_MODE=local` is set).") or any other relevant immediate outcome.
+**Reason:** The README is missing critical information regarding Docker Compose V2, the specific commands for `m3tal up`, and incomplete documentation on Traefik routing for user-defined services.
 
 ---
 
-## Required Fixes Summary
+**Issues:**
 
-1.  **BLOCKER**: Explicitly state Docker Engine and Docker Compose V2 are required in the Prerequisites.
-2.  **BLOCKER**:
-    *   Clarify `m3tal up` uses `docker compose` on all `*-compose.yml` in `/docker/`.
-    *   State `/docker` is a symlink to `/opt/m3tal/stack/`.
-    *   Mention `m3tal dash up` manages the dashboard container.
-3.  **BLOCKER**:
-    *   State Traefik is the HTTP gateway.
-    *   Explain services are exposed via labels.
-    *   Explain Traefik uses static and dynamic config files for routing.
-    *   Elaborate on how Traefik routes (e.g., to labeled services and dynamically configured ones like the Go API).
-4.  **WARNING**: Add port 8080 to the Port Map.
-5.  **WARNING**: Include `systemctl status m3tal-api`, `systemctl restart m3tal-api`, and `journalctl -u m3tal-api -f` commands in Service Management.
-6.  **WARNING**: Add a reminder to allow port 443 in Firewall Considerations if HTTPS is configured.
-7.  **WARNING**: Rephrase the Overview for a more technical tone.
-8.  **SUGGESTION**: Enhance the Quick Demo with an example of what to do or see after running the commands.
+1.  **BLOCKER: APT installation:** The README does not explicitly show the 3-command keyring+repo+install block as required by the audit criteria.
+    *   **Required Fix:** The README should clearly present the three commands for APT installation: `curl ... | sudo gpg ...`, `echo ... | sudo tee ...`, and `sudo apt update && sudo apt install -y m3tal`.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+2.  **BLOCKER: Docker dependency:** The README fails to state that Docker Engine + Docker Compose V2 are required.
+    *   **Required Fix:** Add a clear statement that both Docker Engine and Docker Compose V2 are mandatory dependencies.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+3.  **BLOCKER: Deployment lifecycle:** The README's explanation of how stacks work is incomplete. It mentions `m3tal up` and the `/docker` directory but doesn't fully explain that `/docker` is a symlink to `/opt/m3tal/stack/` or how adding new compose files into this directory is handled by `m3tal up`.
+    *   **Required Fix:** Clarify that `/docker` is a symlink to `/opt/m3tal/stack/` and that `m3tal up` processes all `*-compose.yml` files within this directory. Explicitly state that placing a new `my-stack-compose.yml` in `/docker/` (which points to `/opt/m3tal/stack/`) will cause `m3tal up` to deploy it.
+    *   **Status:** **Partially Resolved** (The README states `/docker` is a symlink to `/opt/m3tal/stack/` and that `m3tal up` operates on files in `/docker`. However, it doesn't explicitly link placing a file in `/docker` to `m3tal up` processing it, which is a key part of the lifecycle.)
+
+4.  **BLOCKER: Traefik routing:** The README's explanation of Traefik routing is insufficient. It mentions Traefik as the HTTP gateway and that services are exposed via labels or dynamic config, but it doesn't clearly explain how Traefik discovers services managed by Docker Compose (specifically through the `proxy` network and `traefik.enable=true` labels). It also needs to clarify the role of Traefik in the `DASHBOARD_EXPOSE_MODE=traefik` scenario.
+    *   **Required Fix:**
+        *   Explain that Traefik, by default, only discovers services with `traefik.enable=true` labels and that services must be on the `proxy` network.
+        *   Clarify how Traefik routes to the dashboard when `DASHBOARD_EXPOSE_MODE=traefik` by referencing the labels applied to the dashboard service.
+        *   Ensure the example for exposing a custom user service is complete and demonstrates the necessary labels and network configuration.
+    *   **Status:** **Partially Resolved** (The README mentions Traefik labels for exposing services, and the custom service example is provided. However, it could be more explicit about Traefik's discovery mechanism via Docker labels and the `proxy` network for services it manages directly.)
+
+5.  **WARNING: Port table:** The README lists ports 80, 8080, 8081, and 8082, but the description for port 80 is incomplete, and the description for port 8082 is also lacking detail about its access method based on `DASHBOARD_EXPOSE_MODE`.
+    *   **Required Fix:**
+        *   For port 80, specify "Traefik HTTP (public)" as the service.
+        *   For port 8082, clarify that access depends on `DASHBOARD_EXPOSE_MODE` (direct port or via Traefik).
+    *   **Status:** **Partially Resolved** (The port table is present, but the descriptions need enhancement as noted above.)
+
+6.  **WARNING: Service management:** The README mentions systemctl for managing m3tal-api.service.
+    *   **Required Fix:** None needed, this criterion is met.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+7.  **WARNING: Firewall note:** The README reminds users to allow port 80 in ufw/iptables.
+    *   **Required Fix:** None needed, this criterion is met.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+8.  **WARNING: Tone:** The writing style is generally technical and appropriate.
+    *   **Required Fix:** None needed.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+9.  **SUGGESTION: Quick demo:** The README has a working Quick Start section.
+    *   **Required Fix:** None needed, this criterion is met.
+    *   **Status:** **Resolved** (The provided README already has this correct.)
+
+---
+
+**Summary of BLOCKER Issues and Required Fixes:**
+
+*   **Deployment Lifecycle (Issue 3):**
+    *   **Explanation:** The README states that `/docker` is a symlink to `/opt/m3tal/stack/` and that `m3tal up` operates on files in `/docker`. However, it needs to explicitly state that adding a new `*-compose.yml` file into `/docker/` will lead to `m3tal up` deploying it as part of the overall stack. This is a fundamental aspect of how users extend the system.
+    *   **Fix:** In the "Adding a New Stack" section, explicitly state: "Place your Docker Compose file (e.g., `my-stack-compose.yml`) directly into the `/docker/` directory. This file will be automatically discovered and included by `m3tal up` when it processes all `*-compose.yml` files in the stack directory."
+
+*   **Traefik Routing (Issue 4):**
+    *   **Explanation:** The README needs to be more explicit about Traefik's service discovery and routing mechanisms for Docker services. This includes:
+        *   How Traefik finds services (Docker labels, `traefik.enable=true`, `proxy` network).
+        *   The specific mechanism for `DASHBOARD_EXPOSE_MODE=traefik` (i.e., Traefik labels on the dashboard service).
+        *   Ensuring the user service example is clear and functional.
+    *   **Fix:**
+        *   In the "Traefik Gateway" section, add: "Traefik, configured with the Docker provider, automatically discovers services with the `traefik.enable=true` label within the `proxy` Docker network. To expose a service, it must be connected to this network and have appropriate routing labels defined."
+        *   In the "Dashboard Access" section, under "2. Traefik Mode," add: "When `DASHBOARD_EXPOSE_MODE=traefik`, Traefik is configured via labels on the `m3tal-dashboard` service definition (within its compose file) to route traffic from `dash.DOMAIN` to the dashboard's internal port `8082`."
+        *   In the "Exposing a Custom User Service via Traefik" example, ensure the `networks` section clearly defines the `proxy` network as external and explicitly states the service must be connected to it.
+
+*   **Port Table (Issue 5):**
+    *   **Explanation:** The descriptions for ports 80 and 8082 are vague and could be more informative.
+    *   **Fix:** Update the "Port Map" table:
+        *   For Port 80: Change "Traefik HTTP (public)" to "Traefik HTTP entry point | Public | The public-facing HTTP port for services exposed via Traefik."
+        *   For Port 8082: Change "M3TAL Dashboard" to "M3TAL Dashboard | Direct port (local mode) or via Traefik (traefik mode) | The port the M3TAL Dashboard container listens on internally. Access method depends on `DASHBOARD_EXPOSE_MODE`."
