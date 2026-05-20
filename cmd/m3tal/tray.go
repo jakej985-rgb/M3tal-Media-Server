@@ -24,6 +24,12 @@ var trayCmd = &cobra.Command{
 		port, _ := cmd.Flags().GetString("port")
 		fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
 		fmt.Printf("👉 Access stats directly at http://localhost:%s/tray\n", port)
+
+		if runtime.GOOS == "linux" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+			fmt.Println("\nℹ️  Note: DBUS_SESSION_BUS_ADDRESS is not set (common when running under sudo).")
+			fmt.Println("   The system tray icon may not appear in your desktop bar, but the")
+			fmt.Printf("   stats web interface remains fully accessible at http://localhost:%s/tray\n", port)
+		}
 		runTray(port)
 	},
 }
