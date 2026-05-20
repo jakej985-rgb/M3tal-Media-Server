@@ -58,7 +58,7 @@ type StackPlugin struct {
 	Priority    int    `yaml:"priority,omitempty"`
 	Category    string `yaml:"category,omitempty"`
 	SourcePath  string `yaml:"-"`
-	Enabled     bool     `yaml:"-"`
+	Enabled     bool   `yaml:"-"`
 }
 
 // MiddlewarePlugin is the typed representation of a Middleware plugin spec.
