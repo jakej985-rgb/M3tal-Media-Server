@@ -22,14 +22,6 @@ var trayCmd = &cobra.Command{
 	Long:  "Starts a system tray icon that launches a browser-based stats monitor popup showing real-time CPU, GPU, storage, and container metrics.",
 	Run: func(cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetString("port")
-		fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
-		fmt.Printf("👉 Access stats directly at http://localhost:%s/tray\n", port)
-
-		if runtime.GOOS == "linux" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-			fmt.Println("\nℹ️  Note: DBUS_SESSION_BUS_ADDRESS is not set (common when running under sudo).")
-			fmt.Println("   The system tray icon may not appear in your desktop bar, but the")
-			fmt.Printf("   stats web interface remains fully accessible at http://localhost:%s/tray\n", port)
-		}
 		runTray(port)
 	},
 }
@@ -39,7 +31,39 @@ func init() {
 }
 
 func runTray(port string) {
-	// Start HTTP server in a goroutine
+	// Try to bind listener first
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+	if err != nil {
+		log.Printf("Port %s is already in use, scanning for an available port...\n", port)
+		var startPort int
+		fmt.Sscanf(port, "%d", &startPort)
+		if startPort == 0 {
+			startPort = 18088
+		}
+		for i := 1; i <= 100; i++ {
+			nextPort := fmt.Sprintf("%d", startPort+i)
+			l, err2 := net.Listen("tcp", net.JoinHostPort("127.0.0.1", nextPort))
+			if err2 == nil {
+				listener = l
+				port = nextPort
+				break
+			}
+		}
+	}
+	if listener == nil || err != nil {
+		log.Fatalf("Tray web server failed to bind to any port: %v", err)
+	}
+
+	fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
+	fmt.Printf("👉 Access stats directly at http://localhost:%s/tray\n", port)
+
+	if runtime.GOOS == "linux" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+		fmt.Println("\nℹ️  Note: DBUS_SESSION_BUS_ADDRESS is not set (common when running under sudo).")
+		fmt.Println("   The system tray icon may not appear in your desktop bar, but the")
+		fmt.Printf("   stats web interface remains fully accessible at http://localhost:%s/tray\n", port)
+	}
+
+	// Start HTTP server in a goroutine using the listener
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tray", func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +93,7 @@ func runTray(port string) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(list)
 		})
-		if err := http.ListenAndServe(net.JoinHostPort("127.0.0.1", port), mux); err != nil {
+		if err := http.Serve(listener, mux); err != nil {
 			log.Fatalf("Tray web server failed: %v", err)
 		}
 	}()
