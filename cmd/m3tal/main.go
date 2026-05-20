@@ -567,7 +567,11 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if s.Priority > 0 {
 						pri = fmt.Sprintf(" (priority: %d)", s.Priority)
 					}
-					fmt.Printf("   %-20s %s%s\n", s.Metadata.Name, s.Metadata.Description, pri)
+					status := " [enabled]"
+					if !s.Enabled {
+						status = " [disabled]"
+					}
+					fmt.Printf("   %-20s %s%s%s\n", s.Metadata.Name, s.Metadata.Description, pri, status)
 				}
 				fmt.Println()
 			}
@@ -575,7 +579,11 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			if len(reg.ListRoutes()) > 0 {
 				fmt.Println("🚦 Route Plugins:")
 				for _, r := range reg.ListRoutes() {
-					fmt.Printf("   %-20s %s → %s:%d\n", r.Metadata.Name, r.Domain, r.Service, r.Port)
+					status := " [enabled]"
+					if !r.Enabled {
+						status = " [disabled]"
+					}
+					fmt.Printf("   %-20s %s → %s:%d%s\n", r.Metadata.Name, r.Domain, r.Service, r.Port, status)
 				}
 				fmt.Println()
 			}
@@ -583,7 +591,11 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			if len(reg.ListMiddlewares()) > 0 {
 				fmt.Println("🔐 Middleware Plugins:")
 				for _, m := range reg.ListMiddlewares() {
-					fmt.Printf("   %-20s [%s] %s\n", m.Metadata.Name, m.Type, m.Metadata.Description)
+					status := " [enabled]"
+					if !m.Enabled {
+						status = " [disabled]"
+					}
+					fmt.Printf("   %-20s [%s] %s%s\n", m.Metadata.Name, m.Type, m.Metadata.Description, status)
 				}
 				fmt.Println()
 			}
@@ -629,7 +641,192 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 
-	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd)
+	var pluginEnableCmd = &cobra.Command{
+		Use:   "enable [name]",
+		Short: "Enable a disabled plugin by name",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+			name := args[0]
+			var path string
+			if p := reg.GetRoute(name); p != nil {
+				path = p.SourcePath
+			} else if p := reg.GetStack(name); p != nil {
+				path = p.SourcePath
+			} else if p := reg.GetMiddleware(name); p != nil {
+				path = p.SourcePath
+			}
+
+			if path == "" {
+				log.Fatalf("❌ Plugin %q not found", name)
+			}
+
+			newPath, err := plugin.EnablePlugin(path)
+			if err != nil {
+				log.Fatalf("❌ Failed to enable: %v", err)
+			}
+			fmt.Printf("✅ Enabled plugin %q (renamed to %s)\n", name, filepath.Base(newPath))
+		},
+	}
+
+	var pluginDisableCmd = &cobra.Command{
+		Use:   "disable [name]",
+		Short: "Disable an active plugin by name",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+			name := args[0]
+			var path string
+			if p := reg.GetRoute(name); p != nil {
+				path = p.SourcePath
+			} else if p := reg.GetStack(name); p != nil {
+				path = p.SourcePath
+			} else if p := reg.GetMiddleware(name); p != nil {
+				path = p.SourcePath
+			}
+
+			if path == "" {
+				log.Fatalf("❌ Plugin %q not found", name)
+			}
+
+			newPath, err := plugin.DisablePlugin(path)
+			if err != nil {
+				log.Fatalf("❌ Failed to disable: %v", err)
+			}
+			fmt.Printf("✅ Disabled plugin %q (renamed to %s)\n", name, filepath.Base(newPath))
+		},
+	}
+
+	var pluginSyncCmd = &cobra.Command{
+		Use:   "sync",
+		Short: "Synchronize and write Traefik dynamic provider configuration",
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+
+			configData, err := reg.GenerateTraefikConfig()
+			if err != nil {
+				log.Fatalf("❌ Failed to generate Traefik config: %v", err)
+			}
+
+			stackDir := system.GetStackDir()
+			dynamicDir := filepath.Join(stackDir, "dynamic")
+			if err := os.MkdirAll(dynamicDir, 0755); err != nil {
+				log.Fatalf("❌ Failed to create dynamic directory: %v", err)
+			}
+
+			outputPath := filepath.Join(dynamicDir, "m3tal-plugins.yml")
+			if err := os.WriteFile(outputPath, configData, 0644); err != nil {
+				log.Fatalf("❌ Failed to write config file: %v", err)
+			}
+
+			fmt.Printf("✅ Synced Traefik dynamic provider config to %s\n", outputPath)
+		},
+	}
+
+	var pluginMatchCmd = &cobra.Command{
+		Use:   "match [service-name]",
+		Short: "Find a route plugin matching the given service information",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+
+			image, _ := cmd.Flags().GetString("image")
+			labelSlice, _ := cmd.Flags().GetStringSlice("label")
+			labels := make(map[string]string)
+			for _, item := range labelSlice {
+				parts := strings.SplitN(item, "=", 2)
+				if len(parts) == 2 {
+					labels[parts[0]] = parts[1]
+				}
+			}
+
+			match := reg.MatchService(args[0], image, labels)
+			if match != nil {
+				fmt.Printf("🎯 Match found! Route Plugin: %s (service: %s, domain: %s, port: %d)\n",
+					match.Metadata.Name, match.Service, match.Domain, match.Port)
+			} else {
+				fmt.Println("❌ No matching route plugin found.")
+			}
+		},
+	}
+	pluginMatchCmd.Flags().String("image", "", "Docker image name to match against")
+	pluginMatchCmd.Flags().StringSlice("label", nil, "Docker labels to match against (format: key=value)")
+
+	var pluginInstallStackCmd = &cobra.Command{
+		Use:   "install-stack [name]",
+		Short: "Install and parameterize a Stack plugin compose template",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugins: %v", err)
+			}
+
+			name := args[0]
+			stack := reg.GetStack(name)
+			if stack == nil {
+				log.Fatalf("❌ Stack plugin %q not found", name)
+			}
+
+			composeFile := stack.ComposePath
+			if !filepath.IsAbs(composeFile) {
+				composeFile = filepath.Join(filepath.Dir(stack.SourcePath), composeFile)
+			}
+
+			composeData, err := os.ReadFile(composeFile)
+			if err != nil {
+				log.Fatalf("❌ Failed to read compose template from %s: %v", composeFile, err)
+			}
+
+			envSlice, _ := cmd.Flags().GetStringSlice("env")
+			vars := make(map[string]string)
+			for _, item := range envSlice {
+				parts := strings.SplitN(item, "=", 2)
+				if len(parts) == 2 {
+					vars[parts[0]] = parts[1]
+				}
+			}
+
+			for _, envLine := range os.Environ() {
+				parts := strings.SplitN(envLine, "=", 2)
+				if len(parts) == 2 {
+					if _, ok := vars[parts[0]]; !ok {
+						vars[parts[0]] = parts[1]
+					}
+				}
+			}
+
+			finalCompose := plugin.Parameterize(string(composeData), vars)
+
+			stackDir := system.GetStackDir()
+			outputPath := filepath.Join(stackDir, fmt.Sprintf("%s-compose.yml", name))
+			if err := os.WriteFile(outputPath, []byte(finalCompose), 0644); err != nil {
+				log.Fatalf("❌ Failed to write compose file: %v", err)
+			}
+
+			fmt.Printf("✅ Stack compose file installed to %s\n", outputPath)
+		},
+	}
+	pluginInstallStackCmd.Flags().StringSlice("env", nil, "Environment variables to parameterize the template (format: key=value)")
+
+	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd, pluginEnableCmd, pluginDisableCmd, pluginSyncCmd, pluginMatchCmd, pluginInstallStackCmd)
 	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {

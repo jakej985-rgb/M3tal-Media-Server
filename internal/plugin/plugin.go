@@ -25,6 +25,8 @@ type Plugin struct {
 
 	// SourcePath is set by the loader to track where this plugin was loaded from.
 	SourcePath string `yaml:"-"`
+	// Enabled indicates whether the plugin is active (no .disabled suffix).
+	Enabled bool `yaml:"-"`
 }
 
 // PluginMetadata contains descriptive information about a plugin.
@@ -45,6 +47,7 @@ type RoutePlugin struct {
 	Network     string   `yaml:"network,omitempty"`
 	Middlewares []string `yaml:"middlewares,omitempty"`
 	SourcePath  string   `yaml:"-"`
+	Enabled     bool     `yaml:"-"`
 }
 
 // StackPlugin is the typed representation of a Stack plugin spec.
@@ -55,6 +58,7 @@ type StackPlugin struct {
 	Priority    int    `yaml:"priority,omitempty"`
 	Category    string `yaml:"category,omitempty"`
 	SourcePath  string `yaml:"-"`
+	Enabled     bool     `yaml:"-"`
 }
 
 // MiddlewarePlugin is the typed representation of a Middleware plugin spec.
@@ -64,6 +68,7 @@ type MiddlewarePlugin struct {
 	Type       string            `yaml:"type"`
 	Config     map[string]string `yaml:"config,omitempty"`
 	SourcePath string            `yaml:"-"`
+	Enabled    bool              `yaml:"-"`
 }
 
 // Validate checks a raw Plugin for structural correctness.
@@ -133,6 +138,7 @@ func (p *Plugin) AsRoute() (*RoutePlugin, error) {
 	}
 	rp.Metadata = p.Metadata
 	rp.SourcePath = p.SourcePath
+	rp.Enabled = p.Enabled
 	return &rp, nil
 }
 
@@ -153,6 +159,7 @@ func (p *Plugin) AsStack() (*StackPlugin, error) {
 	}
 	sp.Metadata = p.Metadata
 	sp.SourcePath = p.SourcePath
+	sp.Enabled = p.Enabled
 	return &sp, nil
 }
 
@@ -173,6 +180,7 @@ func (p *Plugin) AsMiddleware() (*MiddlewarePlugin, error) {
 	}
 	mp.Metadata = p.Metadata
 	mp.SourcePath = p.SourcePath
+	mp.Enabled = p.Enabled
 	return &mp, nil
 }
 

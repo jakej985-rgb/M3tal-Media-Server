@@ -33,6 +33,12 @@ func ScanDir(dir string) ([]Plugin, error) {
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
+		enabled := true
+		if ext == ".disabled" {
+			enabled = false
+			baseWithoutDisabled := strings.TrimSuffix(path, ".disabled")
+			ext = strings.ToLower(filepath.Ext(baseWithoutDisabled))
+		}
 		if ext != ".yml" && ext != ".yaml" {
 			return nil
 		}
@@ -50,6 +56,7 @@ func ScanDir(dir string) ([]Plugin, error) {
 		}
 
 		p.SourcePath = path
+		p.Enabled = enabled
 		if err := p.Validate(); err != nil {
 			scanErrors = append(scanErrors, fmt.Sprintf("%s: %v", path, err))
 			return nil
@@ -103,4 +110,28 @@ func LoadAll(dirs ...string) (*Registry, error) {
 // It uses GetPluginDirs from the system package via the provided dirs.
 func LoadFromPaths(systemDir, userDir string) (*Registry, error) {
 	return LoadAll(systemDir, userDir)
+}
+
+// EnablePlugin renames a plugin file ending in `.disabled` by removing the suffix.
+func EnablePlugin(path string) (string, error) {
+	if !strings.HasSuffix(path, ".disabled") {
+		return path, fmt.Errorf("plugin at %s is already enabled (does not have .disabled suffix)", path)
+	}
+	newPath := strings.TrimSuffix(path, ".disabled")
+	if err := os.Rename(path, newPath); err != nil {
+		return path, err
+	}
+	return newPath, nil
+}
+
+// DisablePlugin renames a plugin file to append `.disabled`.
+func DisablePlugin(path string) (string, error) {
+	if strings.HasSuffix(path, ".disabled") {
+		return path, fmt.Errorf("plugin at %s is already disabled", path)
+	}
+	newPath := path + ".disabled"
+	if err := os.Rename(path, newPath); err != nil {
+		return path, err
+	}
+	return newPath, nil
 }

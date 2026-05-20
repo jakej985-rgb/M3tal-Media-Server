@@ -1,4 +1,5 @@
 import os
+eventlet = None
 try:
     import eventlet
     eventlet.monkey_patch()
@@ -132,6 +133,11 @@ def intelligence():
 def logs_view():
     return render_template('logs.html')
 
+@app.route('/plugins')
+@login_required()
+def plugins_view():
+    return render_template('plugins.html')
+
 # --- API Proxies (Enforcing PLAN.md) ---
 
 @app.route('/api/health')
@@ -185,6 +191,52 @@ def api_action():
     except Exception as e:
         logger.error(f"Action failed: {e}")
         return jsonify({"ok": False, "error": f"API Connection Failure: {e}"}), 500
+
+@app.route('/api/plugins')
+@login_required()
+def get_plugins():
+    return jsonify(fetch_api("/api/v2/plugins"))
+
+@app.route('/api/plugins/enable', methods=['POST'])
+@login_required()
+def enable_plugin():
+    data = request.get_json(silent=True) or {}
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/plugins/enable", json=data, headers=headers, timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to enable plugin: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/plugins/disable', methods=['POST'])
+@login_required()
+def disable_plugin():
+    data = request.get_json(silent=True) or {}
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/plugins/disable", json=data, headers=headers, timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to disable plugin: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/plugins/sync', methods=['POST'])
+@login_required()
+def sync_plugins():
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/plugins/sync", headers=headers, timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to sync plugins: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # --- Websocket Stream ---
 

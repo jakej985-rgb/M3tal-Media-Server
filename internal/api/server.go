@@ -96,6 +96,9 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Get("/plugins", pluginH.ListPlugins)
 			r.Get("/plugins/{kind}", pluginH.ListPluginsByKind)
 			r.Post("/plugins/reload", pluginH.Reload)
+			r.Post("/plugins/enable", pluginH.Enable)
+			r.Post("/plugins/disable", pluginH.Disable)
+			r.Post("/plugins/sync", pluginH.Sync)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -107,6 +110,9 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Get("/plugins", pluginH.ListPlugins)
 			r.Get("/plugins/{kind}", pluginH.ListPluginsByKind)
 			r.Post("/plugins/reload", pluginH.Reload)
+			r.Post("/plugins/enable", pluginH.Enable)
+			r.Post("/plugins/disable", pluginH.Disable)
+			r.Post("/plugins/sync", pluginH.Sync)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")

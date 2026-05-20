@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
+	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
@@ -105,14 +106,18 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load plugin registry for service matching suggestions
+	reg, _ := plugin.LoadFromPaths(system.SystemPluginsDir, system.UserPluginsDir)
+
 	// Build service details
 	type serviceDetail struct {
-		Name          string            `json:"name"`
-		Image         string            `json:"image"`
-		Ports         []string          `json:"ports,omitempty"`
-		ContainerPort int               `json:"container_port,omitempty"`
-		Labels        map[string]string `json:"labels,omitempty"`
-		Networks      []string          `json:"networks,omitempty"`
+		Name            string              `json:"name"`
+		Image           string              `json:"image"`
+		Ports           []string            `json:"ports,omitempty"`
+		ContainerPort   int                 `json:"container_port,omitempty"`
+		Labels          map[string]string   `json:"labels,omitempty"`
+		Networks        []string            `json:"networks,omitempty"`
+		SuggestedPlugin *plugin.RoutePlugin `json:"suggested_plugin,omitempty"`
 	}
 
 	var services []serviceDetail
@@ -124,6 +129,9 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 			ContainerPort: cf.GetContainerPort(name),
 			Labels:        cf.GetTraefikLabels(name),
 			Networks:      svc.Networks.Values,
+		}
+		if reg != nil {
+			sd.SuggestedPlugin = reg.MatchService(name, svc.Image, sd.Labels)
 		}
 		services = append(services, sd)
 	}

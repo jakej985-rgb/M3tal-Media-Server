@@ -3,6 +3,7 @@ package plugin
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Registry holds all loaded and typed plugins, indexed by kind.
@@ -122,4 +123,37 @@ func (r *Registry) Count() int {
 func (r *Registry) Summary() string {
 	return fmt.Sprintf("%d plugins loaded (%d routes, %d stacks, %d middleware)",
 		r.Count(), len(r.Routes), len(r.Stacks), len(r.Middlewares))
+}
+
+// MatchService matches a service name/image/labels against Route plugins.
+func (r *Registry) MatchService(serviceName string, image string, labels map[string]string) *RoutePlugin {
+	// 1. Try matching by service name
+	for i := range r.Routes {
+		if strings.EqualFold(r.Routes[i].Service, serviceName) || strings.EqualFold(r.Routes[i].Metadata.Name, serviceName) {
+			return &r.Routes[i]
+		}
+	}
+
+	// 2. Try matching by image name
+	if image != "" {
+		parts := strings.Split(image, "/")
+		lastPart := parts[len(parts)-1]
+		imgName := strings.Split(lastPart, ":")[0]
+		for i := range r.Routes {
+			if strings.EqualFold(r.Routes[i].Service, imgName) || strings.EqualFold(r.Routes[i].Metadata.Name, imgName) {
+				return &r.Routes[i]
+			}
+		}
+	}
+
+	// 3. Try matching by labels
+	for k, v := range labels {
+		for i := range r.Routes {
+			if strings.Contains(k, r.Routes[i].Service) || strings.Contains(v, r.Routes[i].Service) {
+				return &r.Routes[i]
+			}
+		}
+	}
+
+	return nil
 }

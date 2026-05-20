@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": "venv/Scripts/python.exe",
+    "python.defaultInterpreterPath": "/home/m3tal/.venv-m3tal/bin/python",
     "python.testing.pytestArgs": [
         "control-plane/tests"
     ],

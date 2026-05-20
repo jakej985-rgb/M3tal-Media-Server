@@ -1,7 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
@@ -74,5 +77,144 @@ func (h *PluginHandlers) Reload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"reloaded": true,
 		"summary":  reg.Summary(),
+	})
+}
+
+// Enable renames a plugin file ending in `.disabled` by removing the suffix.
+// POST /api/v2/plugins/enable
+func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	reg := h.ensureLoaded()
+	var path string
+	switch req.Kind {
+	case "Route":
+		p := reg.GetRoute(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Stack":
+		p := reg.GetStack(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Middleware":
+		p := reg.GetMiddleware(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	default:
+		if p := reg.GetRoute(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetStack(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetMiddleware(req.Name); p != nil {
+			path = p.SourcePath
+		}
+	}
+
+	if path == "" {
+		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		return
+	}
+
+	newPath, err := plugin.EnablePlugin(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to enable: "+err.Error())
+		return
+	}
+
+	h.registry = nil // force reload
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "path": newPath})
+}
+
+// Disable renames a plugin file to append `.disabled`.
+// POST /api/v2/plugins/disable
+func (h *PluginHandlers) Disable(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	reg := h.ensureLoaded()
+	var path string
+	switch req.Kind {
+	case "Route":
+		p := reg.GetRoute(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Stack":
+		p := reg.GetStack(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Middleware":
+		p := reg.GetMiddleware(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	default:
+		if p := reg.GetRoute(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetStack(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetMiddleware(req.Name); p != nil {
+			path = p.SourcePath
+		}
+	}
+
+	if path == "" {
+		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		return
+	}
+
+	newPath, err := plugin.DisablePlugin(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to disable: "+err.Error())
+		return
+	}
+
+	h.registry = nil // force reload
+	writeJSON(w, http.StatusOK, map[string]any{"disabled": true, "path": newPath})
+}
+
+// Sync writes the dynamic Traefik configuration file
+// POST /api/v2/plugins/sync
+func (h *PluginHandlers) Sync(w http.ResponseWriter, r *http.Request) {
+	reg := h.ensureLoaded()
+	configData, err := reg.GenerateTraefikConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate Traefik config: "+err.Error())
+		return
+	}
+
+	stackDir := system.GetStackDir()
+	dynamicDir := filepath.Join(stackDir, "dynamic")
+	if err := os.MkdirAll(dynamicDir, 0755); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create dynamic directory: "+err.Error())
+		return
+	}
+
+	outputPath := filepath.Join(dynamicDir, "m3tal-plugins.yml")
+	if err := os.WriteFile(outputPath, configData, 0644); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to write config file: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"synced": true,
+		"path":   outputPath,
 	})
 }
