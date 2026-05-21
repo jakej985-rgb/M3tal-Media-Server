@@ -52,3 +52,4 @@ packaging/deb/build/
 .go_compiler/
 repo/
 deploy/stack/users.json
+cmd/m3tal/m3tal_icon_pack.zip
