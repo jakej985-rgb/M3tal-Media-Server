@@ -1297,7 +1297,12 @@ func runMainMenu() bool {
 	case 5:
 		runWithSudoFallback(exe, "doctor")
 	case 6:
-		runWithSudoFallback(exe, "tray", "--port", "18088")
+		// Tray MUST run as the current user to preserve the D-Bus session.
+		// Never elevate to sudo – that drops DBUS_SESSION_BUS_ADDRESS and
+		// prevents the system tray icon from appearing.
+		runAsSubcommand(func() {
+			orchestrator.RunRaw(exe, "tray", "--port", "18088")
+		})
 	case 0:
 		return false
 	default:
