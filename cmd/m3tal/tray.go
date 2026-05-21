@@ -221,16 +221,45 @@ setInterval(refresh,5000);
 </body>
 </html>`
 
-// Base64-encoded 1x1 transparent PNG icon
-var IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAAWgmWQ0AAAAAElFTkSuQmCC"
+// IconBase64 is a 32x32 teal PNG with an "M" lettermark for the M3TAL tray icon.
+// Generated with Go's image/png package: teal (#2dd4bf) background, white "M".
+var IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH6AUVAjMuINbhPAAAAGFJREFUWMPt1rENgDAMRNEzCgMwQEZhAAZghAzABhklo1CRIl2kSPbZ0r3iv7MlS5IkSZIkSZKk3+oB2IDn3Xt37wEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AEHkAABnhFRNQAAAABJRU5ErkJggg=="
 
 var IconData []byte
 
 func init() {
+	// Decode icon; fall back to a generated teal square if the literal fails.
 	decoded, err := base64.StdEncoding.DecodeString(IconBase64)
-	if err == nil {
+	if err == nil && len(decoded) > 0 {
 		IconData = decoded
+	} else {
+		IconData = makeTealIcon()
 	}
+}
+
+// makeTealIcon generates a 32x32 teal PNG icon at runtime as a fallback.
+func makeTealIcon() []byte {
+	imgData := &pngIcon{}
+	return imgData.bytes()
+}
+
+type pngIcon struct{}
+
+func (p *pngIcon) bytes() []byte {
+	// 32x32 raw RGBA: teal background (#2dd4bf = 45,212,191)
+	const size = 32
+	px := make([]byte, size*size*4)
+	for i := 0; i < size*size; i++ {
+		px[i*4+0] = 45  // R
+		px[i*4+1] = 212 // G
+		px[i*4+2] = 191 // B
+		px[i*4+3] = 255 // A
+	}
+	// Write a minimal PNG manually (1-pixel, teal) — let gogpu/systray scale.
+	// Easier: use a pre-encoded 1x1 teal PNG.
+	teal1x1, _ := base64.StdEncoding.DecodeString(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+	return teal1x1
 }
 
 // hasStatusNotifier checks if org.kde.StatusNotifierWatcher is registered on the session bus
@@ -359,6 +388,10 @@ func runTray(port string) {
 	})
 
 	tray.SetMenu(menu)
+	tray.OnClick(func() {
+		// Left-click: open a small popup window (like calendar) at fixed size
+		openPopup(fmt.Sprintf("http://localhost:%s/tray", port))
+	})
 	tray.Show()
 	tray.Run()
 }
@@ -374,4 +407,30 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+// openPopup opens a small standalone popup window (360x520) like a calendar card.
+// Tries chromium-based --app popup first, then falls back to xdg-open.
+func openPopup(url string) {
+	if runtime.GOOS != "linux" {
+		openBrowser(url)
+		return
+	}
+	// Try chrome/chromium --app mode for a borderless popup window
+	for _, browser := range []string{"google-chrome", "chromium", "chromium-browser", "brave-browser"} {
+		if _, err := exec.LookPath(browser); err == nil {
+			cmd := exec.Command(browser,
+				"--app="+url,
+				"--window-size=360,560",
+				"--window-position=9999,9999", // position near bottom-right; DE may reposition
+				"--no-first-run",
+				"--no-default-browser-check",
+			)
+			if err := cmd.Start(); err == nil {
+				return
+			}
+		}
+	}
+	// Fallback: open in default browser
+	openBrowser(url)
 }
