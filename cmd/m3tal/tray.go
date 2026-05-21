@@ -18,8 +18,208 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Minimal placeholder HTML for the tray interface
-var TrayHTML = `<!DOCTYPE html><html><head><title>M3TAL Tray</title></head><body></body></html>`
+// TrayHTML is the self-contained popup served at /tray.
+var TrayHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M3TAL Tray</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d1117;--bg2:#161b22;--bg3:#1c2333;
+    --teal:#2dd4bf;--teal-dim:rgba(45,212,191,.12);
+    --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;
+    --text1:#e6edf3;--text2:#8b949e;--text3:#484f58;
+    --border:rgba(255,255,255,.07);
+    --radius:8px;
+  }
+  html,body{width:340px;background:var(--bg);color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;overflow:hidden}
+  body{padding:12px;display:flex;flex-direction:column;gap:10px}
+
+  /* Header */
+  .header{display:flex;align-items:center;justify-content:space-between}
+  .logo{display:flex;align-items:center;gap:7px}
+  .logo-icon{font-size:18px;line-height:1}
+  .logo-name{font-weight:700;font-size:14px;letter-spacing:.03em;color:var(--text1)}
+  .logo-sub{font-size:10px;color:var(--text2)}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .hostname{font-size:10px;color:var(--text2);text-align:right}
+  .uptime{font-size:10px;color:var(--text3)}
+
+  /* Section */
+  .section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  .section-title{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:2px}
+
+  /* Stat row */
+  .stat{display:flex;flex-direction:column;gap:3px}
+  .stat-row{display:flex;justify-content:space-between;align-items:center}
+  .stat-label{font-size:11px;color:var(--text2)}
+  .stat-val{font-size:11px;font-weight:600;color:var(--text1);font-variant-numeric:tabular-nums}
+  .bar-track{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+  .bar-teal{background:var(--teal)}
+  .bar-green{background:var(--green)}
+  .bar-yellow{background:var(--yellow)}
+  .bar-red{background:var(--red)}
+
+  /* Containers */
+  .container-list{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto}
+  .container-list::-webkit-scrollbar{width:3px}
+  .container-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .ctr{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg3);border-radius:5px;gap:6px}
+  .ctr-name{font-size:11px;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+  .badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.04em;white-space:nowrap}
+  .badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+  .badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+  .badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow)}
+  .badge-gray{background:var(--bg3);color:var(--text2)}
+
+  /* GPU */
+  .gpu-model{font-size:10px;color:var(--text3);margin-bottom:2px}
+
+  /* Footer */
+  .footer{display:flex;justify-content:space-between;align-items:center;padding-top:2px}
+  .footer a{font-size:10px;color:var(--teal);text-decoration:none;opacity:.8}
+  .footer a:hover{opacity:1}
+  .refresh-ts{font-size:10px;color:var(--text3)}
+
+  .loading{color:var(--text3);font-size:11px;padding:8px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🖥️</div>
+    <div>
+      <div class="logo-name">M3TAL Core</div>
+      <div class="logo-sub">System Tray Monitor</div>
+    </div>
+  </div>
+  <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+    <div style="display:flex;align-items:center;gap:5px"><div class="status-dot"></div><span style="font-size:10px;color:var(--green);font-weight:600">LIVE</span></div>
+    <div class="hostname" id="hostname">—</div>
+    <div class="uptime" id="uptime">—</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">System Resources</div>
+  <div class="stat">
+    <div class="stat-row"><span class="stat-label">CPU</span><span class="stat-val" id="cpu-val">—</span></div>
+    <div class="bar-track"><div class="bar-fill bar-teal" id="cpu-bar" style="width:0%"></div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-row"><span class="stat-label">Memory</span><span class="stat-val" id="mem-val">—</span></div>
+    <div class="bar-track"><div class="bar-fill bar-teal" id="mem-bar" style="width:0%"></div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-row"><span class="stat-label">Disk (/)</span><span class="stat-val" id="disk-val">—</span></div>
+    <div class="bar-track"><div class="bar-fill bar-teal" id="disk-bar" style="width:0%"></div></div>
+  </div>
+  <div id="gpu-section" style="display:none">
+    <div class="gpu-model" id="gpu-model"></div>
+    <div class="stat">
+      <div class="stat-row"><span class="stat-label">GPU</span><span class="stat-val" id="gpu-val">—</span></div>
+      <div class="bar-track"><div class="bar-fill bar-teal" id="gpu-bar" style="width:0%"></div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-row"><span class="stat-label">VRAM</span><span class="stat-val" id="vram-val">—</span></div>
+      <div class="bar-track"><div class="bar-fill bar-teal" id="vram-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Containers</div>
+  <div class="container-list" id="ctr-list"><div class="loading">Loading containers…</div></div>
+</div>
+
+<div class="footer">
+  <a href="http://localhost:8082" target="_blank">Open Dashboard ↗</a>
+  <div class="refresh-ts" id="refresh-ts">—</div>
+</div>
+
+<script>
+function barColor(pct){
+  if(pct>=90) return 'bar-red';
+  if(pct>=70) return 'bar-yellow';
+  return 'bar-teal';
+}
+function setBar(id,pct){
+  const el=document.getElementById(id);
+  el.style.width=Math.min(pct,100)+'%';
+  el.className='bar-fill '+barColor(pct);
+}
+function fmt2(n){return n.toFixed(1)}
+function fmtUptime(s){
+  const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);
+  if(d>0) return d+'d '+h+'h';
+  if(h>0) return h+'h '+m+'m';
+  return m+'m';
+}
+
+async function loadStats(){
+  try{
+    const r=await fetch('/tray/api/stats');
+    const s=await r.json();
+    document.getElementById('hostname').textContent=s.hostname||'—';
+    document.getElementById('uptime').textContent='up '+fmtUptime(s.uptime||0);
+
+    const cpu=s.cpu_usage||0;
+    document.getElementById('cpu-val').textContent=fmt2(cpu)+'%'+(s.cpu_temp>0?' · '+fmt2(s.cpu_temp)+'°C':'');
+    setBar('cpu-bar',cpu);
+
+    const mem=s.memory_usage||0;
+    document.getElementById('mem-val').textContent=fmt2(s.memory_used||0)+' / '+fmt2(s.memory_total||0)+' GB';
+    setBar('mem-bar',mem);
+
+    const disk=s.disk_usage||0;
+    document.getElementById('disk-val').textContent=fmt2(s.disk_used||0)+' / '+fmt2(s.disk_total||0)+' GB';
+    setBar('disk-bar',disk);
+
+    if(s.gpu_model && s.gpu_model!=='No GPU Detected'){
+      document.getElementById('gpu-section').style.display='block';
+      document.getElementById('gpu-model').textContent=s.gpu_model;
+      document.getElementById('gpu-val').textContent=fmt2(s.gpu_usage||0)+'%'+(s.gpu_temp>0?' · '+fmt2(s.gpu_temp)+'°C':'');
+      setBar('gpu-bar',s.gpu_usage||0);
+      const vramPct=s.gpu_mem_total>0?((s.gpu_mem_used/s.gpu_mem_total)*100):0;
+      document.getElementById('vram-val').textContent=Math.round(s.gpu_mem_used||0)+' / '+Math.round(s.gpu_mem_total||0)+' MB';
+      setBar('vram-bar',vramPct);
+    }
+  }catch(e){console.error('stats',e)}
+}
+
+async function loadContainers(){
+  try{
+    const r=await fetch('/tray/api/containers');
+    const list=await r.json();
+    const el=document.getElementById('ctr-list');
+    if(!list||list.length===0){el.innerHTML='<div class="loading">No containers found</div>';return;}
+    el.innerHTML=list.map(c=>{
+      const st=(c.status||'unknown').toLowerCase();
+      let cls='badge-gray',label=st;
+      if(st==='running'){cls='badge-green';label='RUNNING';}
+      else if(st==='exited'||st==='dead'){cls='badge-red';label='STOPPED';}
+      else if(st==='restarting'||st==='paused'){cls='badge-yellow';label=st.toUpperCase();}
+      return '<div class="ctr"><span class="ctr-name">'+c.name+'</span><span class="badge '+cls+'">'+label+'</span></div>';
+    }).join('');
+  }catch(e){console.error('containers',e)}
+}
+
+async function refresh(){
+  await Promise.all([loadStats(),loadContainers()]);
+  const now=new Date();
+  document.getElementById('refresh-ts').textContent='updated '+now.toLocaleTimeString();
+}
+
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>`
 
 // Base64-encoded 1x1 transparent PNG icon
 var IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAAWgmWQ0AAAAAElFTkSuQmCC"
