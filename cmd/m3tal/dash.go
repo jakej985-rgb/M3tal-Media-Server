@@ -135,21 +135,33 @@ func pullConfig() {
 		}
 	}
 
-	// Ensure users.json exists as a file (to prevent docker from auto-creating it as a directory)
+	ensureUsersFile(stackDir)
+}
+
+// ensureUsersFile checks if users.json is a directory (Docker bind mount artifact) and replaces it with a default config file.
+func ensureUsersFile(stackDir string) {
 	usersPath := filepath.Join(stackDir, "users.json")
 	if info, err := os.Stat(usersPath); err == nil && info.IsDir() {
 		fmt.Printf("⚠️  Found directory named users.json. Removing to recreate as file...\n")
-		_ = os.RemoveAll(usersPath)
+		errRemove := os.RemoveAll(usersPath)
+		if errRemove != nil {
+			fmt.Printf("⚠️  Failed to remove directory users.json: %v. Trying to stop dashboard container first...\n", errRemove)
+			// Stop dashboard container to release active volume mounts
+			_ = exec.Command("docker", "rm", "-f", "m3tal-dashboard").Run()
+			composeFile := filepath.Join(stackDir, "m3tal-compose.yml")
+			_ = exec.Command("docker", "compose", "-p", "m3tal", "-f", composeFile, "down").Run()
+
+			// Retry removal
+			errRemoveRetry := os.RemoveAll(usersPath)
+			if errRemoveRetry != nil {
+				fmt.Printf("❌ Failed to remove directory users.json: %v\n", errRemoveRetry)
+				fmt.Printf("👉 Please run: docker compose -p m3tal -f %s down && sudo rm -rf %s\n", composeFile, usersPath)
+				return
+			}
+		}
 	}
 	if _, err := os.Stat(usersPath); os.IsNotExist(err) {
-		defaultUsers := `[
-  {
-    "username": "admin",
-    "token_hash": "$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2",
-    "role": "admin"
-  }
-]
-`
+		defaultUsers := "[\n  {\n    \"username\": \"admin\",\n    \"token_hash\": \"$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2\",\n    \"role\": \"admin\"\n  }\n]\n"
 		if err := os.WriteFile(usersPath, []byte(defaultUsers), 0664); err != nil {
 			fmt.Printf("⚠️  Failed to initialize users.json: %v\n", err)
 		} else {
@@ -166,21 +178,8 @@ func runDashCompose(action string, args ...string) {
 		log.Fatalf("❌ Dashboard compose file not found at %s", composeFile)
 	}
 
-	// Guard: ensure users.json is a FILE, not a directory.
-	// Docker will silently create it as a directory if it doesn't exist before mount.
-	usersPath := filepath.Join(stackDir, "users.json")
-	if info, err := os.Stat(usersPath); err == nil && info.IsDir() {
-		fmt.Printf("⚠️  users.json is a directory – removing and recreating as file...\n")
-		_ = os.RemoveAll(usersPath)
-	}
-	if _, err := os.Stat(usersPath); os.IsNotExist(err) {
-		defaultUsers := "[\n  {\n    \"username\": \"admin\",\n    \"token_hash\": \"$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2\",\n    \"role\": \"admin\"\n  }\n]\n"
-		if err := os.WriteFile(usersPath, []byte(defaultUsers), 0664); err != nil {
-			fmt.Printf("⚠️  Failed to create users.json: %v\n", err)
-		} else {
-			fmt.Printf("✅ Created default users.json (change password with: m3tal dashpass)\n")
-		}
-	}
+	// Guard: ensure users.json is a FILE, not a directory before invoking compose.
+	ensureUsersFile(stackDir)
 
 	fmt.Printf("🚀 Dashboard: %s...\n", action)
 
