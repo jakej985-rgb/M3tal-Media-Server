@@ -221,45 +221,19 @@ setInterval(refresh,5000);
 </body>
 </html>`
 
-// IconBase64 is a 32x32 teal PNG with an "M" lettermark for the M3TAL tray icon.
-// Generated with Go's image/png package: teal (#2dd4bf) background, white "M".
-var IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH6AUVAjMuINbhPAAAAGFJREFUWMPt1rENgDAMRNEzCgMwQEZhAAZghAzABhklo1CRIl2kSPbZ0r3iv7MlS5IkSZIkSZKk3+oB2IDn3Xt37wEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AEHkAABnhFRNQAAAABJRU5ErkJggg=="
+// IconBase64 is the M3TAL logo (32x32 PNG) embedded as base64.
+var IconBase64 = "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"
 
 var IconData []byte
 
 func init() {
-	// Decode icon; fall back to a generated teal square if the literal fails.
-	decoded, err := base64.StdEncoding.DecodeString(IconBase64)
-	if err == nil && len(decoded) > 0 {
-		IconData = decoded
-	} else {
-		IconData = makeTealIcon()
+	var err error
+	IconData, err = base64.StdEncoding.DecodeString(IconBase64)
+	if err != nil || len(IconData) == 0 {
+		// Fallback: 1x1 teal PNG so the icon is never invisible
+		IconData, _ = base64.StdEncoding.DecodeString(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 	}
-}
-
-// makeTealIcon generates a 32x32 teal PNG icon at runtime as a fallback.
-func makeTealIcon() []byte {
-	imgData := &pngIcon{}
-	return imgData.bytes()
-}
-
-type pngIcon struct{}
-
-func (p *pngIcon) bytes() []byte {
-	// 32x32 raw RGBA: teal background (#2dd4bf = 45,212,191)
-	const size = 32
-	px := make([]byte, size*size*4)
-	for i := 0; i < size*size; i++ {
-		px[i*4+0] = 45  // R
-		px[i*4+1] = 212 // G
-		px[i*4+2] = 191 // B
-		px[i*4+3] = 255 // A
-	}
-	// Write a minimal PNG manually (1-pixel, teal) — let gogpu/systray scale.
-	// Easier: use a pre-encoded 1x1 teal PNG.
-	teal1x1, _ := base64.StdEncoding.DecodeString(
-		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
-	return teal1x1
 }
 
 // hasStatusNotifier checks if org.kde.StatusNotifierWatcher is registered on the session bus
