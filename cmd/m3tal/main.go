@@ -1299,14 +1299,20 @@ func runMainMenu() bool {
 	case 6:
 		// Launch tray in the background so the menu returns immediately.
 		// Must run as the current user (not sudo) to keep DBUS_SESSION_BUS_ADDRESS.
+		// Stdout/Stderr are redirected to a log file – NOT the parent terminal,
+		// otherwise the tray's startup messages appear inside the menu window.
 		cmd := exec.Command(exe, "tray", "--port", "18088")
 		cmd.Env = os.Environ() // inherit full user environment (incl. D-Bus)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		logPath := filepath.Join(os.TempDir(), "m3tal-tray.log")
+		if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+			cmd.Stdout = lf
+			cmd.Stderr = lf
+		}
 		if err := cmd.Start(); err != nil {
 			fmt.Printf("⚠️  Failed to start tray: %v\n", err)
 		} else {
-			fmt.Printf("✅ System tray started (PID %d) → http://localhost:18088/tray\n", cmd.Process.Pid)
+			fmt.Printf("✅ System tray started → http://localhost:18088/tray\n")
+			fmt.Printf("   (log: %s)\n", logPath)
 			cmd.Process.Release() // detach – don't wait for it
 		}
 	case 0:
