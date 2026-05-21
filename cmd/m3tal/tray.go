@@ -64,10 +64,26 @@ func init() {
 }
 
 func runTray(port string) {
-	// Bind a TCP listener on the specified port
+	// Try the requested port, then scan for the next available one.
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", port))
 	if err != nil {
-		log.Fatalf("Tray web server failed to bind to port %s: %v", port, err)
+		var startPort int
+		fmt.Sscanf(port, "%d", &startPort)
+		if startPort == 0 {
+			startPort = 18088
+		}
+		for i := 1; i <= 100; i++ {
+			nextPort := fmt.Sprintf("%d", startPort+i)
+			l, err2 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", nextPort))
+			if err2 == nil {
+				listener = l
+				port = nextPort
+				break
+			}
+		}
+	}
+	if listener == nil {
+		log.Fatalf("Tray web server failed to bind to any port near %s", port)
 	}
 
 	fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
