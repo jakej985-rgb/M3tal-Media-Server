@@ -166,6 +166,22 @@ func runDashCompose(action string, args ...string) {
 		log.Fatalf("❌ Dashboard compose file not found at %s", composeFile)
 	}
 
+	// Guard: ensure users.json is a FILE, not a directory.
+	// Docker will silently create it as a directory if it doesn't exist before mount.
+	usersPath := filepath.Join(stackDir, "users.json")
+	if info, err := os.Stat(usersPath); err == nil && info.IsDir() {
+		fmt.Printf("⚠️  users.json is a directory – removing and recreating as file...\n")
+		_ = os.RemoveAll(usersPath)
+	}
+	if _, err := os.Stat(usersPath); os.IsNotExist(err) {
+		defaultUsers := "[\n  {\n    \"username\": \"admin\",\n    \"token_hash\": \"$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2\",\n    \"role\": \"admin\"\n  }\n]\n"
+		if err := os.WriteFile(usersPath, []byte(defaultUsers), 0664); err != nil {
+			fmt.Printf("⚠️  Failed to create users.json: %v\n", err)
+		} else {
+			fmt.Printf("✅ Created default users.json (change password with: m3tal dashpass)\n")
+		}
+	}
+
 	fmt.Printf("🚀 Dashboard: %s...\n", action)
 
 	envFile := system.GetConfigPath()
