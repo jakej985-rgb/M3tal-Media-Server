@@ -124,6 +124,13 @@ func pullConfig() {
 
 	for filename, url := range urls {
 		targetFile := filepath.Join(stackDir, filename)
+		// Only download overrides if they don't exist yet, but always update the base m3tal-compose.yml
+		if filename != "m3tal-compose.yml" {
+			if _, err := os.Stat(targetFile); err == nil {
+				fmt.Printf("ℹ️  Preserving local customized %s\n", filename)
+				continue
+			}
+		}
 		cmd := exec.Command("curl", "-fsSL", "-o", targetFile, url)
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("⚠️  Failed to download %s: %v\n", filename, err)
