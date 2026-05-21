@@ -32,6 +32,13 @@ func ScanDir(dir string) ([]Plugin, error) {
 			return nil
 		}
 
+		base := filepath.Base(path)
+		baseLower := strings.ToLower(base)
+		if strings.HasSuffix(baseLower, "-compose.yml") || strings.HasSuffix(baseLower, "-compose.yaml") ||
+			strings.HasSuffix(baseLower, "-compose.yml.disabled") || strings.HasSuffix(baseLower, "-compose.yaml.disabled") {
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(path))
 		enabled := true
 		if ext == ".disabled" {

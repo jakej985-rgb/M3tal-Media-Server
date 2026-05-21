@@ -133,3 +133,73 @@ func TestParameterize(t *testing.T) {
 		t.Errorf("expected %q, got %q", expected, res)
 	}
 }
+
+func TestCatalogListAndInstallUninstall(t *testing.T) {
+	// Create mock registry
+	reg := &Registry{
+		Routes: []RoutePlugin{
+			{
+				Metadata: PluginMetadata{Name: "example-route"},
+				Enabled:  true,
+			},
+		},
+	}
+
+	// 1. ListCatalog
+	items := ListCatalog(reg)
+	found := false
+	for _, item := range items {
+		if item.Name == "example-route" {
+			found = true
+			if !item.Installed {
+				t.Error("expected example-route to be installed")
+			}
+			if item.Status != "enabled" {
+				t.Errorf("expected example-route status to be enabled, got %s", item.Status)
+			}
+		}
+	}
+	if !found {
+		t.Error("example-route not found in catalog listing")
+	}
+
+	// 2. Install and uninstall test using temporary directory
+	tmpDir, err := os.MkdirTemp("", "m3tal-catalog-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Test installing example-route
+	err = InstallPlugin("example-route", "Route", tmpDir)
+	if err != nil {
+		t.Fatalf("failed to install example-route: %v", err)
+	}
+
+	// Check that manifest file was created
+	pluginFile := filepath.Join(tmpDir, "routes", "example-route.yml")
+	if _, err := os.Stat(pluginFile); os.IsNotExist(err) {
+		t.Errorf("expected plugin file %s to exist", pluginFile)
+	}
+
+	// Load installed
+	newReg, err := LoadAll(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to load registry: %v", err)
+	}
+
+	if len(newReg.Routes) != 1 || newReg.Routes[0].Metadata.Name != "example-app" {
+		t.Errorf("expected loaded registry to contain example-app, got %+v", newReg.Routes)
+	}
+
+	// Test uninstalling
+	err = UninstallPlugin("example-route", "Route", tmpDir, newReg)
+	if err != nil {
+		t.Fatalf("failed to uninstall example-route: %v", err)
+	}
+
+	// Check that file was deleted
+	if _, err := os.Stat(pluginFile); !os.IsNotExist(err) {
+		t.Errorf("expected plugin file %s to be deleted", pluginFile)
+	}
+}

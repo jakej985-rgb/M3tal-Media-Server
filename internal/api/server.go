@@ -94,11 +94,14 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 
 			// Plugins
 			r.Get("/plugins", pluginH.ListPlugins)
+			r.Get("/plugins/catalog", pluginH.ListCatalog)
 			r.Get("/plugins/{kind}", pluginH.ListPluginsByKind)
 			r.Post("/plugins/reload", pluginH.Reload)
 			r.Post("/plugins/enable", pluginH.Enable)
 			r.Post("/plugins/disable", pluginH.Disable)
 			r.Post("/plugins/sync", pluginH.Sync)
+			r.Post("/plugins/install", pluginH.Install)
+			r.Post("/plugins/uninstall", pluginH.Uninstall)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -108,11 +111,14 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		r.Route("/api/v2", func(r chi.Router) {
 			r.Use(srv.chiAuthMiddleware)
 			r.Get("/plugins", pluginH.ListPlugins)
+			r.Get("/plugins/catalog", pluginH.ListCatalog)
 			r.Get("/plugins/{kind}", pluginH.ListPluginsByKind)
 			r.Post("/plugins/reload", pluginH.Reload)
 			r.Post("/plugins/enable", pluginH.Enable)
 			r.Post("/plugins/disable", pluginH.Disable)
 			r.Post("/plugins/sync", pluginH.Sync)
+			r.Post("/plugins/install", pluginH.Install)
+			r.Post("/plugins/uninstall", pluginH.Uninstall)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")

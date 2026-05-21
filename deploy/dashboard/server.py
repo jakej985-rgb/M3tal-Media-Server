@@ -197,6 +197,39 @@ def api_action():
 def get_plugins():
     return jsonify(fetch_api("/api/v2/plugins"))
 
+@app.route('/api/plugins/catalog')
+@login_required()
+def get_plugins_catalog():
+    return jsonify(fetch_api("/api/v2/plugins/catalog"))
+
+@app.route('/api/plugins/install', methods=['POST'])
+@login_required()
+def install_plugin():
+    data = request.get_json(silent=True) or {}
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/plugins/install", json=data, headers=headers, timeout=60)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to install plugin: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/plugins/uninstall', methods=['POST'])
+@login_required()
+def uninstall_plugin():
+    data = request.get_json(silent=True) or {}
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/plugins/uninstall", json=data, headers=headers, timeout=15)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to uninstall plugin: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/plugins/enable', methods=['POST'])
 @login_required()
 def enable_plugin():

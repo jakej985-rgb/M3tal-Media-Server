@@ -826,7 +826,129 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	}
 	pluginInstallStackCmd.Flags().StringSlice("env", nil, "Environment variables to parameterize the template (format: key=value)")
 
-	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd, pluginEnableCmd, pluginDisableCmd, pluginSyncCmd, pluginMatchCmd, pluginInstallStackCmd)
+	var pluginCatalogCmd = &cobra.Command{
+		Use:   "catalog",
+		Short: "List all official plugins in the catalog and their status",
+		Run: func(cmd *cobra.Command, args []string) {
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load registry: %v", err)
+			}
+			items := plugin.ListCatalog(reg)
+			fmt.Println("\n📋 M3TAL Plugin Catalog:")
+			fmt.Println("--------------------------------------------------")
+			for _, item := range items {
+				statusColor := "⚪" // not installed
+				statusStr := "not installed"
+				if item.Installed {
+					if item.Status == "enabled" {
+						statusColor = "🟢"
+						statusStr = "installed & enabled"
+					} else {
+						statusColor = "🟡"
+						statusStr = "installed & disabled"
+					}
+				}
+				fmt.Printf("%s %-16s [%-10s] %s\n", statusColor, item.Name, item.Kind, item.Description)
+				fmt.Printf("   Version: %s | Author: %s | Status: %s\n\n", item.Version, item.Author, statusStr)
+			}
+		},
+	}
+
+	var pluginInstallCmd = &cobra.Command{
+		Use:   "install [name]",
+		Short: "Download and install a plugin from the catalog by name",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			name := args[0]
+			
+			// Find the item in the catalog to get the Kind
+			var targetKind string
+			for _, item := range plugin.Catalog {
+				if strings.EqualFold(item.Name, name) {
+					targetKind = item.Kind
+					name = item.Name // use canonical name
+					break
+				}
+			}
+			if targetKind == "" {
+				log.Fatalf("❌ Plugin %q not found in catalog. Run 'm3tal plugin catalog' to see available plugins.", name)
+			}
+
+			userDir := system.UserPluginsDir
+			if _, err := os.Stat("deploy/plugins"); err == nil {
+				userDir = "deploy/plugins"
+			}
+
+			fmt.Printf("📥 Installing %s plugin %q...\n", targetKind, name)
+			err := plugin.InstallPlugin(name, targetKind, userDir)
+			if err != nil {
+				log.Fatalf("❌ Installation failed: %v", err)
+			}
+			fmt.Printf("✅ Plugin %q successfully installed.\n", name)
+		},
+	}
+
+	var pluginUninstallCmd = &cobra.Command{
+		Use:   "uninstall [name]",
+		Short: "Uninstall a user-installed plugin by name",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			name := args[0]
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				log.Fatalf("❌ Failed to load registry: %v", err)
+			}
+
+			// Find kind
+			var targetKind string
+			for i := range reg.Routes {
+				if plugin.MatchesPluginName(reg.Routes[i].SourcePath, reg.Routes[i].Metadata.Name, name) {
+					targetKind = "Route"
+					name = plugin.GetPluginBaseName(reg.Routes[i].SourcePath)
+					break
+				}
+			}
+			if targetKind == "" {
+				for i := range reg.Stacks {
+					if plugin.MatchesPluginName(reg.Stacks[i].SourcePath, reg.Stacks[i].Metadata.Name, name) {
+						targetKind = "Stack"
+						name = plugin.GetPluginBaseName(reg.Stacks[i].SourcePath)
+						break
+					}
+				}
+			}
+			if targetKind == "" {
+				for i := range reg.Middlewares {
+					if plugin.MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
+						targetKind = "Middleware"
+						name = plugin.GetPluginBaseName(reg.Middlewares[i].SourcePath)
+						break
+					}
+				}
+			}
+
+			if targetKind == "" {
+				log.Fatalf("❌ Plugin %q not found in local registry", name)
+			}
+
+			userDir := system.UserPluginsDir
+			if _, err := os.Stat("deploy/plugins"); err == nil {
+				userDir = "deploy/plugins"
+			}
+
+			fmt.Printf("🗑️  Uninstalling plugin %q...\n", name)
+			err = plugin.UninstallPlugin(name, targetKind, userDir, reg)
+			if err != nil {
+				log.Fatalf("❌ Uninstallation failed: %v", err)
+			}
+			fmt.Printf("✅ Plugin %q successfully uninstalled.\n", name)
+		},
+	}
+
+	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd, pluginEnableCmd, pluginDisableCmd, pluginSyncCmd, pluginMatchCmd, pluginInstallStackCmd, pluginCatalogCmd, pluginInstallCmd, pluginUninstallCmd)
 	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {

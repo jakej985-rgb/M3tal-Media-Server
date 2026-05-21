@@ -218,3 +218,88 @@ func (h *PluginHandlers) Sync(w http.ResponseWriter, r *http.Request) {
 		"path":   outputPath,
 	})
 }
+
+// ListCatalog returns all official plugins and their local installation state.
+// GET /api/v2/plugins/catalog
+func (h *PluginHandlers) ListCatalog(w http.ResponseWriter, r *http.Request) {
+	reg := h.ensureLoaded()
+	catalogStatus := plugin.ListCatalog(reg)
+	writeJSON(w, http.StatusOK, catalogStatus)
+}
+
+// Install downloads and installs a plugin from the remote catalog.
+// POST /api/v2/plugins/install
+func (h *PluginHandlers) Install(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if req.Name == "" || req.Kind == "" {
+		writeError(w, http.StatusBadRequest, "missing name or kind")
+		return
+	}
+
+	userDir := system.UserPluginsDir
+	if _, err := os.Stat("deploy/plugins"); err == nil {
+		userDir = "deploy/plugins"
+	}
+
+	err := plugin.InstallPlugin(req.Name, req.Kind, userDir)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to install plugin: "+err.Error())
+		return
+	}
+
+	h.registry = nil // force reload
+	reg := h.ensureLoaded()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"installed": true,
+		"summary":   reg.Summary(),
+	})
+}
+
+// Uninstall deletes a user-installed plugin.
+// POST /api/v2/plugins/uninstall
+func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if req.Name == "" || req.Kind == "" {
+		writeError(w, http.StatusBadRequest, "missing name or kind")
+		return
+	}
+
+	reg := h.ensureLoaded()
+
+	userDir := system.UserPluginsDir
+	if _, err := os.Stat("deploy/plugins"); err == nil {
+		userDir = "deploy/plugins"
+	}
+
+	err := plugin.UninstallPlugin(req.Name, req.Kind, userDir, reg)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to uninstall plugin: "+err.Error())
+		return
+	}
+
+	h.registry = nil // force reload
+	newReg := h.ensureLoaded()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"uninstalled": true,
+		"summary":     newReg.Summary(),
+	})
+}
+
