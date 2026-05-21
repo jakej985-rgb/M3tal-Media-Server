@@ -862,7 +862,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			name := args[0]
-			
+
 			// Find the item in the catalog to get the Kind
 			var targetKind string
 			for _, item := range plugin.Catalog {

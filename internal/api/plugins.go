@@ -302,4 +302,3 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 		"summary":     newReg.Summary(),
 	})
 }
-
