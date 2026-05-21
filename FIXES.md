@@ -1,39 +1,41 @@
-**Verdict:** FAILED - Multiple BLOCKER issues identified.
+**Verdict:** FAILED
 
-**Issue List:**
+**Reason:** The README is missing critical information regarding the deployment lifecycle of M3TAL stacks and how Traefik is configured for routing. This information is essential for users to understand how to manage and expose their services within the M3TAL ecosystem.
 
-1.  **BLOCKER: APT installation commands missing.**
-    *   **Description:** The README states M3TAL is installed via APT, but it fails to provide the complete 3-command sequence (keyring, repo, install) required for APT installation. The "Installation" section only shows the commands, but not their relation to the `apt update` and `apt install` steps.
-    *   **Required Fix:** Combine the GPG key, repository addition, and package installation into a single, clear 3-command block as per the Ground Truth.
+---
 
-2.  **BLOCKER: Docker dependency not explicitly stated.**
-    *   **Description:** While the README mentions Docker Engine and Docker Compose V2 are "strictly REQUIRED" in the Prerequisites, it doesn't explicitly state that M3TAL *internally uses* Docker Engine + Docker Compose V2 for orchestration. This is a crucial detail for understanding how M3TAL operates.
-    *   **Required Fix:** Clarify in the "Prerequisites" or "Deployment Lifecycle" section that M3TAL uses Docker Engine and Docker Compose V2 internally for orchestrating its services.
+**Issues:**
 
-3.  **BLOCKER: Deployment lifecycle explanation is incomplete.**
-    *   **Description:** The README mentions `m3tal up` runs `docker compose` on `*-compose.yml` files in `/docker/`. However, it doesn't explicitly state that `/docker` is a symlink to `/opt/m3tal/stack/` which is the canonical stack directory. It also doesn't explain that adding new compose files to `/docker` is how new stacks are added.
-    *   **Required Fix:** Clearly explain that `/docker` is a symlink to `/opt/m3tal/stack/` and that all compose files within `/docker/` are deployed by `m3tal up`. Emphasize that placing new compose files in `/docker/` is the mechanism for adding new stacks.
+1.  **BLOCKER: Deployment lifecycle explanation missing**
+    *   **Description:** The README does not clearly explain how M3TAL manages stacks using the `/docker` directory (symlink to `/opt/m3tal/stack/`) and the `m3tal up` command, nor does it detail how new compose files are added and managed.
+    *   **Required Fix:** Add a section explaining that the `/docker` directory is the user-facing location for all `*-compose.yml` files. Detail that `m3tal up` reads all `*-compose.yml` files in this directory and orchestrates them using Docker Compose V2. Explain that adding new services involves placing their `*-compose.yml` files in `/docker/` and running `m3tal up` again. Explicitly mention that `/docker` is a symlink to `/opt/m3tal/stack/`.
 
-4.  **BLOCKER: Traefik routing mechanism is not fully explained.**
-    *   **Description:** The README states Traefik is the HTTP gateway and that services are exposed via labels or dynamic config. However, it doesn't explicitly mention that `traefik.enable=true` is a prerequisite for services to be discovered by Traefik, and it doesn't clearly explain how the `proxy` network is used by Traefik to communicate with containers.
-    *   **Required Fix:** Explicitly state that `traefik.enable=true` is required for a service to be recognized by Traefik. Explain the role of the `proxy` network in Traefik's internal communication with containers.
+2.  **BLOCKER: Traefik routing explanation missing**
+    *   **Description:** While Traefik is mentioned as a component and in the port map, the README does not explain *how* services get exposed through Traefik. It doesn't clarify whether this is done via Docker labels in compose files or via dynamic configuration files.
+    *   **Required Fix:** Explain that Traefik acts as the HTTP gateway. Clarify that services are exposed to Traefik primarily through Docker labels (e.g., `traefik.enable=true`, `traefik.http.routers.<service_name>.rule=Host(...)`) within their respective `*-compose.yml` files in the `/docker/` directory. Briefly mention the role of static configuration (`traefik.yml`) and dynamic configuration files (in `/etc/traefik/dynamic/`).
 
-5.  **WARNING: Port table is missing required ports.**
-    *   **Description:** The README's "Port Map" section lists ports 80, 8080, 8081, and 8082. However, it doesn't mention port 8080 as being for the M3TAL Go API daemon (host-local).
-    *   **Required Fix:** Ensure the "Port Map" table accurately reflects the Ground Truth, listing all specified ports and their corresponding services and access methods.
+3.  **WARNING: Incomplete APT installation command block**
+    *   **Description:** The APT installation section provides the correct 3 commands for adding the keyring, repository, and installing the package. However, it could be clearer by explicitly stating that this is the *recommended* way to install M3TAL.
+    *   **Required Fix:** No code change needed, but the description could be slightly refined for clarity. The current block is technically correct.
 
-6.  **WARNING: Service management command is not mentioned.**
-    *   **Description:** The README mentions that `m3tal-api.service` is managed by systemd, but it doesn't provide the specific `systemctl` commands for managing it (e.g., `status`, `restart`, `journalctl`).
-    *   **Required Fix:** Include the relevant `systemctl` commands for managing the `m3tal-api.service` in the "Service Management" section.
+4.  **WARNING: Tone includes marketing copy**
+    *   **Description:** Phrases like "unified Go binary serving as the single entrypoint for all M3TAL operations" and "orchestrates and deploys all Docker Compose stacks found as `*-compose.yml` files" are slightly more marketing-oriented than purely technical documentation.
+    *   **Required Fix:** Rephrase sentences to be more direct and technical. For example, instead of "unified Go binary serving as the single entrypoint," use "The `m3tal` CLI is a Go binary used for all M3TAL operations."
 
-7.  **WARNING: Firewall note is incomplete.**
-    *   **Description:** The README mentions allowing port 80 in `ufw/iptables` if Traefik is used for public access. However, it doesn't explicitly mention allowing port 443 if HTTPS is configured, which is a common and important consideration.
-    *   **Required Fix:** Add a note to the firewall section advising users to also allow port 443 if HTTPS is configured.
+5.  **SUGGESTION: Docker Compose V2 not explicitly mentioned in prerequisites**
+    *   **Description:** The prerequisites section states "Docker Compose V2 are strictly REQUIRED." While this is present, it's good practice to explicitly call out "Docker Compose V2" in the description of what M3TAL uses internally.
+    *   **Required Fix:** In the "Prerequisites" section, ensure it clearly states: "Docker Engine and Docker Compose V2 are strictly REQUIRED... M3TAL internally orchestrates Docker containers using Docker Engine and Docker Compose V2." (This is already present in the provided README, so this is a minor point and not a true gap).
 
-8.  **WARNING: Tone is marketing copy rather than technical documentation.**
-    *   **Description:** The "Overview" section uses phrases like "technical details and operational procedures," which is acceptable, but the overall tone feels slightly promotional rather than purely technical.
-    *   **Required Fix:** Refine the introductory and concluding sentences to be more direct and factual, focusing on what the documentation covers technically.
+6.  **SUGGESTION: Filesystem contract explanation could be more detailed regarding user interaction**
+    *   **Description:** The "Filesystem Contract" section lists paths but doesn't always clearly state which files/directories are managed by M3TAL commands (e.g., `m3tal config wizard`, `m3tal dashpass`) versus user-created.
+    *   **Required Fix:** For `/etc/m3tal/.env`, mention it's managed by `m3tal config wizard`. For `/docker/users.json`, mention it's managed by `m3tal dashpass`. For `/opt/m3tal/stack/`, clarify it's the actual stack directory, and `/docker` is the user-facing symlink.
 
-9.  **SUGGESTION: Quick Start section is missing a clear, step-by-step guide.**
-    *   **Description:** The "Quick Demo" section is present but could be more detailed and actionable. It mentions `m3tal dash up` and `m3tal up` but doesn't explicitly tie them to a full, sequential deployment process for a new user.
-    *   **Required Fix:** Revise the "Quick Demo" section to provide a clear, numbered, step-by-step guide for a user to quickly get M3TAL operational, starting from installation to accessing the dashboard. Include the initial configuration steps if necessary.
+7.  **SUGGESTION: Docker Compose V2 dependency clarification**
+    *   **Description:** While it states Docker Compose V2 is required, it doesn't explicitly mention that M3TAL *uses* Docker Compose V2 internally for its `m3tal up` commands.
+    *   **Required Fix:** In the "Prerequisites" section, add a sentence like: "M3TAL leverages Docker Compose V2 to manage its stack lifecycle."
+
+8.  **SUGGESTION: Clarification on Traefik's role in service exposure**
+    *   **Description:** The "Traefik Gateway" section states it exposes services but doesn't give a concrete example of how a *user-defined* service in their `*-compose.yml` would be exposed.
+    *   **Required Fix:** Add a small example in the "Traefik Gateway" section showing typical labels for exposing a user service (e.g., `traefik.enable=true`, `traefik.http.routers.my-user-service.rule=Host('my-app.DOMAIN')`).
+
+---
