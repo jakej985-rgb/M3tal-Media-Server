@@ -41,6 +41,54 @@ func BuildRegistry(plugins []Plugin) (*Registry, error) {
 				return nil, fmt.Errorf("plugin %q: %w", p.Metadata.Name, err)
 			}
 			r.Middlewares = append(r.Middlewares, *mp)
+
+		case KindTraefik:
+			tp, err := p.AsTraefik()
+			if err != nil {
+				return nil, fmt.Errorf("plugin %q: %w", p.Metadata.Name, err)
+			}
+			// Map RouteSpecs to Registry.Routes
+			for _, rs := range tp.Routes {
+				routeName := rs.Name
+				if routeName == "" {
+					routeName = rs.Service
+				}
+				if routeName == "" {
+					routeName = tp.Metadata.Name
+				}
+				r.Routes = append(r.Routes, RoutePlugin{
+					Metadata: PluginMetadata{
+						Name:        routeName,
+						Description: tp.Metadata.Description,
+						Version:     tp.Metadata.Version,
+						Author:      tp.Metadata.Author,
+					},
+					Service:     rs.Service,
+					Domain:      rs.Domain,
+					Port:        rs.Port,
+					Entrypoints: rs.Entrypoints,
+					Network:     rs.Network,
+					Middlewares: rs.Middlewares,
+					SourcePath:  tp.SourcePath,
+					Enabled:     tp.Enabled,
+				})
+			}
+			// Map MiddlewareSpecs to Registry.Middlewares
+			for _, ms := range tp.Middlewares {
+				r.Middlewares = append(r.Middlewares, MiddlewarePlugin{
+					Metadata: PluginMetadata{
+						Name:        ms.Name,
+						Description: tp.Metadata.Description,
+						Version:     tp.Metadata.Version,
+						Author:      tp.Metadata.Author,
+					},
+					Name:       ms.Name,
+					Type:       ms.Type,
+					Config:     ms.Config,
+					SourcePath: tp.SourcePath,
+					Enabled:    tp.Enabled,
+				})
+			}
 		}
 	}
 

@@ -203,3 +203,100 @@ func TestCatalogListAndInstallUninstall(t *testing.T) {
 		t.Errorf("expected plugin file %s to be deleted", pluginFile)
 	}
 }
+
+func TestUnifiedTraefikPlugin(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "m3tal-traefik-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	traefikDir := filepath.Join(tmpDir, "traefik")
+	if err := os.MkdirAll(traefikDir, 0755); err != nil {
+		t.Fatalf("failed to create traefik folder: %v", err)
+	}
+
+	manifestPath := filepath.Join(traefikDir, "gateway.yml")
+	manifestContent := `
+apiVersion: m3tal/v1
+kind: Traefik
+metadata:
+  name: gateway
+  description: Unified Traefik Test
+  version: 1.0.0
+  author: Test Team
+spec:
+  routes:
+    - name: route-a
+      service: service-a
+      domain: a.example.local
+      port: 8081
+      entrypoints: web
+      middlewares:
+        - basic-auth-test
+  middlewares:
+    - name: basic-auth-test
+      type: basicauth
+      config:
+        users: "admin:pass"
+`
+	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0644); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	// 1. Load the registry
+	reg, err := LoadAll(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to load registry: %v", err)
+	}
+
+	if len(reg.Routes) != 1 {
+		t.Errorf("expected 1 route, got %d", len(reg.Routes))
+	} else {
+		route := reg.Routes[0]
+		if route.Metadata.Name != "route-a" || route.Service != "service-a" || route.Port != 8081 {
+			t.Errorf("route mismatch: %+v", route)
+		}
+	}
+
+	if len(reg.Middlewares) != 1 {
+		t.Errorf("expected 1 middleware, got %d", len(reg.Middlewares))
+	} else {
+		mw := reg.Middlewares[0]
+		if mw.Name != "basic-auth-test" || mw.Type != "basicauth" || mw.Config["users"] != "admin:pass" {
+			t.Errorf("middleware mismatch: %+v", mw)
+		}
+	}
+
+	// 2. Generate Traefik dynamic config
+	cfg, err := reg.GenerateTraefikConfig()
+	if err != nil {
+		t.Fatalf("failed to generate Traefik dynamic config: %v", err)
+	}
+	yamlStr := string(cfg)
+	if !strings.Contains(yamlStr, "route-a") || !strings.Contains(yamlStr, "basic-auth-test") {
+		t.Errorf("expected route-a and basic-auth-test in dynamic config: %s", yamlStr)
+	}
+
+	// 3. Test Disable/Enable
+	newPath, err := DisablePlugin(manifestPath)
+	if err != nil {
+		t.Fatalf("failed to disable: %v", err)
+	}
+
+	regDisabled, err := LoadAll(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to reload: %v", err)
+	}
+	if len(regDisabled.Routes) != 1 || regDisabled.Routes[0].Enabled {
+		t.Errorf("expected 1 disabled route, got %d (enabled: %v)", len(regDisabled.Routes), regDisabled.Routes[0].Enabled)
+	}
+	if len(regDisabled.Middlewares) != 1 || regDisabled.Middlewares[0].Enabled {
+		t.Errorf("expected 1 disabled middleware, got %d (enabled: %v)", len(regDisabled.Middlewares), regDisabled.Middlewares[0].Enabled)
+	}
+
+	_, err = EnablePlugin(newPath)
+	if err != nil {
+		t.Fatalf("failed to enable: %v", err)
+	}
+}

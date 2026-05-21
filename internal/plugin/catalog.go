@@ -97,6 +97,14 @@ var Catalog = []CatalogItem{
 		Author:      "M3TAL Team",
 		URL:         "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/plugins/routes/example-route.yml",
 	},
+	{
+		Name:        "traefik-gateway",
+		Kind:        "Traefik",
+		Description: "Unified Traefik configuration with default routing and basic authentication preset",
+		Version:     "1.0.0",
+		Author:      "M3TAL Team",
+		URL:         "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/plugins/traefik/traefik-gateway.yml",
+	},
 }
 
 // GetPluginBaseName extracts the clean name of the plugin from its filepath.
@@ -168,6 +176,31 @@ func ListCatalog(reg *Registry) []CatalogItemStatus {
 					break
 				}
 			}
+		case KindTraefik:
+			for _, r := range reg.Routes {
+				if MatchesPluginName(r.SourcePath, r.Metadata.Name, item.Name) {
+					status.Installed = true
+					if r.Enabled {
+						status.Status = "enabled"
+					} else {
+						status.Status = "disabled"
+					}
+					break
+				}
+			}
+			if !status.Installed {
+				for _, m := range reg.Middlewares {
+					if MatchesPluginName(m.SourcePath, m.Metadata.Name, item.Name) {
+						status.Installed = true
+						if m.Enabled {
+							status.Status = "enabled"
+						} else {
+							status.Status = "disabled"
+						}
+						break
+					}
+				}
+			}
 		}
 
 		list = append(list, status)
@@ -228,6 +261,8 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 		subfolder = "stacks"
 	case KindMiddleware:
 		subfolder = "middleware"
+	case KindTraefik:
+		subfolder = "traefik"
 	default:
 		return fmt.Errorf("unsupported plugin kind: %s", targetItem.Kind)
 	}
@@ -278,6 +313,25 @@ func UninstallPlugin(name, kind, userPluginsDir string, reg *Registry) error {
 			if MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
 				sourcePath = reg.Middlewares[i].SourcePath
 				break
+			}
+		}
+	case KindTraefik:
+		for i := range reg.Routes {
+			if MatchesPluginName(reg.Routes[i].SourcePath, reg.Routes[i].Metadata.Name, name) {
+				if strings.Contains(reg.Routes[i].SourcePath, "/traefik/") {
+					sourcePath = reg.Routes[i].SourcePath
+					break
+				}
+			}
+		}
+		if sourcePath == "" {
+			for i := range reg.Middlewares {
+				if MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
+					if strings.Contains(reg.Middlewares[i].SourcePath, "/traefik/") {
+						sourcePath = reg.Middlewares[i].SourcePath
+						break
+					}
+				}
 			}
 		}
 	}

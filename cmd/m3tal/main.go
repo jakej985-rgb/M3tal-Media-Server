@@ -907,6 +907,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			for i := range reg.Routes {
 				if plugin.MatchesPluginName(reg.Routes[i].SourcePath, reg.Routes[i].Metadata.Name, name) {
 					targetKind = "Route"
+					if strings.Contains(reg.Routes[i].SourcePath, "/traefik/") {
+						targetKind = "Traefik"
+					}
 					name = plugin.GetPluginBaseName(reg.Routes[i].SourcePath)
 					break
 				}
@@ -924,6 +927,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				for i := range reg.Middlewares {
 					if plugin.MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
 						targetKind = "Middleware"
+						if strings.Contains(reg.Middlewares[i].SourcePath, "/traefik/") {
+							targetKind = "Traefik"
+						}
 						name = plugin.GetPluginBaseName(reg.Middlewares[i].SourcePath)
 						break
 					}

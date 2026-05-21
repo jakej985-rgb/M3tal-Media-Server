@@ -14,6 +14,7 @@ const (
 	KindRoute      = "Route"
 	KindStack      = "Stack"
 	KindMiddleware = "Middleware"
+	KindTraefik    = "Traefik"
 )
 
 // Plugin represents a loaded plugin manifest.
@@ -71,6 +72,33 @@ type MiddlewarePlugin struct {
 	Enabled    bool              `yaml:"-"`
 }
 
+// TraefikPlugin is the typed representation of a Traefik plugin spec.
+type TraefikPlugin struct {
+	Metadata    PluginMetadata
+	Routes      []RouteSpec      `yaml:"routes,omitempty"`
+	Middlewares []MiddlewareSpec `yaml:"middlewares,omitempty"`
+	SourcePath  string           `yaml:"-"`
+	Enabled     bool             `yaml:"-"`
+}
+
+// RouteSpec represents a route configuration inside a Traefik plugin.
+type RouteSpec struct {
+	Name        string   `yaml:"name"`
+	Service     string   `yaml:"service"`
+	Domain      string   `yaml:"domain"`
+	Port        int      `yaml:"port"`
+	Entrypoints string   `yaml:"entrypoints,omitempty"`
+	Network     string   `yaml:"network,omitempty"`
+	Middlewares []string `yaml:"middlewares,omitempty"`
+}
+
+// MiddlewareSpec represents a middleware configuration inside a Traefik plugin.
+type MiddlewareSpec struct {
+	Name   string            `yaml:"name"`
+	Type   string            `yaml:"type"`
+	Config map[string]string `yaml:"config,omitempty"`
+}
+
 // Validate checks a raw Plugin for structural correctness.
 func (p *Plugin) Validate() error {
 	if p.APIVersion != APIVersion {
@@ -78,11 +106,11 @@ func (p *Plugin) Validate() error {
 	}
 
 	switch p.Kind {
-	case KindRoute, KindStack, KindMiddleware:
+	case KindRoute, KindStack, KindMiddleware, KindTraefik:
 		// valid
 	default:
 		return fmt.Errorf("unsupported kind %q (expected one of: %s)",
-			p.Kind, strings.Join([]string{KindRoute, KindStack, KindMiddleware}, ", "))
+			p.Kind, strings.Join([]string{KindRoute, KindStack, KindMiddleware, KindTraefik}, ", "))
 	}
 
 	if p.Metadata.Name == "" {
@@ -113,6 +141,56 @@ func (p *Plugin) validateSpec() error {
 		for _, required := range []string{"name", "type"} {
 			if _, ok := p.Spec[required]; !ok {
 				return fmt.Errorf("Middleware plugin %q: spec.%s is required", p.Metadata.Name, required)
+			}
+		}
+	case KindTraefik:
+		if routes, ok := p.Spec["routes"]; ok {
+			routesList, ok := routes.([]any)
+			if !ok {
+				return fmt.Errorf("Traefik plugin %q: spec.routes must be a list", p.Metadata.Name)
+			}
+			for i, r := range routesList {
+				rMap, ok := r.(map[string]any)
+				if !ok {
+					// Also support map[any]any in case yaml unmarshals it that way
+					if rMapAny, ok := r.(map[any]any); ok {
+						rMap = make(map[string]any)
+						for k, v := range rMapAny {
+							rMap[fmt.Sprintf("%v", k)] = v
+						}
+					} else {
+						return fmt.Errorf("Traefik plugin %q: spec.routes[%d] must be a map", p.Metadata.Name, i)
+					}
+				}
+				for _, required := range []string{"service", "domain", "port"} {
+					if _, ok := rMap[required]; !ok {
+						return fmt.Errorf("Traefik plugin %q routes[%d]: %s is required", p.Metadata.Name, i, required)
+					}
+				}
+			}
+		}
+		if middlewares, ok := p.Spec["middlewares"]; ok {
+			middlewaresList, ok := middlewares.([]any)
+			if !ok {
+				return fmt.Errorf("Traefik plugin %q: spec.middlewares must be a list", p.Metadata.Name)
+			}
+			for i, m := range middlewaresList {
+				mMap, ok := m.(map[string]any)
+				if !ok {
+					if mMapAny, ok := m.(map[any]any); ok {
+						mMap = make(map[string]any)
+						for k, v := range mMapAny {
+							mMap[fmt.Sprintf("%v", k)] = v
+						}
+					} else {
+						return fmt.Errorf("Traefik plugin %q: spec.middlewares[%d] must be a map", p.Metadata.Name, i)
+					}
+				}
+				for _, required := range []string{"name", "type"} {
+					if _, ok := mMap[required]; !ok {
+						return fmt.Errorf("Traefik plugin %q middlewares[%d]: %s is required", p.Metadata.Name, i, required)
+					}
+				}
 			}
 		}
 	}
@@ -182,6 +260,27 @@ func (p *Plugin) AsMiddleware() (*MiddlewarePlugin, error) {
 	mp.SourcePath = p.SourcePath
 	mp.Enabled = p.Enabled
 	return &mp, nil
+}
+
+// AsTraefik converts a validated Traefik plugin to its typed struct.
+func (p *Plugin) AsTraefik() (*TraefikPlugin, error) {
+	if p.Kind != KindTraefik {
+		return nil, fmt.Errorf("cannot convert %s plugin to TraefikPlugin", p.Kind)
+	}
+
+	data, err := yaml.Marshal(p.Spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal spec: %w", err)
+	}
+
+	var tp TraefikPlugin
+	if err := yaml.Unmarshal(data, &tp); err != nil {
+		return nil, fmt.Errorf("failed to decode Traefik spec: %w", err)
+	}
+	tp.Metadata = p.Metadata
+	tp.SourcePath = p.SourcePath
+	tp.Enabled = p.Enabled
+	return &tp, nil
 }
 
 // ParsePlugin parses raw YAML bytes into a Plugin.
