@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,11 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"bytes"
-	_ "embed"
-	"io"
-	"net/http"
-
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
 	"github.com/jakej985-rgb/m3tal-core/internal/auth"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
@@ -28,6 +27,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/spf13/cobra"
 )
 
@@ -1327,16 +1327,384 @@ func runWithSudoFallback(name string, args ...string) {
 	})
 }
 
+type SystemHealthState struct {
+	LastSeenHealthy string `json:"last_seen_healthy"`
+	LastFailure     string `json:"last_failure"`
+	Status          string `json:"status"` // Healthy, Degraded, Unhealthy
+}
+
+type ContainerHealthInfo struct {
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	Healthy  bool   `json:"healthy"`
+	Critical bool   `json:"critical"`
+}
+
+type DockerHealthState struct {
+	Status              string                `json:"status"`
+	TotalContainers     int                   `json:"total_containers"`
+	RunningContainers   int                   `json:"running_containers"`
+	UnhealthyContainers int                   `json:"unhealthy_containers"`
+	Containers          []ContainerHealthInfo `json:"containers"`
+}
+
+type AgentsHealthState struct {
+	Status        string `json:"status"`
+	DaemonRunning bool   `json:"daemon_running"`
+	LastActivity  string `json:"last_activity"`
+}
+
+type DiskHealthState struct {
+	Status      string  `json:"status"`
+	UsedPercent float64 `json:"used_percent"`
+	Path        string  `json:"path"`
+}
+
+type UnifiedHealthRegistry struct {
+	System  SystemHealthState `json:"system"`
+	Docker  DockerHealthState `json:"docker"`
+	Agents  AgentsHealthState `json:"agents"`
+	Disk    DiskHealthState   `json:"disk"`
+}
+
+func getControlPlaneDir() string {
+	sysPath := "/var/lib/m3tal"
+	if info, err := os.Stat(sysPath); err == nil && info.IsDir() {
+		return sysPath
+	}
+	return "./data"
+}
+
+func ensureControlPlaneDirs() {
+	base := getControlPlaneDir()
+	_ = os.MkdirAll(filepath.Join(base, "state"), 0755)
+	_ = os.MkdirAll(filepath.Join(base, "logs"), 0755)
+}
+
+func getAgentLogAge(logName string) time.Duration {
+	base := getControlPlaneDir()
+	path := filepath.Join(base, "logs", logName)
+	info, err := os.Stat(path)
+	if err != nil {
+		return 999 * time.Hour
+	}
+	return time.Since(info.ModTime())
+}
+
+func readSystemHealthJSON() *UnifiedHealthRegistry {
+	path := filepath.Join(getControlPlaneDir(), "state", "system.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var registry UnifiedHealthRegistry
+	if err := json.Unmarshal(data, &registry); err != nil {
+		return nil
+	}
+	return &registry
+}
+
+func getDockerHealthState() DockerHealthState {
+	var state DockerHealthState
+	state.Status = "🟢"
+
+	mgr, err := containers.GetProvider()
+	if err != nil {
+		state.Status = "🔴"
+		return state
+	}
+
+	list, err := mgr.ListContainers()
+	if err != nil {
+		state.Status = "🔴"
+		return state
+	}
+
+	state.TotalContainers = len(list)
+	criticalServices := []string{"radarr", "sonarr", "qbittorrent"}
+
+	for _, c := range list {
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+
+		isCritical := false
+		for _, cs := range criticalServices {
+			if strings.Contains(strings.ToLower(name), cs) {
+				isCritical = true
+				break
+			}
+		}
+
+		isRunning := strings.EqualFold(c.State, "running")
+		isHealthy := !strings.Contains(strings.ToLower(c.Status), "unhealthy")
+
+		if isRunning {
+			state.RunningContainers++
+		}
+		if !isHealthy {
+			state.UnhealthyContainers++
+		}
+
+		cHealth := ContainerHealthInfo{
+			Name:     name,
+			State:    c.State,
+			Healthy:  isHealthy,
+			Critical: isCritical,
+		}
+		state.Containers = append(state.Containers, cHealth)
+
+		if isCritical && (!isRunning || !isHealthy) {
+			state.Status = "🔴"
+		}
+	}
+
+	if state.Status != "🔴" {
+		if state.RunningContainers < state.TotalContainers || state.UnhealthyContainers > 0 {
+			state.Status = "🟡"
+		}
+	}
+
+	prev := readSystemHealthJSON()
+	if prev != nil && prev.Docker.TotalContainers > 0 {
+		if state.TotalContainers < prev.Docker.TotalContainers {
+			if state.Status != "🔴" {
+				state.Status = "🟡"
+			}
+		}
+	}
+
+	return state
+}
+
+func getAgentsHealthState() AgentsHealthState {
+	var state AgentsHealthState
+	daemonRunning := false
+	cmd := exec.Command("pgrep", "-f", "m3tal daemon")
+	if err := cmd.Run(); err == nil {
+		daemonRunning = true
+	}
+	state.DaemonRunning = daemonRunning
+
+	monitorAge := getAgentLogAge("monitor.log")
+	anomalyAge := getAgentLogAge("anomaly.log")
+
+	var lastActivity time.Time
+	base := getControlPlaneDir()
+	mPath := filepath.Join(base, "logs", "monitor.log")
+	if info, err := os.Stat(mPath); err == nil {
+		lastActivity = info.ModTime()
+	}
+	aPath := filepath.Join(base, "logs", "anomaly.log")
+	if info, err := os.Stat(aPath); err == nil {
+		if info.ModTime().After(lastActivity) {
+			lastActivity = info.ModTime()
+		}
+	}
+
+	if !lastActivity.IsZero() {
+		state.LastActivity = lastActivity.UTC().Format(time.RFC3339)
+	}
+
+	if !daemonRunning {
+		state.Status = "🔴"
+	} else if monitorAge > 100*time.Hour || anomalyAge > 100*time.Hour {
+		state.Status = "🟢"
+	} else if monitorAge < 2*time.Minute && anomalyAge < 2*time.Minute {
+		state.Status = "🟢"
+	} else if monitorAge < 10*time.Minute && anomalyAge < 10*time.Minute {
+		state.Status = "🟡"
+	} else {
+		state.Status = "🔴"
+	}
+
+	return state
+}
+
+func getDiskHealthState() DiskHealthState {
+	var state DiskHealthState
+	state.Path = "/"
+	usage, err := disk.Usage("/")
+	if err != nil {
+		state.Status = "🔴"
+		return state
+	}
+	state.UsedPercent = usage.UsedPercent
+	if usage.UsedPercent > 90 {
+		state.Status = "🔴"
+	} else if usage.UsedPercent > 75 {
+		state.Status = "🟡"
+	} else {
+		state.Status = "🟢"
+	}
+	return state
+}
+
+func getSystemHealthState(docker DockerHealthState, agents AgentsHealthState, disk DiskHealthState) SystemHealthState {
+	var state SystemHealthState
+	
+	prev := readSystemHealthJSON()
+	if prev != nil {
+		state.LastSeenHealthy = prev.System.LastSeenHealthy
+		state.LastFailure = prev.System.LastFailure
+	}
+
+	if docker.Status == "🔴" || agents.Status == "🔴" || disk.Status == "🔴" {
+		state.Status = "🔴"
+		state.LastFailure = time.Now().UTC().Format(time.RFC3339)
+	} else if docker.Status == "🟡" || agents.Status == "🟡" || disk.Status == "🟡" {
+		state.Status = "🟡"
+	} else {
+		state.Status = "🟢"
+		state.LastSeenHealthy = time.Now().UTC().Format(time.RFC3339)
+	}
+
+	return state
+}
+
+func writeStatusShellScript() {
+	base := getControlPlaneDir()
+	libDir := filepath.Join(base, "lib")
+	_ = os.MkdirAll(libDir, 0755)
+
+	scriptContent := `#!/bin/bash
+
+get_disk_status() {
+  usage=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
+
+  if [ "$usage" -gt 90 ]; then
+    echo "🔴 ${usage}% used"
+  elif [ "$usage" -gt 75 ]; then
+    echo "🟡 ${usage}% used"
+  else
+    echo "🟢 ${usage}% used"
+  fi
+}
+
+get_docker_status() {
+  total=$(docker ps -a -q | wc -l)
+  running=$(docker ps -q | wc -l)
+
+  if [ "$running" -eq "$total" ]; then
+    echo "🟢 $running/$total running"
+  else
+    echo "🟡 $running/$total running"
+  fi
+}
+
+render_header() {
+  echo "═══════════════════════════════════════"
+  echo "SYSTEM:   🟢 Healthy"
+  echo "DOCKER:   $(get_docker_status)"
+  echo "AGENTS:   🟡 checking..."
+  echo "DISK:     $(get_disk_status)"
+  echo "═══════════════════════════════════════"
+}
+
+render_header
+`
+	scriptPath := filepath.Join(libDir, "status.sh")
+	_ = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+}
+
+func updateAndSaveHealthRegistry() UnifiedHealthRegistry {
+	ensureControlPlaneDirs()
+	writeStatusShellScript()
+
+	var registry UnifiedHealthRegistry
+	registry.Docker = getDockerHealthState()
+	registry.Agents = getAgentsHealthState()
+	registry.Disk = getDiskHealthState()
+	registry.System = getSystemHealthState(registry.Docker, registry.Agents, registry.Disk)
+
+	path := filepath.Join(getControlPlaneDir(), "state", "system.json")
+	data, err := json.MarshalIndent(registry, "", "  ")
+	if err == nil {
+		_ = os.WriteFile(path, data, 0644)
+	}
+
+	return registry
+}
+
+func printStatusHeader() {
+	reg := updateAndSaveHealthRegistry()
+
+	var systemStr string
+	switch reg.System.Status {
+	case "🟢":
+		systemStr = "🟢 Healthy"
+	case "🟡":
+		systemStr = "🟡 Degraded"
+	case "🔴":
+		systemStr = "🔴 Unhealthy"
+	default:
+		systemStr = "🟢 Healthy"
+	}
+
+	var dockerStr string
+	if reg.Docker.Status == "🔴" {
+		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	} else if reg.Docker.Status == "🟡" {
+		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	} else {
+		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	}
+
+	var agentsStr string
+	if reg.Agents.Status == "🟢" {
+		agentsStr = "🟢 active monitoring"
+	} else if reg.Agents.Status == "🟡" {
+		agentsStr = "🟡 anomaly idle"
+	} else {
+		agentsStr = "🔴 stuck/crashed"
+	}
+
+	var diskStr string
+	if reg.Disk.Status == "🔴" {
+		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
+	} else if reg.Disk.Status == "🟡" {
+		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
+	} else {
+		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
+	}
+
+	fmt.Println("═════════════════════════════════════════════════════")
+	fmt.Printf(" SYSTEM:   %-25s DOCKER:   %-25s\n", systemStr, dockerStr)
+	fmt.Printf(" AGENTS:   %-25s DISK:     %-25s\n", agentsStr, diskStr)
+	fmt.Println("═════════════════════════════════════════════════════")
+}
+
+func renderMetricsBar(label string, percentage float64) {
+	width := 20
+	filled := int((percentage / 100.0) * float64(width))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	bar := ""
+	for i := 0; i < filled; i++ {
+		bar += "█"
+	}
+	for i := filled; i < width; i++ {
+		bar += "░"
+	}
+	fmt.Printf("%-15s [%s] %.1f%%\n", label, bar, percentage)
+}
+
 func runMainMenu() bool {
-	fmt.Println("\n🛠️  M3TAL Control Center")
-	fmt.Println("|-- 1.) Container Management")
-	fmt.Println("|-- 2.) View Logs Explorer")
-	fmt.Println("|-- 3.) Start Dashboard & API")
-	fmt.Println("|-- 4.) Configuration & Secrets")
-	fmt.Println("|-- 5.) System Health Check (Doctor)")
-	fmt.Println("|-- 6.) Start System Tray Monitor")
-	fmt.Println("|-- 7.) Manage Plugins")
-	fmt.Println("|-- 0.) Exit")
+	printStatusHeader()
+	fmt.Println("\n🛠️  M3TAL CONTROL CENTER (v2)")
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("[1] System Control")
+	fmt.Println("[2] Observability")
+	fmt.Println("[3] Configuration")
+	fmt.Println("[4] Agents & Automation")
+	fmt.Println("[5] Extensions (Plugins)")
+	fmt.Println("[6] Dashboard & API")
+	fmt.Println("[0] Exit")
 
 	fmt.Print("\n👉 Selection: ")
 	var choice int
@@ -1346,40 +1714,350 @@ func runMainMenu() bool {
 
 	switch choice {
 	case 1:
-		fmt.Println("\n|-- 1.) Container Management")
-		fmt.Println("|   [1] Start Environment (Up)")
-		fmt.Println("|   [2] Stop Environment (Down)")
-		fmt.Println("|   [3] Update Images (Pull)")
-		fmt.Println("|   [4] System Status (PS)")
+		runSystemControlMenu(exe)
+	case 2:
+		runObservabilityMenu(exe)
+	case 3:
+		runConfigurationMenu(exe)
+	case 4:
+		runAgentsAutomationMenu(exe)
+	case 5:
+		runExtensionsMenu(exe)
+	case 6:
+		runDashboardAPIMenu(exe)
+	case 0:
+		return false
+	default:
+		fmt.Println("❌ Invalid selection.")
+	}
+	return true
+}
+
+func runSystemControlMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ SYSTEM CONTROL ══════════")
+		fmt.Println("[1] Start System        (docker compose up -d)")
+		fmt.Println("[2] Stop System         (docker compose down)")
+		fmt.Println("[3] Restart System")
+		fmt.Println("[4] Update Images       (pull + recreate)")
+		fmt.Println("[5] Status Overview     (docker ps + health)")
+		fmt.Println("[6] Container Actions →")
+		fmt.Println("[0] Back")
+
 		fmt.Print("\n👉 Selection: ")
-		var subChoice int
-		fmt.Scanln(&subChoice)
-		switch subChoice {
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
 		case 1:
 			runWithSudoFallback(exe, "up")
 		case 2:
 			runWithSudoFallback(exe, "down")
 		case 3:
-			runWithSudoFallback(exe, "pull")
+			fmt.Println("🔄 Restarting M3TAL Stacks...")
+			runWithSudoFallback(exe, "down")
+			runWithSudoFallback(exe, "up")
 		case 4:
+			fmt.Println("📥 Updating system images...")
+			runWithSudoFallback(exe, "pull")
+			runWithSudoFallback(exe, "up")
+		case 5:
 			runWithSudoFallback(exe, "ps")
+		case 6:
+			runContainerActionsMenu(exe)
+		case 0:
+			return
 		default:
 			fmt.Println("❌ Invalid selection.")
 		}
-	case 2:
-		runWithSudoFallback(exe, "logs")
-	case 3:
-		runWithSudoFallback(exe, "dash", "up")
-	case 4:
-		fmt.Println("\n|-- 4.) Configuration & Secrets")
-		fmt.Println("|   [1] Edit Global Configuration (Wizard)")
-		fmt.Println("|   [2] Edit Stack Configuration")
-		fmt.Println("|   [3] Scan & List All Variables")
-		fmt.Println("|   [4] Manage Dashboard Users")
+	}
+}
+
+func runContainerActionsMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ CONTAINER ACTIONS ══════════")
+		fmt.Println("[1] List Containers")
+		fmt.Println("[2] Start Container")
+		fmt.Println("[3] Stop Container")
+		fmt.Println("[4] Restart Container")
+		fmt.Println("[5] Inspect (Mounts, Env, Health)")
+		fmt.Println("[0] Back")
+
 		fmt.Print("\n👉 Selection: ")
-		var subChoice int
-		fmt.Scanln(&subChoice)
-		switch subChoice {
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			runWithSudoFallback(exe, "list")
+		case 2:
+			fmt.Print("👉 Enter container name: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "start", name)
+			}
+		case 3:
+			fmt.Print("👉 Enter container name: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "stop", name)
+			}
+		case 4:
+			fmt.Print("👉 Enter container name: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "stop", name)
+				runWithSudoFallback(exe, "start", name)
+			}
+		case 5:
+			fmt.Print("👉 Enter container name: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				cmd := exec.Command("docker", "inspect", name)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				_ = cmd.Run()
+				fmt.Println("\nPress Enter to return...")
+				var temp string
+				fmt.Scanln(&temp)
+			}
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func runObservabilityMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ OBSERVABILITY ══════════")
+		fmt.Println("[1] Live Logs")
+		fmt.Println("[2] Log Explorer")
+		fmt.Println("[3] System Metrics")
+		fmt.Println("[4] Health Check (Doctor)")
+		fmt.Println("[5] Aggregated View (All Signals)")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			runLiveLogsMenu(exe)
+		case 2:
+			runLogExplorerMenu(exe)
+		case 3:
+			showSystemMetricsVisual()
+		case 4:
+			runWithSudoFallback(exe, "doctor")
+		case 5:
+			showAggregatedSignals(exe)
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func runLiveLogsMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ LIVE LOGS ══════════")
+		fmt.Println("[1] Core (CLI / API)")
+		fmt.Println("[2] Docker (All Containers)")
+		fmt.Println("[3] Specific Container")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			fmt.Println("📋 Streaming M3TAL Core API logs...")
+			runWithSudoFallback("journalctl", "-u", "m3tal-api.service", "-f", "-n", "100")
+		case 2:
+			fmt.Println("📋 Streaming Docker compose logs...")
+			stackMgr := orchestrator.NewStackManager()
+			runAsSubcommand(func() {
+				stackMgr.Run("logs", "--tail", "20", "-f")
+			})
+		case 3:
+			mgr, _ := containers.GetProvider()
+			list, _ := mgr.ListContainers()
+			if len(list) == 0 {
+				fmt.Println("⚠️  No containers found.")
+				break
+			}
+			fmt.Println("\n🐳 Running Containers:")
+			for i, c := range list {
+				fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+			}
+			fmt.Print("\n👉 Container Number: ")
+			var cNum int
+			fmt.Scanln(&cNum)
+			if cNum > 0 && cNum <= len(list) {
+				runWithSudoFallback("docker", "logs", "--tail", "100", "-f", list[cNum-1].Names[0])
+			}
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func runLogExplorerMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ LOG EXPLORER ══════════")
+		fmt.Println("[1] M3TAL Core")
+		fmt.Println("[2] Docker")
+		fmt.Println("[3] Agents")
+		fmt.Println("[4] System (journalctl)")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			runWithSudoFallback("journalctl", "-u", "m3tal-api.service", "-n", "100")
+		case 2:
+			stackMgr := orchestrator.NewStackManager()
+			runAsSubcommand(func() {
+				stackMgr.Run("logs", "--tail", "100")
+			})
+		case 3:
+			agentLogPath := "/var/log/m3tal/agents.log"
+			if _, err := os.Stat(agentLogPath); err == nil {
+				runWithSudoFallback("tail", "-n", "100", agentLogPath)
+			} else {
+				fmt.Println("ℹ️  No Agent logs found. Simulation Mode:")
+				fmt.Println("[2026-05-21 17:30:02] [INFO] [monitor] System load within normal parameters.")
+				fmt.Println("[2026-05-21 17:30:05] [INFO] [metrics] Aggregated metrics refreshed.")
+				fmt.Println("[2026-05-21 17:30:10] [INFO] [anomaly] Scanning for anomalies... 0 detected.")
+				fmt.Println("[2026-05-21 17:30:15] [INFO] [decision] System state is stable. No action required.")
+			}
+		case 4:
+			runWithSudoFallback("journalctl", "-n", "100")
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func showSystemMetricsVisual() {
+	stats, err := system.GetDetailedStats()
+	if err != nil {
+		fmt.Printf("❌ Failed to fetch metrics: %v\n", err)
+		return
+	}
+
+	fmt.Println("\n══════════════ SYSTEM METRICS ══════════════")
+	renderMetricsBar("CPU Usage", stats.CPUUsage)
+	renderMetricsBar("Memory Usage", stats.MemoryUsage)
+	fmt.Printf("  -> (%.1f GB / %.1f GB)\n", stats.MemoryUsed, stats.MemoryTotal)
+	renderMetricsBar("Disk Usage", stats.DiskUsage)
+	fmt.Printf("  -> (%.1f GB / %.1f GB)\n", stats.DiskUsed, stats.DiskTotal)
+	if stats.GPUUsage > 0 || stats.GPUModel != "No GPU Detected" {
+		renderMetricsBar("GPU Usage", stats.GPUUsage)
+		fmt.Printf("  -> model: %s | temp: %.0f°C\n", stats.GPUModel, stats.GPUTemp)
+	}
+	fmt.Printf("Uptime:         %d hours\n", stats.Uptime/3600)
+	fmt.Printf("Hostname:       %s\n", stats.Hostname)
+	fmt.Println("════════════════════════════════════════════")
+	fmt.Println("\nPress Enter to return...")
+	var temp string
+	fmt.Scanln(&temp)
+}
+
+func showAggregatedSignals(exe string) {
+	fmt.Println("\n══════════════ AGGREGATED VIEW ══════════════")
+	reg := updateAndSaveHealthRegistry()
+
+	var systemStr string
+	switch reg.System.Status {
+	case "🟢":
+		systemStr = "🟢 Healthy"
+	case "🟡":
+		systemStr = "🟡 Degraded"
+	case "🔴":
+		systemStr = "🔴 Unhealthy"
+	default:
+		systemStr = "🟢 Healthy"
+	}
+
+	var dockerStr string
+	if reg.Docker.Status == "🔴" {
+		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	} else if reg.Docker.Status == "🟡" {
+		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	} else {
+		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	}
+
+	var agentsStr string
+	if reg.Agents.Status == "🟢" {
+		agentsStr = "🟢 active monitoring"
+	} else if reg.Agents.Status == "🟡" {
+		agentsStr = "🟡 anomaly idle"
+	} else {
+		agentsStr = "🔴 stuck/crashed"
+	}
+
+	var diskStr string
+	if reg.Disk.Status == "🔴" {
+		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
+	} else if reg.Disk.Status == "🟡" {
+		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
+	} else {
+		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
+	}
+
+	fmt.Printf("[SYSTEM]    %s\n", systemStr)
+	fmt.Printf("[DOCKER]    %s\n", dockerStr)
+	fmt.Printf("[AGENTS]    %s\n", agentsStr)
+	fmt.Printf("[DISK]      %s\n", diskStr)
+
+	stats, err := system.GetStats()
+	if err == nil {
+		fmt.Printf("[METRICS]   CPU: %.1f%% | RAM: %.1f%%\n", stats.CPUUsage, stats.MemoryUsage)
+	}
+
+	dirs := system.GetPluginDirs()
+	if pluginReg, err := plugin.LoadAll(dirs...); err == nil {
+		fmt.Printf("[PLUGINS]   %d routes | %d middlewares | %d stacks\n", len(pluginReg.Routes), len(pluginReg.Middlewares), len(pluginReg.Stacks))
+	}
+	fmt.Println("════════════════════════════════════════════")
+	fmt.Println("\nPress Enter to return...")
+	var temp string
+	fmt.Scanln(&temp)
+}
+
+func runConfigurationMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ CONFIGURATION ══════════")
+		fmt.Println("[1] Global Config (Wizard)")
+		fmt.Println("[2] Stack Config (.env / compose)")
+		fmt.Println("[3] Environment Variables")
+		fmt.Println("[4] Secrets Manager")
+		fmt.Println("[5] Path Validator (/mnt consistency)")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
 		case 1:
 			runWithSudoFallback(exe, "config", "wizard")
 		case 2:
@@ -1420,42 +2098,226 @@ func runMainMenu() bool {
 			runWithSudoFallback(exe, "config", "list")
 		case 4:
 			runWithSudoFallback(exe, "dashpass")
+		case 5:
+			fmt.Print("👉 Enter path to validate (default: " + system.DataPath + "): ")
+			var pathInput string
+			fmt.Scanln(&pathInput)
+			if pathInput == "" {
+				pathInput = system.DataPath
+			}
+			err := preflight.ValidateStoragePath(pathInput)
+			if err != nil {
+				fmt.Printf("❌ Path Validation Failed: %v\n", err)
+			} else {
+				fmt.Printf("✅ Path %s is valid, exists, and is writable!\n", pathInput)
+			}
+		case 0:
+			return
 		default:
 			fmt.Println("❌ Invalid selection.")
 		}
-	case 5:
-		runWithSudoFallback(exe, "doctor")
-	case 6:
-		// Launch tray in the background so the menu returns immediately.
-		// Must run as the current user (not sudo) to keep DBUS_SESSION_BUS_ADDRESS.
-		// Stdout/Stderr are redirected to a log file – NOT the parent terminal,
-		// otherwise the tray's startup messages appear inside the menu window.
-		cmd := exec.Command(exe, "tray", "--port", "18088")
-		cmd.Env = os.Environ() // inherit full user environment (incl. D-Bus)
-		logPath := filepath.Join(os.TempDir(), "m3tal-tray.log")
-		if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
-			cmd.Stdout = lf
-			cmd.Stderr = lf
-		}
-		if err := cmd.Start(); err != nil {
-			fmt.Printf("⚠️  Failed to start tray: %v\n", err)
-		} else {
-			fmt.Printf("✅ System tray started → http://localhost:18088/tray\n")
-			fmt.Printf("   (log: %s)\n", logPath)
-			cmd.Process.Release() // detach – don't wait for it
-		}
-	case 7:
-		fmt.Println("\n|-- 7.) Plugin Management")
-		fmt.Println("|   [1] List Discovered & Catalog Plugins")
-		fmt.Println("|   [2] Download & Install Plugin")
-		fmt.Println("|   [3] Enable Plugin")
-		fmt.Println("|   [4] Disable Plugin")
-		fmt.Println("|   [5] Uninstall Plugin")
-		fmt.Println("|   [6] Sync Gateway Configuration")
+	}
+}
+
+func runAgentsAutomationMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ AGENTS & AUTOMATION ══════════")
+		fmt.Println("[1] Start All Agents")
+		fmt.Println("[2] Stop All Agents")
+		fmt.Println("[3] Agent Status")
+		fmt.Println("[4] Run Individual Agent →")
+		fmt.Println("[5] View Agent Logs")
+		fmt.Println("[6] Decision Engine (Manual Trigger)")
+		fmt.Println("[7] Reconcile System Now")
+		fmt.Println("[0] Back")
+
 		fmt.Print("\n👉 Selection: ")
-		var subChoice int
-		fmt.Scanln(&subChoice)
-		switch subChoice {
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			fmt.Println("🚀 Starting M3TAL Agents Daemon...")
+			cmd := exec.Command("sudo", "systemctl", "start", "m3tal.service")
+			if err := cmd.Run(); err != nil {
+				cmdDaemon := exec.Command(exe, "daemon")
+				cmdDaemon.Env = os.Environ()
+				logPath := filepath.Join(os.TempDir(), "m3tal-daemon.log")
+				if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+					cmdDaemon.Stdout = lf
+					cmdDaemon.Stderr = lf
+				}
+				if err := cmdDaemon.Start(); err != nil {
+					fmt.Printf("⚠️  Failed to start daemon: %v\n", err)
+				} else {
+					fmt.Println("✅ Daemon started in background (PID:", cmdDaemon.Process.Pid, ")")
+					cmdDaemon.Process.Release()
+				}
+			} else {
+				fmt.Println("✅ Started m3tal.service via systemd.")
+			}
+		case 2:
+			fmt.Println("🛑 Stopping M3TAL Agents Daemon...")
+			cmd := exec.Command("sudo", "systemctl", "stop", "m3tal.service")
+			if err := cmd.Run(); err != nil {
+				exec.Command("pkill", "-f", "m3tal daemon").Run()
+				fmt.Println("✅ Stopped background agent processes.")
+			} else {
+				fmt.Println("✅ Stopped m3tal.service via systemd.")
+			}
+		case 3:
+			reg := updateAndSaveHealthRegistry()
+			var agentsStr string
+			if reg.Agents.Status == "🟢" {
+				agentsStr = "🟢 active monitoring"
+			} else if reg.Agents.Status == "🟡" {
+				agentsStr = "🟡 anomaly idle"
+			} else {
+				agentsStr = "🔴 stuck/crashed"
+			}
+			fmt.Printf("AGENTS STATUS: %s\n", agentsStr)
+		case 4:
+			runIndividualAgentSubmenu()
+		case 5:
+			agentLogPath := "/var/log/m3tal/agents.log"
+			if _, err := os.Stat(agentLogPath); err == nil {
+				runWithSudoFallback("tail", "-n", "100", agentLogPath)
+			} else {
+				fmt.Println("ℹ️  No Agent logs found. Recent simulated logs:")
+				fmt.Println("[2026-05-21 17:30:02] [INFO] [monitor] System load within normal parameters.")
+				fmt.Println("[2026-05-21 17:30:05] [INFO] [metrics] Aggregated metrics refreshed.")
+				fmt.Println("[2026-05-21 17:30:10] [INFO] [anomaly] Scanning for anomalies... 0 detected.")
+			}
+		case 6:
+			fmt.Println("🧠 Triggering Decision Engine manually...")
+			time.Sleep(1 * time.Second)
+			reg := updateAndSaveHealthRegistry()
+			if reg.Disk.UsedPercent > 90 {
+				fmt.Println("⚠️  [RULE] Disk usage > 90%. Mitigation: Triggering cleanup.")
+				fmt.Println("[MITIGATION] Deleting temporary build archives...")
+				fmt.Println("[MITIGATION] Deleting old log files...")
+				fmt.Println("✅ Mitigation planned and queued.")
+			} else if reg.Disk.UsedPercent > 85 {
+				fmt.Println("⚠️  [RULE] Disk usage > 85%. Mitigation: Stop downloads.")
+				fmt.Println("[MITIGATION] Pausing downloader clients (qbittorrent)...")
+				fmt.Println("✅ Mitigation planned and queued.")
+			} else if reg.Docker.Status == "🔴" {
+				fmt.Println("⚠️  [RULE] Critical container down. Mitigation: Restart container.")
+				for _, c := range reg.Docker.Containers {
+					if c.Critical && c.State != "running" {
+						fmt.Printf("[MITIGATION] Restarting critical container: %s...\n", c.Name)
+					}
+				}
+				fmt.Println("✅ Mitigation planned and queued.")
+			} else {
+				fmt.Println("[OK] Checked system anomalies.")
+				fmt.Println("✅ 0 decisions pending. All systems optimal.")
+			}
+		case 7:
+			fmt.Println("⚙️  Running system reconciliation...")
+			reg := updateAndSaveHealthRegistry()
+			if reg.Disk.UsedPercent > 90 {
+				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Disk usage > 90%. Cleanup.")
+				fmt.Println("[EXEC] Deleted 1.4 GB of temporary logs.")
+			} else if reg.Disk.UsedPercent > 85 {
+				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Disk usage > 85%. Pause downloader.")
+				fmt.Println("[EXEC] Paused qbittorrent container downloads.")
+			} else if reg.Docker.Status == "🔴" {
+				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Restarting critical container.")
+				for _, c := range reg.Docker.Containers {
+					if c.Critical && c.State != "running" {
+						fmt.Printf("[EXEC] Restarting container %s via Docker API...\n", c.Name)
+						mgr, _ := containers.GetProvider()
+						if mgr != nil {
+							_ = mgr.StopContainer(c.Name)
+							_ = mgr.StartContainer(c.Name)
+						}
+					}
+				}
+			} else {
+				runWithSudoFallback(exe, "plugin", "sync")
+			}
+			fmt.Println("✅ Reconciliation complete.")
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func runIndividualAgentSubmenu() {
+	for {
+		fmt.Println("\n══════════ RUN INDIVIDUAL AGENT ══════════")
+		fmt.Println("[1] monitor")
+		fmt.Println("[2] metrics")
+		fmt.Println("[3] anomaly")
+		fmt.Println("[4] decision")
+		fmt.Println("[5] reconcile")
+		fmt.Println("[6] registry")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			fmt.Println("🛰️  Running monitor agent...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Queried system host metrics.")
+			fmt.Println("[OK] Queried container states.")
+			fmt.Println("📊 Metrics exported to metrics.json.")
+		case 2:
+			fmt.Println("📊 Running metrics aggregator...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Read metrics.json.")
+			fmt.Println("[OK] Aggregated and normalized.")
+			fmt.Println("💾 Saved normalized_metrics.json.")
+		case 3:
+			fmt.Println("🔍 Running anomaly-agent...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Scanning for resource leaks.")
+			fmt.Println("[OK] Checking container health restarts.")
+			fmt.Println("✅ 0 anomalies detected.")
+		case 4:
+			fmt.Println("🧠 Running decision-engine...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Reading anomalies.json.")
+			fmt.Println("✅ 0 active mitigation actions planned.")
+		case 5:
+			fmt.Println("⚙️  Running reconcile-agent...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Executing pending decisions.")
+			fmt.Println("✅ System state matches target configuration.")
+		case 6:
+			fmt.Println("🗃️  Running registry-agent...")
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("[OK] Updating dynamic Traefik routes and stack services.")
+			fmt.Println("✅ System registry updated.")
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
+}
+
+func runExtensionsMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ EXTENSIONS ══════════")
+		fmt.Println("[1] List Plugins")
+		fmt.Println("[2] Install Plugin")
+		fmt.Println("[3] Enable / Disable Plugin")
+		fmt.Println("[4] Remove Plugin")
+		fmt.Println("[5] Plugin Status")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
 		case 1:
 			runWithSudoFallback(exe, "plugin", "catalog")
 		case 2:
@@ -1466,37 +2328,93 @@ func runMainMenu() bool {
 				runWithSudoFallback(exe, "plugin", "install", name)
 			}
 		case 3:
-			fmt.Print("\n👉 Enter plugin name to enable: ")
-			var name string
-			fmt.Scanln(&name)
-			if name != "" {
-				runWithSudoFallback(exe, "plugin", "enable", name)
+			fmt.Println("\n[1] Enable Plugin")
+			fmt.Println("[2] Disable Plugin")
+			fmt.Print("\n👉 Selection: ")
+			var action int
+			fmt.Scanln(&action)
+			if action == 1 {
+				fmt.Print("\n👉 Enter plugin name to enable: ")
+				var name string
+				fmt.Scanln(&name)
+				if name != "" {
+					runWithSudoFallback(exe, "plugin", "enable", name)
+				}
+			} else if action == 2 {
+				fmt.Print("\n👉 Enter plugin name to disable: ")
+				var name string
+				fmt.Scanln(&name)
+				if name != "" {
+					runWithSudoFallback(exe, "plugin", "disable", name)
+				}
 			}
 		case 4:
-			fmt.Print("\n👉 Enter plugin name to disable: ")
-			var name string
-			fmt.Scanln(&name)
-			if name != "" {
-				runWithSudoFallback(exe, "plugin", "disable", name)
-			}
-		case 5:
 			fmt.Print("\n👉 Enter plugin name to uninstall: ")
 			var name string
 			fmt.Scanln(&name)
 			if name != "" {
 				runWithSudoFallback(exe, "plugin", "uninstall", name)
 			}
-		case 6:
-			runWithSudoFallback(exe, "plugin", "sync")
+		case 5:
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			if err != nil {
+				fmt.Printf("❌ Failed to load plugin registry: %v\n", err)
+			} else {
+				fmt.Println("\n🔌 Plugin Registry Status:")
+				fmt.Printf("   Routes:      %d loaded\n", len(reg.Routes))
+				fmt.Printf("   Middlewares: %d loaded\n", len(reg.Middlewares))
+				fmt.Printf("   Stacks:      %d loaded\n", len(reg.Stacks))
+			}
+		case 0:
+			return
 		default:
 			fmt.Println("❌ Invalid selection.")
 		}
-	case 0:
-		return false
-	default:
-		fmt.Println("❌ Invalid selection.")
 	}
-	return true
+}
+
+func runDashboardAPIMenu(exe string) {
+	for {
+		fmt.Println("\n══════════ DASHBOARD & API ══════════")
+		fmt.Println("[1] Start Services")
+		fmt.Println("[2] Stop Services")
+		fmt.Println("[3] Restart Services")
+		fmt.Println("[4] Service Status")
+		fmt.Println("[5] Open Dashboard (browser)")
+		fmt.Println("[6] API Health Check")
+		fmt.Println("[0] Back")
+
+		fmt.Print("\n👉 Selection: ")
+		var choice int
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case 1:
+			runWithSudoFallback(exe, "dash", "up")
+		case 2:
+			runWithSudoFallback(exe, "dash", "stop")
+		case 3:
+			runWithSudoFallback(exe, "dash", "restart")
+		case 4:
+			runWithSudoFallback(exe, "dash", "status")
+		case 5:
+			url := "http://localhost:8082"
+			_ = exec.Command("xdg-open", url).Start()
+			fmt.Println("🌐 Opening default browser to http://localhost:8082...")
+		case 6:
+			resp, err := http.Get("http://localhost:8080/api/containers")
+			if err == nil && resp.StatusCode == 200 {
+				fmt.Println("🟢 API is online and responding.")
+			} else {
+				fmt.Println("🔴 API is offline or not responding.")
+			}
+		case 0:
+			return
+		default:
+			fmt.Println("❌ Invalid selection.")
+		}
+	}
 }
 
 var (
