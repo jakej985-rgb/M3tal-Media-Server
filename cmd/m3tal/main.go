@@ -1329,6 +1329,7 @@ func runMainMenu() bool {
 	fmt.Println("|-- 4.) Configuration & Secrets")
 	fmt.Println("|-- 5.) System Health Check (Doctor)")
 	fmt.Println("|-- 6.) Start System Tray Monitor")
+	fmt.Println("|-- 7.) Manage Plugins")
 	fmt.Println("|-- 0.) Exit")
 
 	fmt.Print("\n👉 Selection: ")
@@ -1436,6 +1437,53 @@ func runMainMenu() bool {
 			fmt.Printf("✅ System tray started → http://localhost:18088/tray\n")
 			fmt.Printf("   (log: %s)\n", logPath)
 			cmd.Process.Release() // detach – don't wait for it
+		}
+	case 7:
+		fmt.Println("\n|-- 7.) Plugin Management")
+		fmt.Println("|   [1] List Discovered & Catalog Plugins")
+		fmt.Println("|   [2] Download & Install Plugin")
+		fmt.Println("|   [3] Enable Plugin")
+		fmt.Println("|   [4] Disable Plugin")
+		fmt.Println("|   [5] Uninstall Plugin")
+		fmt.Println("|   [6] Sync Gateway Configuration")
+		fmt.Print("\n👉 Selection: ")
+		var subChoice int
+		fmt.Scanln(&subChoice)
+		switch subChoice {
+		case 1:
+			runWithSudoFallback(exe, "plugin", "catalog")
+		case 2:
+			fmt.Print("\n👉 Enter plugin name to install: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "plugin", "install", name)
+			}
+		case 3:
+			fmt.Print("\n👉 Enter plugin name to enable: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "plugin", "enable", name)
+			}
+		case 4:
+			fmt.Print("\n👉 Enter plugin name to disable: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "plugin", "disable", name)
+			}
+		case 5:
+			fmt.Print("\n👉 Enter plugin name to uninstall: ")
+			var name string
+			fmt.Scanln(&name)
+			if name != "" {
+				runWithSudoFallback(exe, "plugin", "uninstall", name)
+			}
+		case 6:
+			runWithSudoFallback(exe, "plugin", "sync")
+		default:
+			fmt.Println("❌ Invalid selection.")
 		}
 	case 0:
 		return false
