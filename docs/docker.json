@@ -1,5 +1,13 @@
 [
   {
+    "name": "ollama",
+    "image": "ollama/ollama:latest",
+    "ports": [
+      "11434:11434"
+    ],
+    "stack": "ai"
+  },
+  {
     "name": "m3tal-dashboard",
     "image": "ghcr.io/jakej985-rgb/m3tal-godash:debug",
     "ports": [],
