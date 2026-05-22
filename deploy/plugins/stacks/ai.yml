@@ -1,0 +1,11 @@
+apiVersion: m3tal/v1
+kind: Stack
+metadata:
+  name: ai
+  description: "Modular AI Addon (Ollama + env profiles)"
+  version: "1.0.0"
+  author: "M3TAL Team"
+spec:
+  composePath: ai-compose.yml
+  priority: 5
+  category: addon

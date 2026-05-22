@@ -39,6 +39,15 @@ var Catalog = []CatalogItem{
 		ComposeURL:  "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/m3tal-compose.yml",
 	},
 	{
+		Name:        "ai",
+		Kind:        "Stack",
+		Description: "Modular AI Addon (Ollama + env profiles)",
+		Version:     "1.0.0",
+		Author:      "M3TAL Team",
+		URL:         "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/plugins/stacks/ai.yml",
+		ComposeURL:  "https://raw.githubusercontent.com/jakej985-rgb/m3tal-core/main/deploy/stack/ai-compose.yml",
+	},
+	{
 		Name:        "maintenance",
 		Kind:        "Stack",
 		Description: "System maintenance and monitoring tools",

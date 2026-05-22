@@ -48,6 +48,8 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		r.Get("/api/containers", srv.GetServices)
 		r.Get("/api/containers/list", srv.GetServices)
 		r.Get("/api/metrics", srv.GetStats)
+		r.Post("/ai/run", srv.AIRun)
+		r.Post("/api/v2/ai/run", srv.AIRun)
 
 		// Container actions
 		r.Post("/api/containers/start", func(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +104,9 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+
+			// AI
+			r.Post("/ai/run", srv.AIRun)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -119,6 +124,9 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+
+			// AI
+			r.Post("/ai/run", srv.AIRun)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")
