@@ -88,16 +88,9 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Security: only allow paths under the stack directory
-	stackDir := system.GetStackDir()
-	absPath, _ := filepath.Abs(req.Path)
-	absStackDir, _ := filepath.Abs(stackDir)
-	if !strings.HasPrefix(absPath, absStackDir) {
-		// Also allow /docker paths
-		if !strings.HasPrefix(absPath, "/docker") && !strings.HasPrefix(absPath, system.StackPath) {
-			writeError(w, http.StatusForbidden, "path must be within the stack directory")
-			return
-		}
+	if !isPathAllowed(req.Path) {
+		writeError(w, http.StatusForbidden, "path must be within the stack directory")
+		return
 	}
 
 	cf, err := engine.ParseCompose(req.Path)
@@ -160,6 +153,11 @@ func (h *StackHandlers) DeployStack(w http.ResponseWriter, r *http.Request) {
 
 	if req.Path == "" {
 		writeError(w, http.StatusBadRequest, "path is required")
+		return
+	}
+
+	if !isPathAllowed(req.Path) {
+		writeError(w, http.StatusForbidden, "path must be within the stack directory")
 		return
 	}
 
@@ -248,4 +246,37 @@ func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Req
 		"id":     id,
 		"labels": labels,
 	})
+}
+
+// isPathAllowed validates that the target path resides securely within the configured stack directories.
+func isPathAllowed(path string) bool {
+	if path == "" {
+		return false
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+
+	stackDir := system.GetStackDir()
+	absStackDir, err := filepath.Abs(stackDir)
+	if err != nil {
+		return false
+	}
+
+	allowedDirs := []string{absStackDir, "/docker", system.StackPath}
+	for _, allowed := range allowedDirs {
+		allowedAbs, err := filepath.Abs(allowed)
+		if err != nil {
+			continue
+		}
+		if absPath == allowedAbs {
+			return true
+		}
+		parentWithSep := allowedAbs + string(filepath.Separator)
+		if strings.HasPrefix(absPath, parentWithSep) {
+			return true
+		}
+	}
+	return false
 }

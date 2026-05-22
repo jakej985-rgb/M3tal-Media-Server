@@ -53,15 +53,27 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 
 		// Container actions
 		r.Post("/api/containers/start", func(w http.ResponseWriter, r *http.Request) {
-			mgr, _ := containers.GetProvider()
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Docker provider unavailable: "+err.Error())
+				return
+			}
 			srv.HandleContainerAction(w, r, mgr.StartContainer)
 		})
 		r.Post("/api/containers/stop", func(w http.ResponseWriter, r *http.Request) {
-			mgr, _ := containers.GetProvider()
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Docker provider unavailable: "+err.Error())
+				return
+			}
 			srv.HandleContainerAction(w, r, mgr.StopContainer)
 		})
 		r.Post("/api/containers/restart", func(w http.ResponseWriter, r *http.Request) {
-			mgr, _ := containers.GetProvider()
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Docker provider unavailable: "+err.Error())
+				return
+			}
 			srv.HandleContainerAction(w, r, mgr.RestartContainer)
 		})
 	})

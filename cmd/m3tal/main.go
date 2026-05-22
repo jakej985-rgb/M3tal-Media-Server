@@ -1279,10 +1279,22 @@ func runLogsMenu() {
 			}
 		case 2:
 			fmt.Println("\n🐳 Running Containers:")
-			mgr, _ := containers.GetProvider()
-			list, _ := mgr.ListContainers()
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				fmt.Printf("❌ Failed to connect to Docker: %v\n", err)
+				break
+			}
+			list, err := mgr.ListContainers()
+			if err != nil {
+				fmt.Printf("❌ Failed to list containers: %v\n", err)
+				break
+			}
 			for i, c := range list {
-				fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+				if len(c.Names) > 0 {
+					fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+				} else {
+					fmt.Printf("   [%d] %s (%s)\n", i+1, c.ID[:12], c.Status)
+				}
 			}
 			fmt.Print("\n👉 Container Number: ")
 			var cNum int
@@ -1599,15 +1611,27 @@ func runLiveLogsMenu(_ string) {
 				stackMgr.Run("logs", "--tail", "20", "-f")
 			})
 		case 3:
-			mgr, _ := containers.GetProvider()
-			list, _ := mgr.ListContainers()
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				fmt.Printf("❌ Failed to connect to Docker: %v\n", err)
+				break
+			}
+			list, err := mgr.ListContainers()
+			if err != nil {
+				fmt.Printf("❌ Failed to list containers: %v\n", err)
+				break
+			}
 			if len(list) == 0 {
 				fmt.Println("⚠️  No containers found.")
 				break
 			}
 			fmt.Println("\n🐳 Running Containers:")
 			for i, c := range list {
-				fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+				if len(c.Names) > 0 {
+					fmt.Printf("   [%d] %s (%s)\n", i+1, c.Names[0], c.Status)
+				} else {
+					fmt.Printf("   [%d] %s (%s)\n", i+1, c.ID[:12], c.Status)
+				}
 			}
 			fmt.Print("\n👉 Container Number: ")
 			var cNum int
