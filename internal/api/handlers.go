@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/health"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
 
@@ -28,8 +29,7 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			token = r.URL.Query().Get("token")
 		}
 		if token != s.APIToken {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next(w, r)
@@ -39,21 +39,8 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // GetHealth returns system health status
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	var list []containers.ContainerInfo
-	mgr, err := containers.GetProvider()
-	if err == nil {
-		if clist, err := mgr.ListContainers(); err == nil {
-			list = clist
-		}
-	}
-	if list == nil {
-		list = []containers.ContainerInfo{}
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":     "healthy",
-		"version":    "1.0.0",
-		"containers": list,
-	})
+	reg := health.UpdateAndSaveHealthRegistry()
+	json.NewEncoder(w).Encode(reg)
 }
 
 // GetServices returns the list of managed containers

@@ -23,11 +23,11 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
 	"github.com/jakej985-rgb/m3tal-core/internal/auth"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/health"
 	"github.com/jakej985-rgb/m3tal-core/internal/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
-	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/spf13/cobra"
 )
 
@@ -1327,308 +1327,8 @@ func runWithSudoFallback(name string, args ...string) {
 	})
 }
 
-type SystemHealthState struct {
-	LastSeenHealthy string `json:"last_seen_healthy"`
-	LastFailure     string `json:"last_failure"`
-	Status          string `json:"status"` // Healthy, Degraded, Unhealthy
-}
-
-type ContainerHealthInfo struct {
-	Name     string `json:"name"`
-	State    string `json:"state"`
-	Healthy  bool   `json:"healthy"`
-	Critical bool   `json:"critical"`
-}
-
-type DockerHealthState struct {
-	Status              string                `json:"status"`
-	TotalContainers     int                   `json:"total_containers"`
-	RunningContainers   int                   `json:"running_containers"`
-	UnhealthyContainers int                   `json:"unhealthy_containers"`
-	Containers          []ContainerHealthInfo `json:"containers"`
-}
-
-type AgentsHealthState struct {
-	Status        string `json:"status"`
-	DaemonRunning bool   `json:"daemon_running"`
-	LastActivity  string `json:"last_activity"`
-}
-
-type DiskHealthState struct {
-	Status      string  `json:"status"`
-	UsedPercent float64 `json:"used_percent"`
-	Path        string  `json:"path"`
-}
-
-type UnifiedHealthRegistry struct {
-	System SystemHealthState `json:"system"`
-	Docker DockerHealthState `json:"docker"`
-	Agents AgentsHealthState `json:"agents"`
-	Disk   DiskHealthState   `json:"disk"`
-}
-
-func getControlPlaneDir() string {
-	sysPath := "/var/lib/m3tal"
-	if info, err := os.Stat(sysPath); err == nil && info.IsDir() {
-		return sysPath
-	}
-	return "./data"
-}
-
-func ensureControlPlaneDirs() {
-	base := getControlPlaneDir()
-	_ = os.MkdirAll(filepath.Join(base, "state"), 0755)
-	_ = os.MkdirAll(filepath.Join(base, "logs"), 0755)
-}
-
-func getAgentLogAge(logName string) time.Duration {
-	base := getControlPlaneDir()
-	path := filepath.Join(base, "logs", logName)
-	info, err := os.Stat(path)
-	if err != nil {
-		return 999 * time.Hour
-	}
-	return time.Since(info.ModTime())
-}
-
-func readSystemHealthJSON() *UnifiedHealthRegistry {
-	path := filepath.Join(getControlPlaneDir(), "state", "system.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	var registry UnifiedHealthRegistry
-	if err := json.Unmarshal(data, &registry); err != nil {
-		return nil
-	}
-	return &registry
-}
-
-func getDockerHealthState() DockerHealthState {
-	var state DockerHealthState
-	state.Status = "🟢"
-
-	mgr, err := containers.GetProvider()
-	if err != nil {
-		state.Status = "🔴"
-		return state
-	}
-
-	list, err := mgr.ListContainers()
-	if err != nil {
-		state.Status = "🔴"
-		return state
-	}
-
-	state.TotalContainers = len(list)
-	criticalServices := []string{"radarr", "sonarr", "qbittorrent"}
-
-	for _, c := range list {
-		name := ""
-		if len(c.Names) > 0 {
-			name = strings.TrimPrefix(c.Names[0], "/")
-		}
-
-		isCritical := false
-		for _, cs := range criticalServices {
-			if strings.Contains(strings.ToLower(name), cs) {
-				isCritical = true
-				break
-			}
-		}
-
-		isRunning := strings.EqualFold(c.State, "running")
-		isHealthy := !strings.Contains(strings.ToLower(c.Status), "unhealthy")
-
-		if isRunning {
-			state.RunningContainers++
-		}
-		if !isHealthy {
-			state.UnhealthyContainers++
-		}
-
-		cHealth := ContainerHealthInfo{
-			Name:     name,
-			State:    c.State,
-			Healthy:  isHealthy,
-			Critical: isCritical,
-		}
-		state.Containers = append(state.Containers, cHealth)
-
-		if isCritical && (!isRunning || !isHealthy) {
-			state.Status = "🔴"
-		}
-	}
-
-	if state.Status != "🔴" {
-		if state.RunningContainers < state.TotalContainers || state.UnhealthyContainers > 0 {
-			state.Status = "🟡"
-		}
-	}
-
-	prev := readSystemHealthJSON()
-	if prev != nil && prev.Docker.TotalContainers > 0 {
-		if state.TotalContainers < prev.Docker.TotalContainers {
-			if state.Status != "🔴" {
-				state.Status = "🟡"
-			}
-		}
-	}
-
-	return state
-}
-
-func getAgentsHealthState() AgentsHealthState {
-	var state AgentsHealthState
-	daemonRunning := false
-	cmd := exec.Command("pgrep", "-f", "m3tal daemon")
-	if err := cmd.Run(); err == nil {
-		daemonRunning = true
-	}
-	state.DaemonRunning = daemonRunning
-
-	monitorAge := getAgentLogAge("monitor.log")
-	anomalyAge := getAgentLogAge("anomaly.log")
-
-	var lastActivity time.Time
-	base := getControlPlaneDir()
-	mPath := filepath.Join(base, "logs", "monitor.log")
-	if info, err := os.Stat(mPath); err == nil {
-		lastActivity = info.ModTime()
-	}
-	aPath := filepath.Join(base, "logs", "anomaly.log")
-	if info, err := os.Stat(aPath); err == nil {
-		if info.ModTime().After(lastActivity) {
-			lastActivity = info.ModTime()
-		}
-	}
-
-	if !lastActivity.IsZero() {
-		state.LastActivity = lastActivity.UTC().Format(time.RFC3339)
-	}
-
-	if !daemonRunning {
-		state.Status = "🔴"
-	} else if monitorAge > 100*time.Hour || anomalyAge > 100*time.Hour {
-		state.Status = "🟢"
-	} else if monitorAge < 2*time.Minute && anomalyAge < 2*time.Minute {
-		state.Status = "🟢"
-	} else if monitorAge < 10*time.Minute && anomalyAge < 10*time.Minute {
-		state.Status = "🟡"
-	} else {
-		state.Status = "🔴"
-	}
-
-	return state
-}
-
-func getDiskHealthState() DiskHealthState {
-	var state DiskHealthState
-	state.Path = "/"
-	usage, err := disk.Usage("/")
-	if err != nil {
-		state.Status = "🔴"
-		return state
-	}
-	state.UsedPercent = usage.UsedPercent
-	if usage.UsedPercent > 90 {
-		state.Status = "🔴"
-	} else if usage.UsedPercent > 75 {
-		state.Status = "🟡"
-	} else {
-		state.Status = "🟢"
-	}
-	return state
-}
-
-func getSystemHealthState(docker DockerHealthState, agents AgentsHealthState, disk DiskHealthState) SystemHealthState {
-	var state SystemHealthState
-
-	prev := readSystemHealthJSON()
-	if prev != nil {
-		state.LastSeenHealthy = prev.System.LastSeenHealthy
-		state.LastFailure = prev.System.LastFailure
-	}
-
-	if docker.Status == "🔴" || agents.Status == "🔴" || disk.Status == "🔴" {
-		state.Status = "🔴"
-		state.LastFailure = time.Now().UTC().Format(time.RFC3339)
-	} else if docker.Status == "🟡" || agents.Status == "🟡" || disk.Status == "🟡" {
-		state.Status = "🟡"
-	} else {
-		state.Status = "🟢"
-		state.LastSeenHealthy = time.Now().UTC().Format(time.RFC3339)
-	}
-
-	return state
-}
-
-func writeStatusShellScript() {
-	base := getControlPlaneDir()
-	libDir := filepath.Join(base, "lib")
-	_ = os.MkdirAll(libDir, 0755)
-
-	scriptContent := `#!/bin/bash
-
-get_disk_status() {
-  usage=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
-
-  if [ "$usage" -gt 90 ]; then
-    echo "🔴 ${usage}% used"
-  elif [ "$usage" -gt 75 ]; then
-    echo "🟡 ${usage}% used"
-  else
-    echo "🟢 ${usage}% used"
-  fi
-}
-
-get_docker_status() {
-  total=$(docker ps -a -q | wc -l)
-  running=$(docker ps -q | wc -l)
-
-  if [ "$running" -eq "$total" ]; then
-    echo "🟢 $running/$total running"
-  else
-    echo "🟡 $running/$total running"
-  fi
-}
-
-render_header() {
-  echo "═══════════════════════════════════════"
-  echo "SYSTEM:   🟢 Healthy"
-  echo "DOCKER:   $(get_docker_status)"
-  echo "AGENTS:   🟡 checking..."
-  echo "DISK:     $(get_disk_status)"
-  echo "═══════════════════════════════════════"
-}
-
-render_header
-`
-	scriptPath := filepath.Join(libDir, "status.sh")
-	_ = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
-}
-
-func updateAndSaveHealthRegistry() UnifiedHealthRegistry {
-	ensureControlPlaneDirs()
-	writeStatusShellScript()
-
-	var registry UnifiedHealthRegistry
-	registry.Docker = getDockerHealthState()
-	registry.Agents = getAgentsHealthState()
-	registry.Disk = getDiskHealthState()
-	registry.System = getSystemHealthState(registry.Docker, registry.Agents, registry.Disk)
-
-	path := filepath.Join(getControlPlaneDir(), "state", "system.json")
-	data, err := json.MarshalIndent(registry, "", "  ")
-	if err == nil {
-		_ = os.WriteFile(path, data, 0644)
-	}
-
-	return registry
-}
-
 func printStatusHeader() {
-	reg := updateAndSaveHealthRegistry()
+	reg := health.UpdateAndSaveHealthRegistry()
 
 	fmt.Println("\033[1;36m  __  __    _____    _____     _       _     \033[0m")
 	fmt.Println("\033[1;36m |  \\/  |  |___ /   |_   _|   / \\     | |    \033[0m")
@@ -1992,7 +1692,7 @@ func showSystemMetricsVisual() {
 
 func showAggregatedSignals(_ string) {
 	fmt.Println("\n══════════════ AGGREGATED VIEW ══════════════")
-	reg := updateAndSaveHealthRegistry()
+	reg := health.UpdateAndSaveHealthRegistry()
 
 	var systemStr string
 	switch reg.System.Status {
@@ -2182,7 +1882,7 @@ func runAgentsAutomationMenu(exe string) {
 				fmt.Println("✅ Stopped m3tal.service via systemd.")
 			}
 		case 3:
-			reg := updateAndSaveHealthRegistry()
+			reg := health.UpdateAndSaveHealthRegistry()
 			var agentsStr string
 			switch reg.Agents.Status {
 			case "🟢":
@@ -2208,7 +1908,7 @@ func runAgentsAutomationMenu(exe string) {
 		case 6:
 			fmt.Println("🧠 Triggering Decision Engine manually...")
 			time.Sleep(1 * time.Second)
-			reg := updateAndSaveHealthRegistry()
+			reg := health.UpdateAndSaveHealthRegistry()
 			if reg.Disk.UsedPercent > 90 {
 				fmt.Println("⚠️  [RULE] Disk usage > 90%. Mitigation: Triggering cleanup.")
 				fmt.Println("[MITIGATION] Deleting temporary build archives...")
@@ -2232,7 +1932,7 @@ func runAgentsAutomationMenu(exe string) {
 			}
 		case 7:
 			fmt.Println("⚙️  Running system reconciliation...")
-			reg := updateAndSaveHealthRegistry()
+			reg := health.UpdateAndSaveHealthRegistry()
 			if reg.Disk.UsedPercent > 90 {
 				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Disk usage > 90%. Cleanup.")
 				fmt.Println("[EXEC] Deleted 1.4 GB of temporary logs.")
