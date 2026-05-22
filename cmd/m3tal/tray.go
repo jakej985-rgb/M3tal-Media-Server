@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gogpu/systray"
@@ -303,7 +304,8 @@ func runTray(port string) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tray", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
-			w.Write([]byte(TrayHTML))
+			htmlContent := strings.Replace(TrayHTML, `<div class="logo-icon">🖥️</div>`, fmt.Sprintf(`<img src="data:image/png;base64,%s" width="28" height="28" style="object-fit:contain" />`, IconBase64), 1)
+			w.Write([]byte(htmlContent))
 		})
 		mux.HandleFunc("/tray/api/stats", func(w http.ResponseWriter, r *http.Request) {
 			stats, err := system.GetDetailedStats()

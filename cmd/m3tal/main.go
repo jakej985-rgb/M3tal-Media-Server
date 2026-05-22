@@ -1630,6 +1630,13 @@ func updateAndSaveHealthRegistry() UnifiedHealthRegistry {
 func printStatusHeader() {
 	reg := updateAndSaveHealthRegistry()
 
+	fmt.Println("\033[1;36m  __  __ _____ _____ ___  _     \033[0m")
+	fmt.Println("\033[1;36m |  \\/  |___ /|_   _/ _ \\| |    \033[0m")
+	fmt.Println("\033[1;36m | |\\/| | |_ \\  | || | | | |    \033[0m")
+	fmt.Println("\033[1;36m | |  | |___) | | || |_| | |___ \033[0m")
+	fmt.Println("\033[1;36m |_|  |_|____/  |_| \\___/|_____|\033[0m")
+	fmt.Println()
+
 	var systemStr string
 	switch reg.System.Status {
 	case "🟢":
