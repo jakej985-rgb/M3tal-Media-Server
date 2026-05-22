@@ -1361,10 +1361,10 @@ type DiskHealthState struct {
 }
 
 type UnifiedHealthRegistry struct {
-	System  SystemHealthState `json:"system"`
-	Docker  DockerHealthState `json:"docker"`
-	Agents  AgentsHealthState `json:"agents"`
-	Disk    DiskHealthState   `json:"disk"`
+	System SystemHealthState `json:"system"`
+	Docker DockerHealthState `json:"docker"`
+	Agents AgentsHealthState `json:"agents"`
+	Disk   DiskHealthState   `json:"disk"`
 }
 
 func getControlPlaneDir() string {
@@ -1543,7 +1543,7 @@ func getDiskHealthState() DiskHealthState {
 
 func getSystemHealthState(docker DockerHealthState, agents AgentsHealthState, disk DiskHealthState) SystemHealthState {
 	var state SystemHealthState
-	
+
 	prev := readSystemHealthJSON()
 	if prev != nil {
 		state.LastSeenHealthy = prev.System.LastSeenHealthy
@@ -1643,29 +1643,32 @@ func printStatusHeader() {
 	}
 
 	var dockerStr string
-	if reg.Docker.Status == "🔴" {
+	switch reg.Docker.Status {
+	case "🔴":
 		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	} else if reg.Docker.Status == "🟡" {
+	case "🟡":
 		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	} else {
+	default:
 		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
 	}
 
 	var agentsStr string
-	if reg.Agents.Status == "🟢" {
+	switch reg.Agents.Status {
+	case "🟢":
 		agentsStr = "🟢 active monitoring"
-	} else if reg.Agents.Status == "🟡" {
+	case "🟡":
 		agentsStr = "🟡 anomaly idle"
-	} else {
+	default:
 		agentsStr = "🔴 stuck/crashed"
 	}
 
 	var diskStr string
-	if reg.Disk.Status == "🔴" {
+	switch reg.Disk.Status {
+	case "🔴":
 		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
-	} else if reg.Disk.Status == "🟡" {
+	case "🟡":
 		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
-	} else {
+	default:
 		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
 	}
 
@@ -1866,7 +1869,7 @@ func runObservabilityMenu(exe string) {
 	}
 }
 
-func runLiveLogsMenu(exe string) {
+func runLiveLogsMenu(_ string) {
 	for {
 		fmt.Println("\n══════════ LIVE LOGS ══════════")
 		fmt.Println("[1] Core (CLI / API)")
@@ -1913,7 +1916,7 @@ func runLiveLogsMenu(exe string) {
 	}
 }
 
-func runLogExplorerMenu(exe string) {
+func runLogExplorerMenu(_ string) {
 	for {
 		fmt.Println("\n══════════ LOG EXPLORER ══════════")
 		fmt.Println("[1] M3TAL Core")
@@ -1980,7 +1983,7 @@ func showSystemMetricsVisual() {
 	fmt.Scanln(&temp)
 }
 
-func showAggregatedSignals(exe string) {
+func showAggregatedSignals(_ string) {
 	fmt.Println("\n══════════════ AGGREGATED VIEW ══════════════")
 	reg := updateAndSaveHealthRegistry()
 
@@ -1997,29 +2000,32 @@ func showAggregatedSignals(exe string) {
 	}
 
 	var dockerStr string
-	if reg.Docker.Status == "🔴" {
+	switch reg.Docker.Status {
+	case "🔴":
 		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	} else if reg.Docker.Status == "🟡" {
+	case "🟡":
 		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	} else {
+	default:
 		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
 	}
 
 	var agentsStr string
-	if reg.Agents.Status == "🟢" {
+	switch reg.Agents.Status {
+	case "🟢":
 		agentsStr = "🟢 active monitoring"
-	} else if reg.Agents.Status == "🟡" {
+	case "🟡":
 		agentsStr = "🟡 anomaly idle"
-	} else {
+	default:
 		agentsStr = "🔴 stuck/crashed"
 	}
 
 	var diskStr string
-	if reg.Disk.Status == "🔴" {
+	switch reg.Disk.Status {
+	case "🔴":
 		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
-	} else if reg.Disk.Status == "🟡" {
+	case "🟡":
 		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
-	} else {
+	default:
 		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
 	}
 
@@ -2142,6 +2148,9 @@ func runAgentsAutomationMenu(exe string) {
 			if err := cmd.Run(); err != nil {
 				cmdDaemon := exec.Command(exe, "daemon")
 				cmdDaemon.Env = os.Environ()
+				cmdDaemon.SysProcAttr = &syscall.SysProcAttr{
+					Setsid: true,
+				}
 				logPath := filepath.Join(os.TempDir(), "m3tal-daemon.log")
 				if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
 					cmdDaemon.Stdout = lf
@@ -2168,11 +2177,12 @@ func runAgentsAutomationMenu(exe string) {
 		case 3:
 			reg := updateAndSaveHealthRegistry()
 			var agentsStr string
-			if reg.Agents.Status == "🟢" {
+			switch reg.Agents.Status {
+			case "🟢":
 				agentsStr = "🟢 active monitoring"
-			} else if reg.Agents.Status == "🟡" {
+			case "🟡":
 				agentsStr = "🟡 anomaly idle"
-			} else {
+			default:
 				agentsStr = "🔴 stuck/crashed"
 			}
 			fmt.Printf("AGENTS STATUS: %s\n", agentsStr)
@@ -2333,14 +2343,15 @@ func runExtensionsMenu(exe string) {
 			fmt.Print("\n👉 Selection: ")
 			var action int
 			fmt.Scanln(&action)
-			if action == 1 {
+			switch action {
+			case 1:
 				fmt.Print("\n👉 Enter plugin name to enable: ")
 				var name string
 				fmt.Scanln(&name)
 				if name != "" {
 					runWithSudoFallback(exe, "plugin", "enable", name)
 				}
-			} else if action == 2 {
+			case 2:
 				fmt.Print("\n👉 Enter plugin name to disable: ")
 				var name string
 				fmt.Scanln(&name)
@@ -2383,6 +2394,7 @@ func runDashboardAPIMenu(exe string) {
 		fmt.Println("[4] Service Status")
 		fmt.Println("[5] Open Dashboard (browser)")
 		fmt.Println("[6] API Health Check")
+		fmt.Println("[7] Start System Tray Monitor")
 		fmt.Println("[0] Back")
 
 		fmt.Print("\n👉 Selection: ")
@@ -2408,6 +2420,25 @@ func runDashboardAPIMenu(exe string) {
 				fmt.Println("🟢 API is online and responding.")
 			} else {
 				fmt.Println("🔴 API is offline or not responding.")
+			}
+		case 7:
+			fmt.Println("🚀 Starting M3TAL System Tray monitor...")
+			cmd := exec.Command(exe, "tray", "--port", "18088")
+			cmd.Env = os.Environ()
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
+			logPath := filepath.Join(os.TempDir(), "m3tal-tray.log")
+			if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+				cmd.Stdout = lf
+				cmd.Stderr = lf
+			}
+			if err := cmd.Start(); err != nil {
+				fmt.Printf("⚠️  Failed to start tray: %v\n", err)
+			} else {
+				fmt.Printf("✅ System tray started → http://localhost:18088/tray\n")
+				fmt.Printf("   (log: %s)\n", logPath)
+				cmd.Process.Release()
 			}
 		case 0:
 			return
