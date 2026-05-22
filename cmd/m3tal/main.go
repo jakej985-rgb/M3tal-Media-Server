@@ -87,7 +87,7 @@ func main() {
 	rootCmd.Flags().BoolP("persist", "p", false, "Keep the interactive menu open and loop continuously")
 	rootCmd.Flags().BoolP("new-window", "n", false, "Launch the interactive menu in a new terminal window")
 	rootCmd.Flags().BoolP("window", "w", false, "Alias for --new-window")
-	rootCmd.PersistentFlags().String("api-url", "http://localhost:8080", "M3TAL API URL")
+	rootCmd.PersistentFlags().String("api-url", "http://localhost:5050", "M3TAL API URL")
 	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
 	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
 
@@ -227,7 +227,7 @@ func main() {
 			}
 		},
 	}
-	apiCmd.Flags().String("port", "8080", "Port to listen on")
+	apiCmd.Flags().String("port", "5050", "Port to listen on")
 
 	var upCmd = &cobra.Command{
 		Use:   "up",
@@ -2422,9 +2422,27 @@ func runDashboardAPIMenu(exe string) {
 			_ = exec.Command("xdg-open", url).Start()
 			fmt.Println("🌐 Opening default browser to http://localhost:8082...")
 		case 6:
-			resp, err := http.Get("http://localhost:8080/api/containers")
-			if err == nil && resp.StatusCode == 200 {
-				fmt.Println("🟢 API is online and responding.")
+			url := globalAPIURL
+			if url == "" {
+				url = "http://localhost:5050"
+			}
+			req, err := http.NewRequest("GET", url+"/health", nil)
+			if err == nil {
+				token := globalAPIToken
+				if token == "" {
+					token = os.Getenv("API_TOKEN")
+					if token == "" {
+						token = "m3tal-secret-token"
+					}
+				}
+				req.Header.Set("X-API-Token", token)
+				client := &http.Client{Timeout: 3 * time.Second}
+				resp, err := client.Do(req)
+				if err == nil && resp.StatusCode == 200 {
+					fmt.Println("🟢 API is online and responding.")
+				} else {
+					fmt.Println("🔴 API is offline or not responding.")
+				}
 			} else {
 				fmt.Println("🔴 API is offline or not responding.")
 			}
