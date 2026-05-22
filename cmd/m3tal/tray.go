@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gogpu/systray"
@@ -29,15 +30,15 @@ var TrayHTML = `<!DOCTYPE html>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
-    --bg:#0d1117;--bg2:#161b22;--bg3:#1c2333;
+    --bg:#1a1a1e;--bg2:#222227;--bg3:#2d2d34;
     --teal:#2dd4bf;--teal-dim:rgba(45,212,191,.12);
     --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;
-    --text1:#e6edf3;--text2:#8b949e;--text3:#484f58;
-    --border:rgba(255,255,255,.07);
+    --text1:#e6edf3;--text2:#8b949e;--text3:#5c646d;
+    --border:rgba(255,255,255,.08);
     --radius:8px;
   }
-  html,body{width:340px;background:var(--bg);color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;overflow:hidden}
-  body{padding:12px;display:flex;flex-direction:column;gap:10px}
+  html{width:340px;height:560px;background:var(--bg);overflow:hidden}
+  body{width:100%;height:100%;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg);color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:10px}
 
   /* Header */
   .header{display:flex;align-items:center;justify-content:space-between}
@@ -205,7 +206,8 @@ async function loadContainers(){
       if(st==='running'){cls='badge-green';label='RUNNING';}
       else if(st==='exited'||st==='dead'){cls='badge-red';label='STOPPED';}
       else if(st==='restarting'||st==='paused'){cls='badge-yellow';label=st.toUpperCase();}
-      return '<div class="ctr"><span class="ctr-name">'+c.name+'</span><span class="badge '+cls+'">'+label+'</span></div>';
+      const name = (c.names && c.names.length > 0) ? c.names[0].replace(/^\//, '') : (c.id ? c.id.substring(0, 12) : 'unknown');
+      return '<div class="ctr"><span class="ctr-name">'+name+'</span><span class="badge '+cls+'">'+label+'</span></div>';
     }).join('');
   }catch(e){console.error('containers',e)}
 }
@@ -403,10 +405,30 @@ func openPopup(url string) {
 				"--no-default-browser-check",
 			)
 			if err := cmd.Start(); err == nil {
+				go stripDecorations("M3TAL Tray")
 				return
 			}
 		}
 	}
 	// Fallback: open in default browser
 	openBrowser(url)
+}
+
+// stripDecorations strips window decorations and sets hints via xprop to make the popup window borderless.
+func stripDecorations(title string) {
+	for i := 0; i < 20; i++ {
+		// 1. Remove decorations using xprop
+		cmd1 := exec.Command("xprop", "-name", title, "-f", "_MOTIF_WM_HINTS", "32c", "-set", "_MOTIF_WM_HINTS", "2,0,0,0,0")
+		_ = cmd1.Run()
+
+		// 2. Set window type to UTILITY to treat it like a drawer applet popup (e.g. Calendar)
+		cmd2 := exec.Command("xprop", "-name", title, "-f", "_NET_WM_WINDOW_TYPE", "32a", "-set", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_UTILITY")
+		_ = cmd2.Run()
+
+		// 3. Keep on top and skip standard taskbar listing
+		cmd3 := exec.Command("wmctrl", "-r", title, "-b", "add,above,skip_taskbar")
+		_ = cmd3.Run()
+
+		time.Sleep(100 * time.Millisecond)
+	}
 }
