@@ -352,7 +352,7 @@ func TestFetchCatalog(t *testing.T) {
 
 	// 2. Offline fallback test: change URL to invalid and verify it falls back to the cache
 	CatalogURL = "http://invalid-url-that-fails.local"
-	
+
 	// Fetch again: should fall back to cache and return the same item
 	catalogFallback := FetchCatalog()
 	if len(catalogFallback) != 1 || catalogFallback[0].Name != "mock-plugin" {
@@ -361,7 +361,7 @@ func TestFetchCatalog(t *testing.T) {
 
 	// 3. Complete failure fallback test: remove cache file and verify it falls back to default Catalog
 	_ = os.Remove(catalogCachePathOverride)
-	
+
 	catalogDefault := FetchCatalog()
 	// Should have at least one default plugin (like "m3tal")
 	foundM3tal := false
@@ -375,4 +375,3 @@ func TestFetchCatalog(t *testing.T) {
 		t.Fatal("expected fallback to default Catalog containing 'm3tal', but it wasn't found")
 	}
 }
-
