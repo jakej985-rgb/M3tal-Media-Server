@@ -35,6 +35,11 @@
     "path": "internal/engine"
   },
   {
+    "name": "event",
+    "type": "Go package",
+    "path": "internal/event"
+  },
+  {
     "name": "health",
     "type": "Go package",
     "path": "internal/health"
