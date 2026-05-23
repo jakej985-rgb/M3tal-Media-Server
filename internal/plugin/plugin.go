@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -19,84 +20,97 @@ const (
 
 // Plugin represents a loaded plugin manifest.
 type Plugin struct {
-	APIVersion string         `yaml:"apiVersion"`
-	Kind       string         `yaml:"kind"`
-	Metadata   PluginMetadata `yaml:"metadata"`
-	Spec       map[string]any `yaml:"spec"`
+	APIVersion string         `yaml:"apiVersion" json:"apiVersion"`
+	Kind       string         `yaml:"kind" json:"kind"`
+	Metadata   PluginMetadata `yaml:"metadata" json:"metadata"`
+	Spec       map[string]any `yaml:"spec" json:"spec"`
+	Hooks      *PluginHooks   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 
 	// SourcePath is set by the loader to track where this plugin was loaded from.
-	SourcePath string `yaml:"-"`
+	SourcePath string `yaml:"-" json:"-"`
 	// Enabled indicates whether the plugin is active (no .disabled suffix).
-	Enabled bool `yaml:"-"`
+	Enabled bool `yaml:"-" json:"-"`
+}
+
+// PluginHooks defines scripts to run during various plugin lifecycle stages.
+type PluginHooks struct {
+	PreInstall    string `yaml:"pre-install,omitempty" json:"pre-install,omitempty"`
+	PostInstall   string `yaml:"post-install,omitempty" json:"post-install,omitempty"`
+	PreEnable     string `yaml:"pre-enable,omitempty" json:"pre-enable,omitempty"`
+	PostEnable    string `yaml:"post-enable,omitempty" json:"post-enable,omitempty"`
+	PreDisable    string `yaml:"pre-disable,omitempty" json:"pre-disable,omitempty"`
+	PostDisable   string `yaml:"post-disable,omitempty" json:"post-disable,omitempty"`
+	PreUninstall  string `yaml:"pre-uninstall,omitempty" json:"pre-uninstall,omitempty"`
+	PostUninstall string `yaml:"post-uninstall,omitempty" json:"post-uninstall,omitempty"`
 }
 
 // PluginMetadata contains descriptive information about a plugin.
 type PluginMetadata struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
-	Version     string `yaml:"version,omitempty"`
-	Author      string `yaml:"author,omitempty"`
+	Name        string `yaml:"name" json:"name"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Version     string `yaml:"version,omitempty" json:"version,omitempty"`
+	Author      string `yaml:"author,omitempty" json:"author,omitempty"`
 }
 
 // RoutePlugin is the typed representation of a Route plugin spec.
 type RoutePlugin struct {
-	Metadata    PluginMetadata
-	Service     string   `yaml:"service"`
-	Domain      string   `yaml:"domain"`
-	Port        int      `yaml:"port"`
-	Entrypoints string   `yaml:"entrypoints,omitempty"`
-	Network     string   `yaml:"network,omitempty"`
-	Middlewares []string `yaml:"middlewares,omitempty"`
-	SourcePath  string   `yaml:"-"`
-	Enabled     bool     `yaml:"-"`
+	Metadata    PluginMetadata `yaml:"metadata" json:"metadata"`
+	Service     string         `yaml:"service" json:"service"`
+	Domain      string         `yaml:"domain" json:"domain"`
+	Port        int            `yaml:"port" json:"port"`
+	Entrypoints string         `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
+	Network     string         `yaml:"network,omitempty" json:"network,omitempty"`
+	Middlewares []string       `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	SourcePath  string         `yaml:"-" json:"-"`
+	Enabled     bool           `yaml:"-" json:"-"`
 }
 
 // StackPlugin is the typed representation of a Stack plugin spec.
 type StackPlugin struct {
-	Metadata    PluginMetadata
-	ComposePath string `yaml:"composePath"`
-	EnvTemplate string `yaml:"envTemplate,omitempty"`
-	Priority    int    `yaml:"priority,omitempty"`
-	Category    string `yaml:"category,omitempty"`
-	SourcePath  string `yaml:"-"`
-	Enabled     bool   `yaml:"-"`
+	Metadata    PluginMetadata `yaml:"metadata" json:"metadata"`
+	ComposePath string         `yaml:"composePath" json:"composePath"`
+	EnvTemplate string         `yaml:"envTemplate,omitempty" json:"envTemplate,omitempty"`
+	Priority    int            `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Category    string         `yaml:"category,omitempty" json:"category,omitempty"`
+	SourcePath  string         `yaml:"-" json:"-"`
+	Enabled     bool           `yaml:"-" json:"-"`
 }
 
 // MiddlewarePlugin is the typed representation of a Middleware plugin spec.
 type MiddlewarePlugin struct {
-	Metadata   PluginMetadata
-	Name       string            `yaml:"name"`
-	Type       string            `yaml:"type"`
-	Config     map[string]string `yaml:"config,omitempty"`
-	SourcePath string            `yaml:"-"`
-	Enabled    bool              `yaml:"-"`
+	Metadata   PluginMetadata    `yaml:"metadata" json:"metadata"`
+	Name       string            `yaml:"name" json:"name"`
+	Type       string            `yaml:"type" json:"type"`
+	Config     map[string]string `yaml:"config,omitempty" json:"config,omitempty"`
+	SourcePath string            `yaml:"-" json:"-"`
+	Enabled    bool              `yaml:"-" json:"-"`
 }
 
 // TraefikPlugin is the typed representation of a Traefik plugin spec.
 type TraefikPlugin struct {
-	Metadata    PluginMetadata
-	Routes      []RouteSpec      `yaml:"routes,omitempty"`
-	Middlewares []MiddlewareSpec `yaml:"middlewares,omitempty"`
-	SourcePath  string           `yaml:"-"`
-	Enabled     bool             `yaml:"-"`
+	Metadata    PluginMetadata   `yaml:"metadata" json:"metadata"`
+	Routes      []RouteSpec      `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Middlewares []MiddlewareSpec `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	SourcePath  string           `yaml:"-" json:"-"`
+	Enabled     bool             `yaml:"-" json:"-"`
 }
 
 // RouteSpec represents a route configuration inside a Traefik plugin.
 type RouteSpec struct {
-	Name        string   `yaml:"name"`
-	Service     string   `yaml:"service"`
-	Domain      string   `yaml:"domain"`
-	Port        int      `yaml:"port"`
-	Entrypoints string   `yaml:"entrypoints,omitempty"`
-	Network     string   `yaml:"network,omitempty"`
-	Middlewares []string `yaml:"middlewares,omitempty"`
+	Name        string   `yaml:"name" json:"name"`
+	Service     string   `yaml:"service" json:"service"`
+	Domain      string   `yaml:"domain" json:"domain"`
+	Port        int      `yaml:"port" json:"port"`
+	Entrypoints string   `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
+	Network     string   `yaml:"network,omitempty" json:"network,omitempty"`
+	Middlewares []string `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
 }
 
 // MiddlewareSpec represents a middleware configuration inside a Traefik plugin.
 type MiddlewareSpec struct {
-	Name   string            `yaml:"name"`
-	Type   string            `yaml:"type"`
-	Config map[string]string `yaml:"config,omitempty"`
+	Name   string            `yaml:"name" json:"name"`
+	Type   string            `yaml:"type" json:"type"`
+	Config map[string]string `yaml:"config,omitempty" json:"config,omitempty"`
 }
 
 // Validate checks a raw Plugin for structural correctness.
@@ -288,6 +302,15 @@ func ParsePlugin(data []byte) (*Plugin, error) {
 	var p Plugin
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("invalid plugin YAML: %w", err)
+	}
+	return &p, nil
+}
+
+// ParsePluginJSON parses raw JSON bytes into a Plugin.
+func ParsePluginJSON(data []byte) (*Plugin, error) {
+	var p Plugin
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("invalid plugin JSON: %w", err)
 	}
 	return &p, nil
 }

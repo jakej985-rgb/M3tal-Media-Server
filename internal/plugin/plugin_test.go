@@ -1,9 +1,15 @@
 package plugin
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/jakej985-rgb/m3tal-core/internal/store"
 )
 
 func TestParsePlugin_Route(t *testing.T) {
@@ -360,3 +366,133 @@ func TestRegistry_GetMethods(t *testing.T) {
 		t.Errorf("expected count 3, got %d", reg.Count())
 	}
 }
+
+func TestParsePluginJSON(t *testing.T) {
+	js := `{
+		"apiVersion": "m3tal/v1",
+		"kind": "Route",
+		"metadata": {
+			"name": "json-route",
+			"description": "JSON route"
+		},
+		"spec": {
+			"service": "jsonapp",
+			"domain": "json.local",
+			"port": 9000
+		},
+		"hooks": {
+			"post-enable": "echo enabled"
+		}
+	}`
+
+	p, err := ParsePluginJSON([]byte(js))
+	if err != nil {
+		t.Fatalf("ParsePluginJSON failed: %v", err)
+	}
+
+	if err := p.Validate(); err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+
+	if p.Metadata.Name != "json-route" {
+		t.Errorf("expected name 'json-route', got %q", p.Metadata.Name)
+	}
+
+	if p.Hooks == nil || p.Hooks.PostEnable != "echo enabled" {
+		t.Errorf("expected post-enable hook, got %v", p.Hooks)
+	}
+}
+
+func TestExecuteHook(t *testing.T) {
+	tmpDir := t.TempDir()
+	markerFile := filepath.Join(tmpDir, "hook_marker.txt")
+
+	p := &Plugin{
+		Metadata: PluginMetadata{Name: "test-plugin"},
+		Kind:     "Route",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cmd := fmt.Sprintf("echo 'hook-run' > %s", markerFile)
+	err := ExecuteHook(ctx, cmd, p)
+	if err != nil {
+		t.Fatalf("ExecuteHook failed: %v", err)
+	}
+
+	data, err := os.ReadFile(markerFile)
+	if err != nil {
+		t.Fatalf("marker file not created: %v", err)
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content != "hook-run" {
+		t.Errorf("expected 'hook-run', got %q", content)
+	}
+}
+
+func TestStateManager(t *testing.T) {
+	// Create mock SQLite store
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_state.db")
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer db.Close()
+
+	mgr := NewStateManager(db)
+
+	manifestPath := filepath.Join(tmpDir, "my-plugin.yml")
+	err = os.WriteFile(manifestPath, []byte("apiVersion: m3tal/v1\nkind: Route\nmetadata:\n  name: my-plugin\nspec:\n  service: x\n  domain: x\n  port: 80"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p := &Plugin{
+		APIVersion: APIVersion,
+		Kind:       KindRoute,
+		Metadata:   PluginMetadata{Name: "my-plugin"},
+		SourcePath: manifestPath,
+		Enabled:    true,
+	}
+
+	// 1. Set disabled
+	err = mgr.SetPluginEnabled(p, false)
+	if err != nil {
+		t.Fatalf("failed to disable plugin: %v", err)
+	}
+
+	if !strings.HasSuffix(p.SourcePath, ".disabled") {
+		t.Errorf("expected disabled file suffix, got %s", p.SourcePath)
+	}
+
+	// Verify database record
+	enabled, _, err := mgr.GetPluginState(p)
+	if err != nil {
+		t.Fatalf("GetPluginState failed: %v", err)
+	}
+	if enabled {
+		t.Error("expected database record to show enabled = false")
+	}
+
+	// 2. Set enabled
+	err = mgr.SetPluginEnabled(p, true)
+	if err != nil {
+		t.Fatalf("failed to enable plugin: %v", err)
+	}
+
+	if strings.HasSuffix(p.SourcePath, ".disabled") {
+		t.Errorf("expected enabled file suffix, got %s", p.SourcePath)
+	}
+
+	enabled, _, err = mgr.GetPluginState(p)
+	if err != nil {
+		t.Fatalf("GetPluginState failed: %v", err)
+	}
+	if !enabled {
+		t.Error("expected database record to show enabled = true")
+	}
+}
+

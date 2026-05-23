@@ -83,7 +83,7 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		routeH := &RouteHandlers{Store: db}
 		stackH := &StackHandlers{Store: db}
 		mwH := &MiddlewareHandlers{Store: db}
-		pluginH := NewPluginHandlers()
+		pluginH := NewPluginHandlers(db)
 
 		r.Route("/api/v2", func(r chi.Router) {
 			r.Use(srv.chiAuthMiddleware)
@@ -124,7 +124,7 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
 	} else {
 		// Plugin endpoints work without a store
-		pluginH := NewPluginHandlers()
+		pluginH := NewPluginHandlers(nil)
 		r.Route("/api/v2", func(r chi.Router) {
 			r.Use(srv.chiAuthMiddleware)
 			r.Get("/plugins", pluginH.ListPlugins)

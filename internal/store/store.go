@@ -108,6 +108,13 @@ func (s *Store) Migrate() error {
 			config TEXT DEFAULT '{}',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS plugin_states (
+			name TEXT PRIMARY KEY,
+			kind TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			installed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			config TEXT DEFAULT '{}'
+		)`,
 	}
 
 	for _, m := range migrations {
@@ -275,6 +282,85 @@ func (s *Store) DeleteMiddleware(id int64) error {
 		return fmt.Errorf("middleware %d not found", id)
 	}
 	return nil
+}
+
+// --- Plugin States ---
+
+// PluginStateRecord represents a persistent record of a plugin's configuration and enablement status.
+type PluginStateRecord struct {
+	Name        string `json:"name"`
+	Kind        string `json:"kind"`
+	Enabled     bool   `json:"enabled"`
+	InstalledAt string `json:"installed_at"`
+	Config      string `json:"config"`
+}
+
+// SetPluginState creates or updates the status and config of a plugin.
+func (s *Store) SetPluginState(name, kind string, enabled bool, config string) error {
+	enabledVal := 0
+	if enabled {
+		enabledVal = 1
+	}
+	if config == "" {
+		config = "{}"
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO plugin_states (name, kind, enabled, config) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(name) DO UPDATE SET enabled = excluded.enabled, config = excluded.config`,
+		name, kind, enabledVal, config,
+	)
+	if err != nil {
+		return fmt.Errorf("cannot set plugin state: %w", err)
+	}
+	return nil
+}
+
+// GetPluginState retrieves a single plugin's state record.
+func (s *Store) GetPluginState(name string) (*PluginStateRecord, error) {
+	var rec PluginStateRecord
+	var enabledInt int
+	err := s.db.QueryRow(
+		`SELECT name, kind, enabled, installed_at, config FROM plugin_states WHERE name = ?`,
+		name,
+	).Scan(&rec.Name, &rec.Kind, &enabledInt, &rec.InstalledAt, &rec.Config)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("cannot get plugin state: %w", err)
+	}
+	rec.Enabled = (enabledInt == 1)
+	return &rec, nil
+}
+
+// DeletePluginState removes a plugin's state record when uninstalled.
+func (s *Store) DeletePluginState(name string) error {
+	_, err := s.db.Exec(`DELETE FROM plugin_states WHERE name = ?`, name)
+	if err != nil {
+		return fmt.Errorf("cannot delete plugin state: %w", err)
+	}
+	return nil
+}
+
+// ListPluginStates returns all stored plugin states.
+func (s *Store) ListPluginStates() ([]PluginStateRecord, error) {
+	rows, err := s.db.Query(`SELECT name, kind, enabled, installed_at, config FROM plugin_states ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list plugin states: %w", err)
+	}
+	defer rows.Close()
+
+	var list []PluginStateRecord
+	for rows.Next() {
+		var rec PluginStateRecord
+		var enabledInt int
+		if err := rows.Scan(&rec.Name, &rec.Kind, &enabledInt, &rec.InstalledAt, &rec.Config); err != nil {
+			return nil, err
+		}
+		rec.Enabled = (enabledInt == 1)
+		list = append(list, rec)
+	}
+	return list, rows.Err()
 }
 
 // GetStatePath returns the default database path, respecting overrides.

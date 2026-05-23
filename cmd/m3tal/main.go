@@ -27,6 +27,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
+	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 	"github.com/spf13/cobra"
 )
@@ -222,7 +223,22 @@ func main() {
 			if token == "" {
 				token = "m3tal-secret-token"
 			}
-			if err := api.StartServer(port, token); err != nil {
+
+			dbPath := store.GetStatePath()
+			db, err := store.Open(dbPath)
+			if err != nil {
+				log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
+				log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
+				if err := api.StartServer(port, token); err != nil {
+					log.Fatalf("❌ API server failed: %v", err)
+				}
+				return
+			}
+			defer db.Close()
+
+			log.Printf("📦 State database: %s\n", dbPath)
+
+			if err := api.StartServerWithStore(port, token, db); err != nil {
 				log.Fatalf("❌ API server failed: %v", err)
 			}
 		},
@@ -665,11 +681,26 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				log.Fatalf("❌ Plugin %q not found", name)
 			}
 
-			newPath, err := plugin.EnablePlugin(path)
+			p, err := plugin.LoadPlugin(path)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
+			}
+
+			var db *store.Store
+			dbPath := store.GetStatePath()
+			if dbPath != "" {
+				if d, err := store.Open(dbPath); err == nil {
+					db = d
+					defer db.Close()
+				}
+			}
+
+			mgr := plugin.NewStateManager(db)
+			err = mgr.SetPluginEnabled(p, true)
 			if err != nil {
 				log.Fatalf("❌ Failed to enable: %v", err)
 			}
-			fmt.Printf("✅ Enabled plugin %q (renamed to %s)\n", name, filepath.Base(newPath))
+			fmt.Printf("✅ Enabled plugin %q (renamed to %s)\n", name, filepath.Base(p.SourcePath))
 		},
 	}
 
@@ -697,11 +728,26 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				log.Fatalf("❌ Plugin %q not found", name)
 			}
 
-			newPath, err := plugin.DisablePlugin(path)
+			p, err := plugin.LoadPlugin(path)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
+			}
+
+			var db *store.Store
+			dbPath := store.GetStatePath()
+			if dbPath != "" {
+				if d, err := store.Open(dbPath); err == nil {
+					db = d
+					defer db.Close()
+				}
+			}
+
+			mgr := plugin.NewStateManager(db)
+			err = mgr.SetPluginEnabled(p, false)
 			if err != nil {
 				log.Fatalf("❌ Failed to disable: %v", err)
 			}
-			fmt.Printf("✅ Disabled plugin %q (renamed to %s)\n", name, filepath.Base(newPath))
+			fmt.Printf("✅ Disabled plugin %q (renamed to %s)\n", name, filepath.Base(p.SourcePath))
 		},
 	}
 
@@ -902,8 +948,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				log.Fatalf("❌ Failed to load registry: %v", err)
 			}
 
-			// Find kind
+			// Find kind and source path
 			var targetKind string
+			var path string
 			for i := range reg.Routes {
 				if plugin.MatchesPluginName(reg.Routes[i].SourcePath, reg.Routes[i].Metadata.Name, name) {
 					targetKind = "Route"
@@ -911,6 +958,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 						targetKind = "Traefik"
 					}
 					name = plugin.GetPluginBaseName(reg.Routes[i].SourcePath)
+					path = reg.Routes[i].SourcePath
 					break
 				}
 			}
@@ -919,6 +967,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if plugin.MatchesPluginName(reg.Stacks[i].SourcePath, reg.Stacks[i].Metadata.Name, name) {
 						targetKind = "Stack"
 						name = plugin.GetPluginBaseName(reg.Stacks[i].SourcePath)
+						path = reg.Stacks[i].SourcePath
 						break
 					}
 				}
@@ -931,12 +980,13 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 							targetKind = "Traefik"
 						}
 						name = plugin.GetPluginBaseName(reg.Middlewares[i].SourcePath)
+						path = reg.Middlewares[i].SourcePath
 						break
 					}
 				}
 			}
 
-			if targetKind == "" {
+			if targetKind == "" || path == "" {
 				log.Fatalf("❌ Plugin %q not found in local registry", name)
 			}
 
@@ -945,8 +995,24 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				userDir = "deploy/plugins"
 			}
 
+			p, err := plugin.LoadPlugin(path)
+			if err != nil {
+				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
+			}
+
 			fmt.Printf("🗑️  Uninstalling plugin %q...\n", name)
-			err = plugin.UninstallPlugin(name, targetKind, userDir, reg)
+
+			var db *store.Store
+			dbPath := store.GetStatePath()
+			if dbPath != "" {
+				if d, err := store.Open(dbPath); err == nil {
+					db = d
+					defer db.Close()
+				}
+			}
+
+			mgr := plugin.NewStateManager(db)
+			err = mgr.UninstallPlugin(p, userDir, reg)
 			if err != nil {
 				log.Fatalf("❌ Uninstallation failed: %v", err)
 			}

@@ -1,13 +1,34 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-// ScanDir recursively scans a directory for plugin YAML files (*.yml, *.yaml).
+// parseAnyPlugin parses a plugin manifest file as YAML or JSON based on file extension.
+func parseAnyPlugin(data []byte, path string) (*Plugin, error) {
+	var p *Plugin
+	var err error
+	baseWithoutDisabled := strings.TrimSuffix(path, ".disabled")
+	ext := strings.ToLower(filepath.Ext(baseWithoutDisabled))
+
+	if ext == ".json" {
+		p, err = ParsePluginJSON(data)
+	} else {
+		p, err = ParsePlugin(data)
+	}
+	if err != nil {
+		return nil, err
+	}
+	p.SourcePath = path
+	return p, nil
+}
+
+// ScanDir recursively scans a directory for plugin files (*.yml, *.yaml, *.json).
 // Returns a slice of parsed Plugins. Invalid files are logged but skipped.
 func ScanDir(dir string) ([]Plugin, error) {
 	info, err := os.Stat(dir)
@@ -46,7 +67,7 @@ func ScanDir(dir string) ([]Plugin, error) {
 			baseWithoutDisabled := strings.TrimSuffix(path, ".disabled")
 			ext = strings.ToLower(filepath.Ext(baseWithoutDisabled))
 		}
-		if ext != ".yml" && ext != ".yaml" {
+		if ext != ".yml" && ext != ".yaml" && ext != ".json" {
 			return nil
 		}
 
@@ -56,13 +77,12 @@ func ScanDir(dir string) ([]Plugin, error) {
 			return nil
 		}
 
-		p, err := ParsePlugin(data)
+		p, err := parseAnyPlugin(data, path)
 		if err != nil {
 			scanErrors = append(scanErrors, fmt.Sprintf("%s: %v", path, err))
 			return nil
 		}
 
-		p.SourcePath = path
 		p.Enabled = enabled
 		if err := p.Validate(); err != nil {
 			scanErrors = append(scanErrors, fmt.Sprintf("%s: %v", path, err))
@@ -124,10 +144,34 @@ func EnablePlugin(path string) (string, error) {
 	if !strings.HasSuffix(path, ".disabled") {
 		return path, fmt.Errorf("plugin at %s is already enabled (does not have .disabled suffix)", path)
 	}
+
+	// Run PreEnable hook if defined
+	if data, err := os.ReadFile(path); err == nil {
+		if p, parseErr := parseAnyPlugin(data, path); parseErr == nil {
+			if p.Hooks != nil && p.Hooks.PreEnable != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PreEnable, p)
+				cancel()
+			}
+		}
+	}
+
 	newPath := strings.TrimSuffix(path, ".disabled")
 	if err := os.Rename(path, newPath); err != nil {
 		return path, err
 	}
+
+	// Run PostEnable hook if defined
+	if data, err := os.ReadFile(newPath); err == nil {
+		if p, parseErr := parseAnyPlugin(data, newPath); parseErr == nil {
+			if p.Hooks != nil && p.Hooks.PostEnable != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PostEnable, p)
+				cancel()
+			}
+		}
+	}
+
 	return newPath, nil
 }
 
@@ -136,9 +180,55 @@ func DisablePlugin(path string) (string, error) {
 	if strings.HasSuffix(path, ".disabled") {
 		return path, fmt.Errorf("plugin at %s is already disabled", path)
 	}
+
+	// Run PreDisable hook if defined
+	if data, err := os.ReadFile(path); err == nil {
+		if p, parseErr := parseAnyPlugin(data, path); parseErr == nil {
+			if p.Hooks != nil && p.Hooks.PreDisable != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PreDisable, p)
+				cancel()
+			}
+		}
+	}
+
 	newPath := path + ".disabled"
 	if err := os.Rename(path, newPath); err != nil {
 		return path, err
 	}
+
+	// Run PostDisable hook if defined
+	if data, err := os.ReadFile(newPath); err == nil {
+		if p, parseErr := parseAnyPlugin(data, newPath); parseErr == nil {
+			if p.Hooks != nil && p.Hooks.PostDisable != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PostDisable, p)
+				cancel()
+			}
+		}
+	}
+
 	return newPath, nil
 }
+
+// LoadPlugin reads and parses a single plugin manifest from the filesystem.
+func LoadPlugin(path string) (*Plugin, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+	enabled := true
+	if ext == ".disabled" {
+		enabled = false
+	}
+
+	p, err := parseAnyPlugin(data, path)
+	if err != nil {
+		return nil, err
+	}
+	p.Enabled = enabled
+	return p, nil
+}
+

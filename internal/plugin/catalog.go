@@ -1,12 +1,14 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // CatalogItem represents a plugin available in the remote official catalog.
@@ -117,6 +119,7 @@ var Catalog = []CatalogItem{
 }
 
 // GetPluginBaseName extracts the clean name of the plugin from its filepath.
+// It also supports .json files.
 func GetPluginBaseName(path string) string {
 	if path == "" {
 		return ""
@@ -125,6 +128,7 @@ func GetPluginBaseName(path string) string {
 	base = strings.TrimSuffix(base, ".disabled")
 	base = strings.TrimSuffix(base, ".yml")
 	base = strings.TrimSuffix(base, ".yaml")
+	base = strings.TrimSuffix(base, ".json")
 	return base
 }
 
@@ -276,10 +280,29 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 		return fmt.Errorf("unsupported plugin kind: %s", targetItem.Kind)
 	}
 
-	pluginDest := filepath.Join(userPluginsDir, subfolder, targetItem.Name+".yml")
+	// We default to .yml for catalog items unless the catalog URL specifically ends in .json
+	ext := ".yml"
+	if strings.HasSuffix(strings.ToLower(targetItem.URL), ".json") {
+		ext = ".json"
+	}
+
+	pluginDest := filepath.Join(userPluginsDir, subfolder, targetItem.Name+ext)
 	err := downloadFile(targetItem.URL, pluginDest)
 	if err != nil {
 		return fmt.Errorf("failed to download plugin manifest: %w", err)
+	}
+
+	// Read and parse downloaded manifest to run PreInstall hook
+	var parsedPlugin *Plugin
+	if data, err := os.ReadFile(pluginDest); err == nil {
+		if p, parseErr := parseAnyPlugin(data, pluginDest); parseErr == nil {
+			parsedPlugin = p
+			if p.Hooks != nil && p.Hooks.PreInstall != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PreInstall, p)
+				cancel()
+			}
+		}
 	}
 
 	// Download compose file if it is a Stack plugin and has a ComposeURL
@@ -291,6 +314,13 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 			_ = os.Remove(pluginDest) // clean up manifest
 			return fmt.Errorf("failed to download associated compose file %s: %w", composeFilename, err)
 		}
+	}
+
+	// Run PostInstall hook
+	if parsedPlugin != nil && parsedPlugin.Hooks != nil && parsedPlugin.Hooks.PostInstall != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_ = ExecuteHook(ctx, parsedPlugin.Hooks.PostInstall, parsedPlugin)
+		cancel()
 	}
 
 	return nil
@@ -375,6 +405,19 @@ func UninstallPlugin(name, kind, userPluginsDir string, reg *Registry) error {
 		return fmt.Errorf("security violation: cannot uninstall system plugin at %s", sourcePath)
 	}
 
+	// Load and parse manifest first to run PreUninstall hook
+	var parsedPlugin *Plugin
+	if data, err := os.ReadFile(absSourcePath); err == nil {
+		if p, parseErr := parseAnyPlugin(data, absSourcePath); parseErr == nil {
+			parsedPlugin = p
+			if p.Hooks != nil && p.Hooks.PreUninstall != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_ = ExecuteHook(ctx, p.Hooks.PreUninstall, p)
+				cancel()
+			}
+		}
+	}
+
 	// Delete main manifest
 	err = os.Remove(absSourcePath)
 	if err != nil {
@@ -387,6 +430,13 @@ func UninstallPlugin(name, kind, userPluginsDir string, reg *Registry) error {
 		if _, err := os.Stat(composeFile); err == nil {
 			_ = os.Remove(composeFile)
 		}
+	}
+
+	// Run PostUninstall hook
+	if parsedPlugin != nil && parsedPlugin.Hooks != nil && parsedPlugin.Hooks.PostUninstall != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_ = ExecuteHook(ctx, parsedPlugin.Hooks.PostUninstall, parsedPlugin)
+		cancel()
 	}
 
 	return nil

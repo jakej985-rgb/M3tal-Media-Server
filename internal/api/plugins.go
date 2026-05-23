@@ -8,17 +8,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
+	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
 
 // PluginHandlers provides endpoints for viewing loaded plugins.
 type PluginHandlers struct {
 	registry *plugin.Registry
+	db       *store.Store
 }
 
-// NewPluginHandlers creates a handler set with a lazily-loaded plugin registry.
-func NewPluginHandlers() *PluginHandlers {
-	return &PluginHandlers{}
+// NewPluginHandlers creates a handler set with a lazily-loaded plugin registry and SQLite store.
+func NewPluginHandlers(db *store.Store) *PluginHandlers {
+	return &PluginHandlers{db: db}
 }
 
 // ensureLoaded lazily loads the plugin registry on first access.
@@ -125,14 +127,21 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newPath, err := plugin.EnablePlugin(path)
+	p, err := plugin.LoadPlugin(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load plugin: "+err.Error())
+		return
+	}
+
+	mgr := plugin.NewStateManager(h.db)
+	err = mgr.SetPluginEnabled(p, true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to enable: "+err.Error())
 		return
 	}
 
 	h.registry = nil // force reload
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "path": newPath})
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "path": p.SourcePath})
 }
 
 // Disable renames a plugin file to append `.disabled`.
@@ -180,14 +189,21 @@ func (h *PluginHandlers) Disable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newPath, err := plugin.DisablePlugin(path)
+	p, err := plugin.LoadPlugin(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load plugin: "+err.Error())
+		return
+	}
+
+	mgr := plugin.NewStateManager(h.db)
+	err = mgr.SetPluginEnabled(p, false)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to disable: "+err.Error())
 		return
 	}
 
 	h.registry = nil // force reload
-	writeJSON(w, http.StatusOK, map[string]any{"disabled": true, "path": newPath})
+	writeJSON(w, http.StatusOK, map[string]any{"disabled": true, "path": p.SourcePath})
 }
 
 // Sync writes the dynamic Traefik configuration file
@@ -288,7 +304,46 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 		userDir = "deploy/plugins"
 	}
 
-	err := plugin.UninstallPlugin(req.Name, req.Kind, userDir, reg)
+	var path string
+	switch req.Kind {
+	case "Route":
+		p := reg.GetRoute(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Stack":
+		p := reg.GetStack(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	case "Middleware":
+		p := reg.GetMiddleware(req.Name)
+		if p != nil {
+			path = p.SourcePath
+		}
+	default:
+		if p := reg.GetRoute(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetStack(req.Name); p != nil {
+			path = p.SourcePath
+		} else if p := reg.GetMiddleware(req.Name); p != nil {
+			path = p.SourcePath
+		}
+	}
+
+	if path == "" {
+		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		return
+	}
+
+	p, err := plugin.LoadPlugin(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load plugin manifest: "+err.Error())
+		return
+	}
+
+	mgr := plugin.NewStateManager(h.db)
+	err = mgr.UninstallPlugin(p, userDir, reg)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to uninstall plugin: "+err.Error())
 		return
