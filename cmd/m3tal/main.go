@@ -2294,8 +2294,10 @@ func launchInNewWindow() error {
 	cmdStr := exe + " " + strings.Join(args, " ")
 
 	type termConfig struct {
-		exe  string
-		args []string
+		exe      string
+		args     []string
+		fixClass bool     // apply xdotool WM_CLASS fixup after launch
+		extraEnv []string // e.g. RESOURCE_NAME for Qt terminals
 	}
 
 	terminals := []termConfig{
@@ -2311,26 +2313,74 @@ func launchInNewWindow() error {
 			exe:  "xfce4-terminal",
 			args: []string{"--class=m3tal", "--name=m3tal", "-t", "M3TAL Control Center", "-e", cmdStr},
 		},
+		// qterminal (default on Lubuntu/LXQt) has no --class flag.
+		// RESOURCE_NAME sets the X11 instance name; xdotool fixup patches WM_CLASS.
+		{
+			exe:      "qterminal",
+			args:     []string{"-e", cmdStr},
+			fixClass: true,
+			extraEnv: []string{"RESOURCE_NAME=m3tal"},
+		},
+		// lxterminal is also common on Lubuntu.
+		{
+			exe:      "lxterminal",
+			args:     []string{"--title=M3TAL Control Center", "-e", cmdStr},
+			fixClass: true,
+		},
 		{
 			exe:  "xterm",
 			args: []string{"-class", "m3tal", "-name", "m3tal", "-title", "M3TAL Control Center", "-e", cmdStr},
 		},
+		// x-terminal-emulator is a distro symlink (→ qterminal on Lubuntu).
+		// Always attempt fixup because we can't know the target at compile time.
 		{
-			exe:  "x-terminal-emulator",
-			args: []string{"-e", cmdStr},
+			exe:      "x-terminal-emulator",
+			args:     []string{"-e", cmdStr},
+			fixClass: true,
+			extraEnv: []string{"RESOURCE_NAME=m3tal"},
 		},
 	}
 
 	for _, term := range terminals {
 		if _, err := exec.LookPath(term.exe); err == nil {
 			cmd := exec.Command(term.exe, term.args...)
-			err := cmd.Start()
-			if err == nil {
+			if len(term.extraEnv) > 0 {
+				cmd.Env = append(os.Environ(), term.extraEnv...)
+			}
+			if err := cmd.Start(); err == nil {
+				if term.fixClass {
+					go fixWindowClass("M3TAL Control Center", "m3tal", "m3tal")
+				}
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("could not find a supported terminal emulator (tried gnome-terminal, konsole, xfce4-terminal, xterm, x-terminal-emulator)")
+	return fmt.Errorf("could not find a supported terminal emulator (tried gnome-terminal, konsole, xfce4-terminal, qterminal, lxterminal, xterm, x-terminal-emulator)")
+}
+
+// fixWindowClass polls for a window with the given title to appear, then sets
+// its WM_CLASS via xdotool so the panel/taskbar can match the m3tal desktop
+// entry icon.  It is best-effort and silently exits if xdotool is missing.
+func fixWindowClass(title, instanceName, className string) {
+	if _, err := exec.LookPath("xdotool"); err != nil {
+		return
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(200 * time.Millisecond)
+		out, err := exec.Command("xdotool", "search", "--name", title).Output()
+		if err != nil || len(strings.TrimSpace(string(out))) == 0 {
+			continue
+		}
+		for _, wid := range strings.Fields(string(out)) {
+			_ = exec.Command("xdotool", "set_window",
+				"--classname", instanceName,
+				"--class", className,
+				wid,
+			).Run()
+		}
+		return
+	}
 }
 
 func setupPersistentSignalHandler() {

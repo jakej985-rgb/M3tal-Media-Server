@@ -12,6 +12,10 @@ description: |
   Optimized for Traefik ecosystems and home lab automation.
 license: MIT
 
+# xdotool is optional but recommended for correct panel icon on LXQt/Lubuntu.
+recommends:
+  - xdotool
+
 contents:
   # Binaries
   - src: ./m3tal
