@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=M3TAL Control Center
+Comment=M3TAL Core Command Center
+Exec=m3tal -pnw
+Icon=m3tal
+Terminal=false
+Categories=System;Utility;Settings;
+StartupWMClass=m3tal
+Keywords=docker;orchestration;homelab;traefik;

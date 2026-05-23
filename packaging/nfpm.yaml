@@ -41,6 +41,39 @@ contents:
     dst: /usr/share/pixmaps/m3tal.svg
     type: "file"
 
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_256x256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_128x128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_64x64.png
+    dst: /usr/share/icons/hicolor/64x64/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_48x48.png
+    dst: /usr/share/icons/hicolor/48x48/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_32x32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_24x24.png
+    dst: /usr/share/icons/hicolor/24x24/apps/m3tal.png
+    type: "file"
+
+  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_16x16.png
+    dst: /usr/share/icons/hicolor/16x16/apps/m3tal.png
+    type: "file"
+
+  # Desktop Entry
+  - src: ./packaging/m3tal.desktop
+    dst: /usr/share/applications/m3tal.desktop
+    type: "file"
+
 scripts:
   postinstall: ./scripts/postinstall.sh
   postremove: ./scripts/postremove.sh

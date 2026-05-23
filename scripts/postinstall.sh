@@ -59,6 +59,17 @@ if command -v systemctl >/dev/null 2>&1; then
     fi
 fi
 
+# 6. Desktop & Icon Cache Update
+if command -v update-desktop-database >/dev/null 2>&1; then
+    echo "[m3tal] Updating desktop database..."
+    update-desktop-database -q /usr/share/applications || true
+fi
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    echo "[m3tal] Updating GTK icon cache..."
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+
 echo "[m3tal] ✅ Installation complete."
 echo "[m3tal]   CLI:    /usr/bin/m3tal"
 echo "[m3tal]   UX:     /docker"

@@ -2227,31 +2227,44 @@ func launchInNewWindow() error {
 
 	cmdStr := exe + " " + strings.Join(args, " ")
 
-	terminals := [][]string{
-		{"x-terminal-emulator", "-e", cmdStr},
-		{"gnome-terminal", "--", exe},
-		{"konsole", "-e", cmdStr},
-		{"xfce4-terminal", "-e", cmdStr},
-		{"xterm", "-e", cmdStr},
+	type termConfig struct {
+		exe  string
+		args []string
+	}
+
+	terminals := []termConfig{
+		{
+			exe:  "gnome-terminal",
+			args: append([]string{"--class=m3tal", "--name=m3tal", "-t", "M3TAL Control Center", "--", exe}, args...),
+		},
+		{
+			exe:  "konsole",
+			args: append([]string{"--class=m3tal", "--name=m3tal", "-p", "title=M3TAL Control Center", "-e", exe}, args...),
+		},
+		{
+			exe:  "xfce4-terminal",
+			args: []string{"--class=m3tal", "--name=m3tal", "-t", "M3TAL Control Center", "-e", cmdStr},
+		},
+		{
+			exe:  "xterm",
+			args: []string{"-class", "m3tal", "-name", "m3tal", "-title", "M3TAL Control Center", "-e", cmdStr},
+		},
+		{
+			exe:  "x-terminal-emulator",
+			args: []string{"-e", cmdStr},
+		},
 	}
 
 	for _, term := range terminals {
-		termExe := term[0]
-		if _, err := exec.LookPath(termExe); err == nil {
-			var cmd *exec.Cmd
-			if termExe == "gnome-terminal" {
-				gnomeArgs := append([]string{"--", exe}, args...)
-				cmd = exec.Command("gnome-terminal", gnomeArgs...)
-			} else {
-				cmd = exec.Command(termExe, term[1:]...)
-			}
+		if _, err := exec.LookPath(term.exe); err == nil {
+			cmd := exec.Command(term.exe, term.args...)
 			err := cmd.Start()
 			if err == nil {
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("could not find a supported terminal emulator (tried x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm)")
+	return fmt.Errorf("could not find a supported terminal emulator (tried gnome-terminal, konsole, xfce4-terminal, xterm, x-terminal-emulator)")
 }
 
 func setupPersistentSignalHandler() {
