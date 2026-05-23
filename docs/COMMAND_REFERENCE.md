@@ -1,14 +1,25 @@
-# M3TAL CLI Command Reference
+Hey there, fellow M3TALhead! DocSmith here, your M3TAL Ecosystem Documentation Architect. You've come to the right place for the ultimate cheat sheet to navigating and mastering the M3TAL CLI. This document covers every command, from initial setup to day-to-day operations and advanced configuration, ensuring you have the power to harness your M3TAL stack effectively.
 
-Greetings, M3TAL Operators. I am DocSmith, your M3TAL Ecosystem Documentation Architect. This document serves as your definitive cheat-sheet for interacting with the M3TAL system via its unified command-line interface. Master these commands, and you will command your digital domain with precision and power.
-
-The M3TAL CLI (`/usr/bin/m3tal`) is the single entry point for all system operations, designed for efficiency and clarity.
+The M3TAL ecosystem is built on a robust foundation of Docker Engine, Docker Compose V2, and a Go API daemon, all orchestrated through a unified `m3tal` CLI binary. Let's dive in!
 
 ---
 
-## 1. M3TAL Installation
+# M3TAL CLI Command Reference
 
-For new installations or system recovery, follow these steps to deploy the M3TAL CLI and API daemon:
+## I. Introduction to M3TAL
+
+M3TAL provides a unified control plane for deploying and managing self-hosted applications using Docker Compose. It streamlines configuration, service management, and monitoring, abstracting away much of the underlying Docker complexity.
+
+**Core Components:**
+- **`m3tal` CLI binary**: Your single entry point for all operations.
+- **`m3tal-api.service`**: The systemd-managed Go API daemon (port 8080) that handles Docker interactions and state management.
+- **`m3tal-dashboard`**: A web-based UI (Python/Flask container) for visual control, accessible locally or via Traefik.
+- **Traefik Gateway**: A containerized reverse proxy for exposing services on port 80/443.
+- **Docker Engine + Compose V2**: The underlying containerization technology.
+
+## II. Installation
+
+To get M3TAL up and running on your system, follow these steps:
 
 ```bash
 # 1. Add the GPG signing key
@@ -21,304 +32,370 @@ echo "deb [signed-by=/usr/share/keyrings/m3tal-archive-keyring.gpg] https://jake
 sudo apt update && sudo apt install -y m3tal
 ```
 
-## 2. M3TAL Filesystem Contract
+## III. Filesystem Contract
 
-The M3TAL system relies on a well-defined filesystem layout for its operation. Understanding these paths is crucial for maintenance and troubleshooting.
+M3TAL adheres to a strict filesystem contract for configuration and data management:
 
-| Path                     | Purpose                                                                                                     |
-| :----------------------- | :---------------------------------------------------------------------------------------------------------- |
-| `/etc/m3tal/.env`        | **Primary system configuration file.** Contains all environment variables for M3TAL operations. Managed by `m3tal config wizard`. |
-| `/var/lib/m3tal/state.db`| **SQLite state database.** Stores M3TAL API daemon state, service information, and other operational data. Auto-created. |
-| `/opt/m3tal/stack/`      | **Canonical stack directory.** This is the core location where Docker Compose files and Traefik dynamic configurations are stored. |
-| `/docker`                | **Symlink to `/opt/m3tal/stack/`.** This is the user-facing path for placing and managing all Docker Compose stack definitions. |
-| `/docker/users.json`     | **Dashboard credential store.** Stores hashed passwords for M3TAL Dashboard access. Managed by `m3tal dashpass`. |
+| Path | Purpose |
+|------|--------|
+| `/etc/m3tal/.env` | Primary configuration file, managed by `m3tal config wizard`. |
+| `/var/lib/m3tal/state.db` | SQLite state database, auto-created and managed by the API daemon. |
+| `/opt/m3tal/stack/` | Canonical directory for Docker Compose files and Traefik config. |
+| `/docker` | **Symlink** → `/opt/m3tal/stack/`. This is the user-facing path for all stack operations. Place your `*-compose.yml` files here. |
+| `/docker/users.json` | Dashboard credential store, managed by `m3tal dashpass`. |
 
----
+## IV. Core M3TAL Commands
 
-## 3. M3TAL CLI Commands
+### `sudo m3tal`
 
-This section details every primary command and its subcommands, complete with concrete usage examples.
+Opens the interactive Text User Interface (TUI) Control Center. This provides a user-friendly, numbered menu interface to common M3TAL operations, ideal for quick status checks and actions without remembering specific CLI flags.
 
-### 3.1. Interactive TUI Control Center
+**Usage Example:**
+```bash
+sudo m3tal
+```
+_This will launch a full-screen terminal application with options like "1. Dashboard Status", "2. Start All Stacks", "3. Stop All Stacks", etc._
 
-The M3TAL Control Center offers a guided, interactive menu for common operations.
+### `m3tal init`
 
-*   **`sudo m3tal`**
-    Opens the interactive Text-User Interface (TUI) Control Center. This provides a numbered menu for common tasks like starting/stopping stacks, checking status, configuring the system, and managing the dashboard. Elevated privileges (`sudo`) are required as many underlying operations interact with Docker.
+Generates the initial `/etc/m3tal/.env` configuration file from M3TAL's defaults. This is crucial for your first installation or if your `.env` file is missing.
 
-    ```bash
-    # Launch the interactive M3TAL Control Center to manage your system
-    sudo m3tal
-    ```
+**Usage Example:**
+```bash
+m3tal init
+```
+_This command should be run once after installation. If `/etc/m3tal/.env` already exists, it will prompt you before overwriting._
 
-### 3.2. System Initialization and Health
+### `m3tal doctor`
 
-Commands for setting up the M3TAL environment and ensuring its operational readiness.
+Performs a pre-flight health check of your M3TAL installation. It verifies Docker connectivity, validates the `/etc/m3tal/.env` file, and checks for port availability, helping diagnose common setup issues.
 
-*   **`m3tal init`**
-    Generates the primary configuration file, `/etc/m3tal/.env`, from system defaults. This command is essential on the first installation or if `/etc/m3tal/.env` is missing, providing a baseline for your M3TAL environment.
+**Usage Example:**
+```bash
+m3tal doctor
+```
+**Expected Output Example:**
+```
+M3TAL Doctor Pre-Flight Health Check:
+✓ Docker Daemon: Running (v25.0.3)
+✓ Docker Compose: Installed (v2.24.5)
+✓ /etc/m3tal/.env: Valid (27 variables loaded)
+✓ Port 8080 (M3TAL API): Available
+✓ Port 8082 (Dashboard): Available
+✓ Port 80 (Traefik HTTP): Available
+✓ Essential Docker Networks: 'proxy' found.
+✓ API Daemon: Running
+M3TAL system health: GOOD.
+```
 
-    ```bash
-    # Initialize the M3TAL environment by generating the default .env file
-    m3tal init
-    ```
+## V. Configuration Management (`m3tal config`)
 
-*   **`m3tal doctor`**
-    Performs a pre-flight health check of the M3TAL system. It verifies critical components such as Docker connectivity, the validity and existence of `/etc/m3tal/.env`, and ensures that required ports (e.g., 80, 8080, 8082) are not already in use by other processes.
+M3TAL configuration is primarily managed through the `/etc/m3tal/.env` file. These commands help you interact with it.
 
-    ```bash
-    # Run a diagnostic check on the M3TAL system to identify potential issues
-    m3tal doctor
-    ```
+### `m3tal config wizard`
 
-### 3.3. Configuration Management (`m3tal config`)
+Launches an interactive wizard to guide you through configuring or updating your `/etc/m3tal/.env` file. It presents each environment variable with its current value and default, allowing easy modifications.
 
-These commands allow you to inspect and modify the core M3TAL configuration file, `/etc/m3tal/.env`.
+**Usage Example:**
+```bash
+m3tal config wizard
+```
+_This will prompt you for each configuration variable, e.g., "DASHBOARD_EXPOSE_MODE (current: local, default: local) [local]: "_
 
-*   **`m3tal config wizard`**
-    Launches an interactive wizard to guide you through configuring or updating the `/etc/m3tal/.env` file. This is the recommended method for making changes, as it provides explanations and validates inputs.
+### `m3tal config set KEY VALUE`
 
-    ```bash
-    # Start the interactive configuration wizard to adjust M3TAL settings
-    m3tal config wizard
-    ```
+Sets a single environment variable in `/etc/m3tal/.env` to a specified value. Changes are persistent.
 
-*   **`m3tal config set KEY VALUE`**
-    Sets a specific environment variable (`KEY`) to a new `VALUE` within `/etc/m3tal/.env`. Use this for quick, direct modifications. After changing a value, remember that active Docker containers might need to be restarted (`m3tal up` or `m3tal dash restart`) to pick up the new setting.
+**Usage Example:**
+```bash
+m3tal config set DASHBOARD_EXPOSE_MODE traefik
+```
+_This will update the `DASHBOARD_EXPOSE_MODE` to `traefik` in your `/etc/m3tal/.env` file. Remember to `m3tal dash restart` for changes to take effect on the dashboard._
 
-    ```bash
-    # Set the dashboard exposure mode to 'traefik'
-    m3tal config set DASHBOARD_EXPOSE_MODE traefik
+### `m3tal config get KEY`
 
-    # Update the primary domain used by Traefik and other services
-    m3tal config set DOMAIN myhomelab.net
-    ```
+Retrieves and displays the current value of a specific environment variable from `/etc/m3tal/.env`.
 
-*   **`m3tal config get KEY`**
-    Retrieves and displays the current value of a specified environment variable (`KEY`) from `/etc/m3tal/.env`.
+**Usage Example:**
+```bash
+m3tal config get DOMAIN
+```
+**Expected Output Example:**
+```
+yourdomain.com
+```
 
-    ```bash
-    # Get the currently configured M3TAL Dashboard port
-    m3tal config get DASHBOARD_PORT
+### `m3tal config scan`
 
-    # Display the set primary domain
-    m3tal config get DOMAIN
-    ```
+Scans all `*-compose.yml` files in `/docker/` to identify and list all environment variables referenced across all your stacks, including their default values if available. Useful for understanding what variables your entire ecosystem depends on.
 
-*   **`m3tal config scan`**
-    Lists all environment variables known to the M3TAL system, including their defaults and current values, across all defined Docker Compose stacks. This provides a comprehensive overview of your entire M3TAL ecosystem's variable landscape.
+**Usage Example:**
+```bash
+m3tal config scan
+```
+**Expected Output Example:**
+```
+Key                 Default             Description
+-----------------------------------------------------------------
+DASHBOARD_PORT      8082                Port for the M3TAL Dashboard
+DASHBOARD_EXPOSE_MODE local               Dashboard exposure mode (local/traefik)
+HTTP_PORT           8080                M3TAL API daemon port
+DOMAIN              localhost           Your public domain name
+PUID                1000                User ID for container processes
+PGID                1000                Group ID for container processes
+TZ                  America/Denver      Timezone for containers
+... (and many more)
+```
 
-    ```bash
-    # Scan and list all environment variables recognized by M3TAL
-    m3tal config scan
-    ```
+### `m3tal config list`
 
-*   **`m3tal config list`**
-    Displays the entire contents of the current M3TAL environment file (`/etc/m3tal/.env`). This is useful for reviewing all active settings at once.
+Displays the entire contents of your current `/etc/m3tal/.env` file, showing all configured environment variables and their values.
 
-    ```bash
-    # Display the full contents of the M3TAL configuration file
-    m3tal config list
-    ```
+**Usage Example:**
+```bash
+m3tal config list
+```
+**Expected Output Example:**
+```
+# M3TAL Environment Configuration
+DASHBOARD_PORT=8082
+DASHBOARD_EXPOSE_MODE=traefik
+HTTP_PORT=8080
+STATE_DIR=/var/lib/m3tal
+LOG_LEVEL=info
+DASHBOARD_SECRET=your_super_secret_key
+API_TOKEN=your_api_token
+ADMIN_PASSWORD=your_admin_password
+NETWORK_NAME=proxy
+LOCAL_IP=192.168.1.100
+DOMAIN=yourdomain.com
+... (and more)
+```
 
-### 3.4. Dashboard Management (`m3tal dash`)
+## VI. Dashboard Management (`m3tal dash`)
 
-Commands specifically designed for managing the M3TAL Dashboard container and its access.
+The M3TAL dashboard (`m3tal-dashboard` container) provides a web-based GUI. These commands manage its lifecycle and access.
 
-**Dashboard Access Modes: Critical Information**
-The M3TAL Dashboard can be accessed in two distinct modes, controlled by the `DASHBOARD_EXPOSE_MODE` variable in `/etc/m3tal/.env`:
+### `m3tal dashpass [username] [password]`
 
-*   **Mode 1: `local` (Default)**
-    *   `DASHBOARD_EXPOSE_MODE=local`
-    *   The dashboard container's port `8082` is directly mapped to the host's `8082` (or custom `DASHBOARD_PORT`).
+Updates the password for a specified dashboard user. If `username` and `password` are omitted, the command becomes interactive, prompting you for the necessary details. This updates `/docker/users.json`.
+
+**Usage Examples:**
+1. **Interactive Mode:**
+   ```bash
+   m3tal dashpass
+   ```
+   _Prompts for username and new password._
+
+2. **Direct Mode:**
+   ```bash
+   m3tal dashpass admin MyS3cur3P@ssw0rd!
+   ```
+   _Sets the password for the `admin` user to `MyS3cur3P@ssw0rd!`._
+
+### `m3tal dash up`
+
+Pulls the latest dashboard compose configuration from GitHub, then starts the `m3tal-dashboard` container using the appropriate override file based on `DASHBOARD_EXPOSE_MODE` in `/etc/m3tal/.env`.
+
+**Dashboard Access Modes (Critical):**
+
+The dashboard has two access modes, controlled by the `DASHBOARD_EXPOSE_MODE` variable in `/etc/m3tal/.env`:
+
+1.  **`DASHBOARD_EXPOSE_MODE=local` (Default)**
+    *   Uses `m3tal-compose.local.yml` for configuration.
+    *   Directly binds `DASHBOARD_PORT` (default: `8082`) from the host to the container.
     *   **Access via:** `http://HOST_IP:8082` or `http://localhost:8082`
-    *   No Traefik reverse proxy is involved. Ideal for LAN-only setups, initial deployment, or local testing.
+    *   No Traefik required. Best for LAN-only setups or first-time use.
 
-*   **Mode 2: `traefik`**
-    *   `DASHBOARD_EXPOSE_MODE=traefik`
-    *   The dashboard is exposed via Traefik, routing `dash.${DOMAIN}` (e.g., `dash.myhomelab.net`) to the container.
-    *   **Access via:** `http://dash.YOUR_DOMAIN` (Requires Traefik to be running via `m3tal up`).
-    *   Best for domain-based access and integration into a larger Traefik-managed environment.
+2.  **`DASHBOARD_EXPOSE_MODE=traefik`**
+    *   Uses `m3tal-compose.traefik.yml` for configuration.
+    *   Adds Traefik labels, allowing Traefik to route `dash.${DOMAIN}` to the dashboard on port 8082.
+    *   **Access via:** `http://dash.YOUR_DOMAIN` (e.g., `http://dash.myhomelab.com`)
+    *   Requires Traefik to be running via `m3tal up`. Best for domain-based access behind a reverse proxy.
 
-*   **`m3tal dashpass [username] [password]`**
-    Updates the password for a specified dashboard user. If `username` and `password` are omitted, the command will prompt you interactively for the details. User credentials are stored in `/docker/users.json`.
+**Usage Example:**
+```bash
+m3tal dash up
+```
+_This will pull the latest dashboard image and start the `m3tal-dashboard` container, making it accessible based on your `DASHBOARD_EXPOSE_MODE`._
 
+### `m3tal dash down`
+
+Stops and removes the `m3tal-dashboard` container.
+
+**Usage Example:**
+```bash
+m3tal dash down
+```
+
+### `m3tal dash restart`
+
+Restarts the `m3tal-dashboard` container. Useful after changing configuration variables or applying updates.
+
+**Usage Example:**
+```bash
+m3tal dash restart
+```
+
+### `m3tal dash logs`
+
+Streams real-time logs from the `m3tal-dashboard` container. Essential for debugging dashboard issues.
+
+**Usage Example:**
+```bash
+m3tal dash logs
+```
+
+### `m3tal dash status`
+
+Shows the current status of the `m3tal-dashboard` container (e.g., `running`, `exited`, `restarting`).
+
+**Usage Example:**
+```bash
+m3tal dash status
+```
+**Expected Output Example:**
+```
+Container: m3tal-dashboard
+Image: ghcr.io/jakej985-rgb/m3tal-godash:debug
+Status: Up 10 minutes (healthy)
+Ports: 0.0.0.0:8082->8082/tcp
+```
+
+## VII. Stack Management (`m3tal up/down/logs`)
+
+These commands manage all your Docker Compose stacks defined by `*-compose.yml` files in the `/docker/` directory.
+
+**Important Note:** The `/docker/` directory is a symlink to `/opt/m3tal/stack/`. When adding new services, place your `my-service-compose.yml` files in `/docker/`.
+
+### `m3tal up`
+
+Runs `docker compose up -d` across all `*-compose.yml` files found in the `/docker/` directory. This starts or recreates all services defined in your M3TAL ecosystem, including Traefik, Cloudflared, and any user-defined stacks.
+
+**Usage Example:**
+```bash
+m3tal up
+```
+_This will start containers for `routing-compose.yml`, `m3tal-compose.yml`, and any other `*-compose.yml` files you have placed in `/docker/`._
+
+### `m3tal down`
+
+Runs `docker compose down` across all `*-compose.yml` files in the `/docker/` directory. This stops and removes all containers, networks, and volumes associated with your M3TAL stacks.
+
+**Usage Example:**
+```bash
+m3tal down
+```
+
+### `m3tal logs`
+
+Streams aggregated logs from all currently running M3TAL-managed Docker containers. This provides a unified view of your entire system's activity.
+
+**Usage Example:**
+```bash
+m3tal logs
+```
+_This will show logs from `m3tal-dashboard`, `traefik`, `ollama`, and any other running services, prefixed by their container name._
+
+## VIII. Systemd Service Management
+
+The core M3TAL API daemon (`m3tal-api`) runs as a systemd service. These commands are essential for managing and debugging the daemon itself.
+
+### `systemctl status m3tal-api`
+
+Checks the current status of the M3TAL API daemon service.
+
+**Usage Example:**
+```bash
+systemctl status m3tal-api
+```
+**Expected Output Example:**
+```
+● m3tal-api.service - M3TAL API Daemon
+     Loaded: loaded (/etc/systemd/system/m3tal-api.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2024-03-12 10:30:05 UTC; 1min 23s ago
+   Main PID: 1234 (m3tal-api)
+      Tasks: 7 (limit: 4615)
+     Memory: 15.6M
+        CPU: 123ms
+     CGroup: /system.slice/m3tal-api.service
+             └─1234 /usr/bin/m3tal-api
+
+Mar 12 10:30:05 myhost systemd[1]: Started M3TAL API Daemon.
+Mar 12 10:30:05 myhost m3tal-api[1234]: [INFO] M3TAL API daemon started on :8080
+```
+
+### `journalctl -u m3tal-api -f`
+
+Streams real-time logs from the M3TAL API daemon service. Indispensable for debugging issues related to the API or its interactions with Docker.
+
+**Usage Example:**
+```bash
+journalctl -u m3tal-api -f
+```
+
+### `systemctl restart m3tal-api`
+
+Restarts the M3TAL API daemon. Necessary after manually editing `/etc/m3tal/.env` or if the daemon is misbehaving.
+
+**Usage Example:**
+```bash
+sudo systemctl restart m3tal-api
+```
+
+## IX. Direct Docker / Compose Commands (Fallback & Advanced Use)
+
+M3TAL wraps standard Docker and Docker Compose V2 commands. While M3TAL commands are preferred for consistency and automation, knowing the direct Docker commands is useful for advanced debugging or specific ad-hoc operations.
+
+All M3TAL-managed compose files are located in `/docker/` (which is a symlink to `/opt/m3tal/stack/`).
+
+### Manage a Specific Stack Directly
+
+To manage a single stack, navigate to `/docker/` and use `docker compose` with the specific compose file.
+
+**Example: Start only the routing stack**
+```bash
+cd /docker/
+sudo docker compose -f routing-compose.yml up -d
+```
+
+**Example: Stop only the dashboard container**
+```bash
+cd /docker/
+sudo docker compose -f m3tal-compose.yml -f m3tal-compose.local.yml down m3tal-dashboard # or m3tal-compose.traefik.yml
+```
+_Note: When stopping just one container that uses overrides, you must specify all relevant compose files for Docker Compose to correctly interpret the service definition._
+
+**Example: View logs for a specific container**
+```bash
+sudo docker logs -f m3tal-dashboard
+```
+
+### General Docker Commands
+
+These commands provide insights into your Docker environment.
+
+-   **List all running containers:**
     ```bash
-    # Interactively update the password for the 'admin' user
-    m3tal dashpass admin
-
-    # Set the password for user 'operator' directly (use with caution in scripts)
-    m3tal dashpass operator SecureM3talPass123!
+    sudo docker ps
     ```
 
-*   **`m3tal dash up`**
-    Ensures the M3TAL Dashboard is running. This command first pulls the latest dashboard compose configuration files (`m3tal-compose.yml`, `m3tal-compose.local.yml`, `m3tal-compose.traefik.yml`) from the official GitHub repository. It then starts the `m3tal-dashboard` container, dynamically applying the correct override based on the `DASHBOARD_EXPOSE_MODE` setting in `/etc/m3tal/.env`.
-
+-   **List all Docker networks:**
     ```bash
-    # Start or update the M3TAL Dashboard container, pulling the latest configuration
-    m3tal dash up
+    sudo docker network ls
     ```
 
-*   **`m3tal dash down`**
-    Stops and removes the `m3tal-dashboard` container. This does not remove its associated data volumes.
-
+-   **Inspect a container (e.g., to see its network details or mounted volumes):**
     ```bash
-    # Stop the M3TAL Dashboard container
-    m3tal dash down
+    sudo docker inspect m3tal-dashboard
     ```
 
-*   **`m3tal dash restart`**
-    Restarts the `m3tal-dashboard` container. This is useful after changing dashboard-related environment variables or troubleshooting.
-
+-   **Clean up unused Docker resources (images, containers, networks, volumes):**
     ```bash
-    # Restart the M3TAL Dashboard
-    m3tal dash restart
+    sudo docker system prune -a
     ```
-
-*   **`m3tal dash logs`**
-    Streams the real-time logs from the `m3tal-dashboard` container. This is invaluable for debugging and monitoring dashboard activity.
-
-    ```bash
-    # Stream logs from the M3TAL Dashboard
-    m3tal dash logs
-    ```
-
-*   **`m3tal dash status`**
-    Displays the current operational status of the `m3tal-dashboard` container, including its running state, uptime, and port mappings.
-
-    ```bash
-    # Check the status of the M3TAL Dashboard container
-    m3tal dash status
-    ```
-
-### 3.5. Stack Management (`m3tal up`, `m3tal down`, `m3tal logs`)
-
-These commands manage all Docker Compose stacks defined within your `/docker/` directory. M3TAL utilizes **Docker Engine + Docker Compose V2**.
-
-*   **`m3tal up`**
-    Brings up all Docker Compose services defined by `*-compose.yml` files located in the `/docker/` directory (which symlinks to `/opt/m3tal/stack/`). This command reads your `/etc/m3tal/.env` variables and applies them to all services, starting or updating them as necessary. This is how you deploy new services or apply updates to existing ones.
-
-    ```bash
-    # Start or update all Docker Compose stacks found in /docker/, applying .env settings
-    m3tal up
-    ```
-
-*   **`m3tal down`**
-    Stops and removes all Docker Compose services and their associated networks defined by `*-compose.yml` files in `/docker/`. This effectively brings down your entire M3TAL-managed container infrastructure.
-
-    ```bash
-    # Stop and remove all running Docker Compose stacks
-    m3tal down
-    ```
-
-*   **`m3tal logs`**
-    Streams aggregated logs from *all* currently running Docker Compose services managed by M3TAL. This provides a consolidated view of activity across your entire containerized ecosystem.
-
-    ```bash
-    # Stream real-time logs from all active M3TAL-managed containers
-    m3tal logs
-    ```
+    _Use with caution, this removes *all* stopped containers, unused networks, dangling images, and optionally all unused images and volumes._
 
 ---
 
-## 4. Systemd Service Management
-
-The M3TAL API daemon (`m3tal-api`) is a critical component running as a Go binary and managed by `systemd`. It runs on port 8080. Understanding how to interact with its systemd service is crucial for maintenance.
-
-*   **Check API Daemon Status:**
-    To verify if the M3TAL API daemon is running and healthy:
-    ```bash
-    systemctl status m3tal-api
-    ```
-
-*   **Restart API Daemon:**
-    If you've modified system-level M3TAL configurations or are troubleshooting API connectivity:
-    ```bash
-    sudo systemctl restart m3tal-api
-    ```
-
-*   **Stream API Daemon Logs:**
-    For real-time debugging of the M3TAL API's operations:
-    ```bash
-    journalctl -u m3tal-api -f
-    ```
-
----
-
-## 5. Direct Docker Compose Commands (Fallback)
-
-While `m3tal` streamlines Docker Compose operations, understanding the underlying direct `docker compose` commands can be useful for advanced troubleshooting or when M3TAL's CLI is unavailable for some reason. All M3TAL-managed stacks reside in `/docker/` (symlinked from `/opt/m3tal/stack/`).
-
-*   **Start All Stacks Directly:**
-    This command operates on all `*-compose.yml` files in `/docker/`.
-    ```bash
-    # Navigate to the stacks directory
-    cd /docker/
-
-    # Start all services defined by compose files in this directory (example listing common files)
-    sudo docker compose -f routing-compose.yml -f m3tal-compose.yml -f ollama-compose.yml up -d
-    ```
-    *Note: You would need to explicitly list all your compose files. `m3tal up` handles this aggregation automatically.*
-
-*   **Stop All Stacks Directly:**
-    ```bash
-    # Navigate to the stacks directory
-    cd /docker/
-
-    # Stop all services defined by compose files
-    sudo docker compose -f routing-compose.yml -f m3tal-compose.yml -f ollama-compose.yml down
-    ```
-
-*   **Stream Logs from a Specific Stack/Service:**
-    ```bash
-    # Stream logs from the m3tal-dashboard service within m3tal-compose.yml
-    sudo docker compose -f /docker/m3tal-compose.yml logs -f m3tal-dashboard
-    ```
-    *Note: `m3tal logs` aggregates logs from ALL services, while this targets a specific service within a specific compose file.*
-
-*   **Check Status of a Specific Service:**
-    ```bash
-    # Check the status of the Traefik container
-    sudo docker compose -f /docker/routing-compose.yml ps traefik
-    ```
-
----
-
-## 6. M3TAL System Architecture & Runtime Essentials
-
-The M3TAL ecosystem leverages industry-standard tools to provide a robust and flexible environment.
-
-*   **Docker Engine + Docker Compose V2**: These are fundamental dependencies. M3TAL orchestrates containers using Compose files found in `/docker/`.
-*   **`/docker/`**: This directory (a symlink to `/opt/m3tal/stack/`) is your primary workspace for defining and managing your containerized applications. Simply place your `*-compose.yml` files here, and `m3tal up` will integrate them into your ecosystem.
-*   **M3TAL API Daemon**: A Go binary (`m3tal-api.service`) running on port 8080, managing Docker interactions, the state database (`/var/lib/m3tal/state.db`), and API routes.
-*   **M3TAL Dashboard**: A Python/Flask container (`m3tal-dashboard`) running on internal port 8082, communicating with the API daemon at `http://host.docker.internal:8080`. Its exposure mode (local vs. Traefik) is controlled by `DASHBOARD_EXPOSE_MODE` in `/etc/m3tal/.env`.
-*   **Traefik Gateway (`routing-compose.yml`)**: A reverse proxy container exposing services on host port 80. It uses Docker labels and file providers (from `/docker/dynamic/`) for dynamic routing, handling requests for `api.DOMAIN` and, if configured, `dash.DOMAIN`.
-*   **Cloudflared (`routing-compose.yml`)**: An optional Cloudflare tunnel for secure, zero-config internet access to your services.
-
-### Traefik Routing Architecture Overview
-
-Traefik acts as the front-door for your domain-based services.
-*   It listens on host port 80 (`entryPoints.web`).
-*   Automatically discovers services via Docker labels (`providers.docker`).
-*   Loads additional dynamic configuration from `/docker/dynamic/` (`providers.file`), enabling custom routing.
-*   Example: `api.DOMAIN` is routed to the M3TAL API daemon (Go) at `http://host.docker.internal:8080` via `/docker/dynamic/api.yml`.
-*   Example: `dash.DOMAIN` routes to the dashboard container through labels in `m3tal-compose.traefik.yml` when `DASHBOARD_EXPOSE_MODE=traefik`.
-
----
-
-## 7. M3TAL Port Map
-
-A summary of the key ports used by the M3TAL system:
-
-| Port | Service               | Access Context                                     |
-| :--- | :-------------------- | :------------------------------------------------- |
-| 80   | Traefik HTTP entry point | Public (when `routing-compose.yml` is active)        |
-| 8080 | M3TAL API daemon (Go) | Host-local (internal communication)                |
-| 8081 | Traefik dashboard     | Host-local only (internal management interface)    |
-| 8082 | M3TAL Dashboard       | Direct port (local mode) or via Traefik (traefik mode) |
-
----
-
-This comprehensive guide should equip you with the knowledge to effectively manage your M3TAL ecosystem. Remember, precision in command leads to mastery of your machine. Should you require further guidance, consult the M3TAL documentation archives.
-
-DocSmith, signing off.
+That's the full rundown, M3TAL user! With this cheat sheet, you're equipped to manage your M3TAL ecosystem like a pro. Remember to consult the official M3TAL documentation for deeper dives into specific topics. Happy homelabbing!
