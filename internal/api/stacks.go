@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
@@ -29,6 +30,9 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dirs := system.GetPluginDirs()
+	reg, _ := plugin.LoadAll(dirs...)
+
 	type stackInfo struct {
 		Name        string   `json:"name"`
 		ComposePath string   `json:"compose_path"`
@@ -40,6 +44,12 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 	for _, match := range matches {
 		base := filepath.Base(match)
 		name := strings.TrimSuffix(base, "-compose.yml")
+
+		if reg != nil {
+			if sp := reg.GetStack(name); sp != nil && !sp.Enabled {
+				continue
+			}
+		}
 
 		info := stackInfo{
 			Name:        name,
@@ -68,7 +78,29 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 
 	if stacks == nil {
 		stacks = []stackInfo{}
+	} else {
+		sort.Slice(stacks, func(i, j int) bool {
+			pI := 100
+			if reg != nil {
+				if sp := reg.GetStack(stacks[i].Name); sp != nil {
+					pI = sp.Priority
+				}
+			}
+
+			pJ := 100
+			if reg != nil {
+				if sp := reg.GetStack(stacks[j].Name); sp != nil {
+					pJ = sp.Priority
+				}
+			}
+
+			if pI != pJ {
+				return pI < pJ
+			}
+			return stacks[i].Name < stacks[j].Name
+		})
 	}
+
 	writeJSON(w, http.StatusOK, stacks)
 }
 

@@ -45,6 +45,10 @@ gpg --batch --no-tty $GPG_OPTS -abs -o dists/stable/Release.gpg dists/stable/Rel
 # 6. Export Public Key
 gpg --batch --no-tty --yes --armor --export "$KEY_ID" > public.key
 
+# 7. Generate Catalog JSON
+echo "[repo] Generating Catalog JSON..."
+../m3tal plugin catalog --export catalog.json
+
 echo "✅ APT Repository updated."
 echo "👉 Users can add it with:"
 echo "   curl -sL https://jakej985-rgb.github.io/m3tal-core/public.key | sudo apt-key add -"

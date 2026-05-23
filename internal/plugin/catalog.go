@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,11 +142,79 @@ func MatchesPluginName(sourcePath, metadataName, targetName string) bool {
 	return base != "" && strings.EqualFold(base, targetName)
 }
 
+// CatalogURL is the remote URL of the official M3TAL plugin catalog.
+var CatalogURL = "https://jakej985-rgb.github.io/m3tal-core/catalog.json"
+
+// catalogCachePathOverride allows tests to redirect the catalog cache file.
+var catalogCachePathOverride = ""
+
+// bootstrapCatalog preserves the initial hardcoded list to allow restoring on complete failures.
+var bootstrapCatalog []CatalogItem
+
+func init() {
+	bootstrapCatalog = make([]CatalogItem, len(Catalog))
+	copy(bootstrapCatalog, Catalog)
+}
+
+// getCatalogCachePath returns the file path where the catalog should be cached.
+func getCatalogCachePath() string {
+	if catalogCachePathOverride != "" {
+		return catalogCachePathOverride
+	}
+	if _, err := os.Stat("deploy/plugins"); err == nil {
+		return "deploy/plugins/catalog.json"
+	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		return filepath.Join(home, ".cache", "m3tal", "catalog.json")
+	}
+	return filepath.Join(os.TempDir(), "m3tal-catalog.json")
+}
+
+// FetchCatalog updates the global Catalog slice from the remote repository or local cache.
+func FetchCatalog() []CatalogItem {
+	cachePath := getCatalogCachePath()
+
+	// Try fetching from remote URL with a short timeout (3 seconds)
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(CatalogURL)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			data, err := io.ReadAll(resp.Body)
+			if err == nil {
+				var remoteCatalog []CatalogItem
+				if err := json.Unmarshal(data, &remoteCatalog); err == nil && len(remoteCatalog) > 0 {
+					Catalog = remoteCatalog
+					// Save to local cache
+					_ = os.MkdirAll(filepath.Dir(cachePath), 0755)
+					_ = os.WriteFile(cachePath, data, 0644)
+					return Catalog
+				}
+			}
+		}
+	}
+
+	// Fallback to local cache
+	if data, err := os.ReadFile(cachePath); err == nil {
+		var cachedCatalog []CatalogItem
+		if err := json.Unmarshal(data, &cachedCatalog); err == nil && len(cachedCatalog) > 0 {
+			Catalog = cachedCatalog
+			return Catalog
+		}
+	}
+
+	// Fallback to bootstrap default
+	Catalog = bootstrapCatalog
+	return Catalog
+}
+
 // ListCatalog correlates remote catalog items with local loaded plugins.
 func ListCatalog(reg *Registry) []CatalogItemStatus {
 	var list []CatalogItemStatus
 
-	for _, item := range Catalog {
+	catalog := FetchCatalog()
+	for _, item := range catalog {
 		status := CatalogItemStatus{
 			CatalogItem: item,
 			Installed:   false,
@@ -254,10 +323,11 @@ func downloadFile(url, dest string) error {
 
 // InstallPlugin downloads a plugin's definition and optional compose files.
 func InstallPlugin(name, kind, userPluginsDir string) error {
+	catalog := FetchCatalog()
 	var targetItem *CatalogItem
-	for i := range Catalog {
-		if strings.EqualFold(Catalog[i].Name, name) && strings.EqualFold(Catalog[i].Kind, kind) {
-			targetItem = &Catalog[i]
+	for i := range catalog {
+		if strings.EqualFold(catalog[i].Name, name) && strings.EqualFold(catalog[i].Kind, kind) {
+			targetItem = &catalog[i]
 			break
 		}
 	}

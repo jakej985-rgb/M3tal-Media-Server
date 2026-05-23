@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
 
@@ -19,14 +20,16 @@ type StackManager struct {
 
 // NewStackManager returns a manager with discovered M3TAL compose files.
 func NewStackManager() *StackManager {
-	paths := discoverComposeFiles()
+	dirs := system.GetPluginDirs()
+	reg, _ := plugin.LoadAll(dirs...)
+	paths := discoverComposeFiles(reg)
 	return &StackManager{
 		Files: paths,
 	}
 }
 
 // discoverComposeFiles finds all matching compose files across known locations.
-func discoverComposeFiles() []string {
+func discoverComposeFiles(reg *plugin.Registry) []string {
 	var files []string
 
 	dashboardExists := false
@@ -39,10 +42,17 @@ func discoverComposeFiles() []string {
 	stackDir := system.GetStackDir()
 	matches, _ := filepath.Glob(filepath.Join(stackDir, "*-compose.yml"))
 	for _, match := range matches {
+		name := filepath.Base(match)
 		// Ignore dashboard compose so it is strictly managed by 'm3tal dash' commands
 		// UNLESS it has already been started and the container exists.
-		if !dashboardExists && filepath.Base(match) == "m3tal-compose.yml" {
+		if !dashboardExists && name == "m3tal-compose.yml" {
 			continue
+		}
+		stackName := strings.TrimSuffix(name, "-compose.yml")
+		if reg != nil {
+			if sp := reg.GetStack(stackName); sp != nil && !sp.Enabled {
+				continue
+			}
 		}
 		files = append(files, match)
 	}
@@ -50,20 +60,27 @@ func discoverComposeFiles() []string {
 	// Also check for files in subdirectories (legacy/extra stacks)
 	subMatches, _ := filepath.Glob(filepath.Join(stackDir, "*", "*-compose.yml"))
 	for _, match := range subMatches {
-		if !dashboardExists && filepath.Base(match) == "m3tal-compose.yml" {
+		name := filepath.Base(match)
+		if !dashboardExists && name == "m3tal-compose.yml" {
 			continue
+		}
+		stackName := strings.TrimSuffix(name, "-compose.yml")
+		if reg != nil {
+			if sp := reg.GetStack(stackName); sp != nil && !sp.Enabled {
+				continue
+			}
 		}
 		files = append(files, match)
 	}
 
 	// Deduplicate and sort for deterministic order
-	files = uniqueSorted(files)
+	files = uniqueSorted(files, reg)
 
 	return files
 }
 
 // uniqueSorted deduplicates and sorts file paths with priority for infrastructure stacks.
-func uniqueSorted(files []string) []string {
+func uniqueSorted(files []string, reg *plugin.Registry) []string {
 	seen := make(map[string]bool)
 	var unique []string
 	for _, f := range files {
@@ -73,29 +90,29 @@ func uniqueSorted(files []string) []string {
 		}
 	}
 
-	// Priority weights (lower is earlier)
-	priority := map[string]int{
-		"network-compose.yml":     1,
-		"routing-compose.yml":     2,
-		"m3tal-compose.yml":       3,
-		"maintenance-compose.yml": 4,
-	}
-
 	sort.Slice(unique, func(i, j int) bool {
 		nameI := filepath.Base(unique[i])
 		nameJ := filepath.Base(unique[j])
 
-		pI, okI := priority[nameI]
-		pJ, okJ := priority[nameJ]
+		stackNameI := strings.TrimSuffix(nameI, "-compose.yml")
+		stackNameJ := strings.TrimSuffix(nameJ, "-compose.yml")
 
-		if okI && okJ {
+		pI := 100
+		if reg != nil {
+			if sp := reg.GetStack(stackNameI); sp != nil {
+				pI = sp.Priority
+			}
+		}
+
+		pJ := 100
+		if reg != nil {
+			if sp := reg.GetStack(stackNameJ); sp != nil {
+				pJ = sp.Priority
+			}
+		}
+
+		if pI != pJ {
 			return pI < pJ
-		}
-		if okI {
-			return true
-		}
-		if okJ {
-			return false
 		}
 		return nameI < nameJ
 	})

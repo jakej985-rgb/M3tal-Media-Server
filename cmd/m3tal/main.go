@@ -876,6 +876,20 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "catalog",
 		Short: "List all official plugins in the catalog and their status",
 		Run: func(cmd *cobra.Command, args []string) {
+			exportPath, _ := cmd.Flags().GetString("export")
+			if exportPath != "" {
+				// Export static catalog to JSON file
+				data, err := json.MarshalIndent(plugin.Catalog, "", "  ")
+				if err != nil {
+					log.Fatalf("❌ Failed to marshal catalog: %v", err)
+				}
+				if err := os.WriteFile(exportPath, data, 0644); err != nil {
+					log.Fatalf("❌ Failed to write catalog file: %v", err)
+				}
+				fmt.Printf("✅ Catalog exported to %s\n", exportPath)
+				return
+			}
+
 			dirs := system.GetPluginDirs()
 			reg, err := plugin.LoadAll(dirs...)
 			if err != nil {
@@ -901,6 +915,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			}
 		},
 	}
+	pluginCatalogCmd.Flags().String("export", "", "Export the static catalog to a JSON file path")
 
 	var pluginInstallCmd = &cobra.Command{
 		Use:   "install [name]",
@@ -909,9 +924,10 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			name := args[0]
 
+			catalog := plugin.FetchCatalog()
 			// Find the item in the catalog to get the Kind
 			var targetKind string
-			for _, item := range plugin.Catalog {
+			for _, item := range catalog {
 				if strings.EqualFold(item.Name, name) {
 					targetKind = item.Kind
 					name = item.Name // use canonical name

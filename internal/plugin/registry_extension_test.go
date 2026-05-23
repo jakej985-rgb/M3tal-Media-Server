@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -300,3 +302,77 @@ spec:
 		t.Fatalf("failed to enable: %v", err)
 	}
 }
+
+func TestFetchCatalog(t *testing.T) {
+	// Create mock HTTP server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[
+			{
+				"name": "mock-plugin",
+				"kind": "Route",
+				"description": "Mock plugin",
+				"version": "1.2.3",
+				"author": "Mock Author",
+				"url": "https://example.com/mock.yml"
+			}
+		]`))
+	}))
+	defer server.Close()
+
+	// Backup original values
+	origURL := CatalogURL
+	origOverride := catalogCachePathOverride
+	defer func() {
+		CatalogURL = origURL
+		catalogCachePathOverride = origOverride
+	}()
+
+	CatalogURL = server.URL
+
+	tmpDir, err := os.MkdirTemp("", "m3tal-catalog-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	catalogCachePathOverride = filepath.Join(tmpDir, "catalog.json")
+
+	// 1. Fetch catalog: should download from server and update package Catalog variable
+	catalog := FetchCatalog()
+	if len(catalog) != 1 || catalog[0].Name != "mock-plugin" {
+		t.Fatalf("expected 1 catalog item 'mock-plugin', got: %+v", catalog)
+	}
+
+	// Verify that the local cache file is written
+	if _, err := os.Stat(catalogCachePathOverride); os.IsNotExist(err) {
+		t.Fatal("expected catalog cache file to be written, but it wasn't")
+	}
+
+	// 2. Offline fallback test: change URL to invalid and verify it falls back to the cache
+	CatalogURL = "http://invalid-url-that-fails.local"
+	
+	// Fetch again: should fall back to cache and return the same item
+	catalogFallback := FetchCatalog()
+	if len(catalogFallback) != 1 || catalogFallback[0].Name != "mock-plugin" {
+		t.Fatalf("expected fallback to load 'mock-plugin' from cache, got: %+v", catalogFallback)
+	}
+
+	// 3. Complete failure fallback test: remove cache file and verify it falls back to default Catalog
+	_ = os.Remove(catalogCachePathOverride)
+	
+	catalogDefault := FetchCatalog()
+	// Should have at least one default plugin (like "m3tal")
+	foundM3tal := false
+	for _, item := range catalogDefault {
+		if item.Name == "m3tal" {
+			foundM3tal = true
+			break
+		}
+	}
+	if !foundM3tal {
+		t.Fatal("expected fallback to default Catalog containing 'm3tal', but it wasn't found")
+	}
+}
+
