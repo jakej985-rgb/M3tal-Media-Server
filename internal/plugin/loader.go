@@ -231,4 +231,3 @@ func LoadPlugin(path string) (*Plugin, error) {
 	p.Enabled = enabled
 	return p, nil
 }
-

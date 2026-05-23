@@ -495,4 +495,3 @@ func TestStateManager(t *testing.T) {
 		t.Error("expected database record to show enabled = true")
 	}
 }
-
