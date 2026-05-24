@@ -30,6 +30,11 @@
     "path": "internal/containers"
   },
   {
+    "name": "doctor",
+    "type": "Go package",
+    "path": "internal/doctor"
+  },
+  {
     "name": "engine",
     "type": "Go package",
     "path": "internal/engine"
