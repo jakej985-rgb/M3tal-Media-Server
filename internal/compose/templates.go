@@ -19,12 +19,12 @@ var Templates = []Template{
 		Name:        "webapp",
 		Description: "A standard web application stack with a backend app and a database",
 		Parameters: map[string]string{
-			"APP_NAME":     "Name of the application service (default: webapp)",
-			"APP_IMAGE":    "Docker image for the application (default: nginx:latest)",
-			"APP_PORT":     "External port exposed by the web app (default: 8080)",
-			"DB_USER":      "Database user (default: admin)",
-			"DB_PASSWORD":  "Database password (default: secretpass)",
-			"DB_NAME":      "Database name (default: appdb)",
+			"APP_NAME":    "Name of the application service (default: webapp)",
+			"APP_IMAGE":   "Docker image for the application (default: nginx:latest)",
+			"APP_PORT":    "External port exposed by the web app (default: 8080)",
+			"DB_USER":     "Database user (default: admin)",
+			"DB_PASSWORD": "Database password (default: secretpass)",
+			"DB_NAME":     "Database name (default: appdb)",
 		},
 		Content: `version: '3.8'
 
@@ -57,11 +57,11 @@ volumes:
 		Name:        "vpn-stack",
 		Description: "A service stack routed through a VPN (Gluetun) container",
 		Parameters: map[string]string{
-			"VPN_USER":      "VPN provider username",
-			"VPN_PASSWORD":  "VPN provider password",
-			"APP_NAME":      "Name of the application service (default: torrent)",
-			"APP_IMAGE":     "Docker image for the application (default: lscr.io/linuxserver/transmission)",
-			"APP_PORT":      "Web UI port inside the VPN (default: 9091)",
+			"VPN_USER":     "VPN provider username",
+			"VPN_PASSWORD": "VPN provider password",
+			"APP_NAME":     "Name of the application service (default: torrent)",
+			"APP_IMAGE":    "Docker image for the application (default: lscr.io/linuxserver/transmission)",
+			"APP_PORT":     "Web UI port inside the VPN (default: 9091)",
 		},
 		Content: `version: '3.8'
 

@@ -28,13 +28,13 @@ type Section struct {
 
 // Report is the aggregated output of all doctor scans.
 type Report struct {
-	GeneratedAt    string            `json:"generated_at"`
-	OverallSeverity Severity         `json:"overall_severity"`
-	Containers     []ContainerResult `json:"containers"`
-	Mounts         []MountResult     `json:"mounts"`
-	Ports          []PortResult      `json:"ports"`
-	Sections       []Section         `json:"sections"`
-	Recommendations []string         `json:"recommendations"`
+	GeneratedAt     string            `json:"generated_at"`
+	OverallSeverity Severity          `json:"overall_severity"`
+	Containers      []ContainerResult `json:"containers"`
+	Mounts          []MountResult     `json:"mounts"`
+	Ports           []PortResult      `json:"ports"`
+	Sections        []Section         `json:"sections"`
+	Recommendations []string          `json:"recommendations"`
 }
 
 // severityIcon returns an emoji for a given severity level.

@@ -226,7 +226,7 @@ func FetchCatalog() []CatalogItem {
 
 	// Try fetching catalog and signature from remote URL
 	client := &http.Client{Timeout: 3 * time.Second}
-	
+
 	// Fetch catalog.json
 	resp, err := client.Get(CatalogURL)
 	if err == nil {
@@ -245,7 +245,7 @@ func FetchCatalog() []CatalogItem {
 							tempDir := os.TempDir()
 							tempCatalog := filepath.Join(tempDir, "m3tal-catalog-temp.json")
 							tempSig := filepath.Join(tempDir, "m3tal-catalog-temp.json.sig")
-							
+
 							if errWrite := os.WriteFile(tempCatalog, data, 0644); errWrite == nil {
 								if errSigWrite := os.WriteFile(tempSig, sigData, 0644); errSigWrite == nil {
 									// Verify the GPG signature
@@ -254,7 +254,7 @@ func FetchCatalog() []CatalogItem {
 										_ = os.MkdirAll(filepath.Dir(cachePath), 0755)
 										_ = os.WriteFile(cachePath, data, 0644)
 										_ = os.WriteFile(sigCachePath, sigData, 0644)
-										
+
 										var remoteCatalog []CatalogItem
 										if errUnmarshal := json.Unmarshal(data, &remoteCatalog); errUnmarshal == nil && len(remoteCatalog) > 0 {
 											Catalog = remoteCatalog

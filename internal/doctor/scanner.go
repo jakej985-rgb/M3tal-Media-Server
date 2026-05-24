@@ -18,29 +18,29 @@ import (
 type ContainerStatus string
 
 const (
-	StatusRunning   ContainerStatus = "running"
-	StatusStopped   ContainerStatus = "stopped"
-	StatusUnhealthy ContainerStatus = "unhealthy"
+	StatusRunning    ContainerStatus = "running"
+	StatusStopped    ContainerStatus = "stopped"
+	StatusUnhealthy  ContainerStatus = "unhealthy"
 	StatusRestarting ContainerStatus = "restarting"
-	StatusCreated   ContainerStatus = "created"
-	StatusPaused    ContainerStatus = "paused"
-	StatusDead      ContainerStatus = "dead"
+	StatusCreated    ContainerStatus = "created"
+	StatusPaused     ContainerStatus = "paused"
+	StatusDead       ContainerStatus = "dead"
 )
 
 // ContainerResult holds the health scan result for a single container.
 type ContainerResult struct {
-	Name         string          `json:"name"`
-	ID           string          `json:"id"`
-	Image        string          `json:"image"`
-	State        string          `json:"state"`
-	Health       string          `json:"health"`        // healthy / unhealthy / starting / none
-	Restarts     int             `json:"restarts"`
-	StartedAt    string          `json:"started_at"`
-	FinishedAt   string          `json:"finished_at"`
-	ExitCode     int             `json:"exit_code"`
-	Status       ContainerStatus `json:"status"`
-	Severity     Severity        `json:"severity"`
-	Recommendation string        `json:"recommendation,omitempty"`
+	Name           string          `json:"name"`
+	ID             string          `json:"id"`
+	Image          string          `json:"image"`
+	State          string          `json:"state"`
+	Health         string          `json:"health"` // healthy / unhealthy / starting / none
+	Restarts       int             `json:"restarts"`
+	StartedAt      string          `json:"started_at"`
+	FinishedAt     string          `json:"finished_at"`
+	ExitCode       int             `json:"exit_code"`
+	Status         ContainerStatus `json:"status"`
+	Severity       Severity        `json:"severity"`
+	Recommendation string          `json:"recommendation,omitempty"`
 }
 
 // dockerInspectState mirrors the subset of Docker's inspect output we need.
@@ -65,12 +65,12 @@ type dockerInspectHostConfig struct {
 }
 
 type dockerInspectResult struct {
-	Id      string `json:"Id"`
-	Name    string `json:"Name"`
-	State   dockerInspectState `json:"State"`
-	HostConfig dockerInspectHostConfig `json:"HostConfig"`
-	RestartCount int `json:"RestartCount"`
-	Config  struct {
+	Id           string                  `json:"Id"`
+	Name         string                  `json:"Name"`
+	State        dockerInspectState      `json:"State"`
+	HostConfig   dockerInspectHostConfig `json:"HostConfig"`
+	RestartCount int                     `json:"RestartCount"`
+	Config       struct {
 		Image string `json:"Image"`
 	} `json:"Config"`
 }

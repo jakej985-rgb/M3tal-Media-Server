@@ -17,9 +17,9 @@ import (
 type PortResult struct {
 	Port       int      `json:"port"`
 	InUse      bool     `json:"in_use"`
-	OwnedBy    string   `json:"owned_by,omitempty"`    // process name if detectable
+	OwnedBy    string   `json:"owned_by,omitempty"` // process name if detectable
 	PID        int      `json:"pid,omitempty"`
-	Conflict   bool     `json:"conflict"`             // true when a service expects this port free
+	Conflict   bool     `json:"conflict"` // true when a service expects this port free
 	Severity   Severity `json:"severity"`
 	Suggestion int      `json:"suggestion,omitempty"` // next free port
 	Note       string   `json:"note,omitempty"`

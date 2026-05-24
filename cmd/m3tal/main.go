@@ -1655,7 +1655,72 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 
 	docCmd.AddCommand(doctorScanCmd, doctorFixCmd, doctorReportCmd)
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd)
+	var aiCmd = &cobra.Command{
+		Use:   "ai [prompt]",
+		Short: "Query the M3TAL AI system",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			prompt := args[0]
+			mode, _ := cmd.Flags().GetString("mode")
+
+			apiURL, _ := cmd.Flags().GetString("api-url")
+			apiToken, _ := cmd.Flags().GetString("api-token")
+
+			payload := map[string]string{
+				"prompt": prompt,
+				"mode":   mode,
+			}
+			data, _ := json.Marshal(payload)
+
+			req, err := http.NewRequest("POST", apiURL+"/api/v2/ai/run", bytes.NewBuffer(data))
+			if err != nil {
+				log.Fatalf("❌ Failed to create request: %v", err)
+			}
+
+			if apiToken != "" {
+				req.Header.Set("X-API-Token", apiToken)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			// Use a longer timeout for AI generation (e.g. 5 minutes)
+			client := &http.Client{Timeout: 5 * time.Minute}
+			fmt.Println("🧠 Sending request to M3TAL AI queue...")
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Fatalf("❌ API request failed: %v", err)
+			}
+			defer resp.Body.Close()
+
+			respBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Fatalf("❌ Failed to read API response: %v", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				var errResp map[string]string
+				if err := json.Unmarshal(respBytes, &errResp); err == nil && errResp["error"] != "" {
+					log.Fatalf("❌ AI API Error: %s", errResp["error"])
+				}
+				log.Fatalf("❌ API returned status %d: %s", resp.StatusCode, string(respBytes))
+			}
+
+			var aiResp struct {
+				Model    string `json:"model"`
+				Response string `json:"response"`
+				Status   string `json:"status"`
+			}
+			if err := json.Unmarshal(respBytes, &aiResp); err != nil {
+				log.Fatalf("❌ Failed to parse response: %v", err)
+			}
+
+			fmt.Println("\n🤖 Response from AI (" + aiResp.Model + "):")
+			fmt.Println("----------------------------------------")
+			fmt.Println(aiResp.Response)
+		},
+	}
+	aiCmd.Flags().StringP("mode", "m", "", "AI model mode (e.g., 'code' or 'chat')")
+
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

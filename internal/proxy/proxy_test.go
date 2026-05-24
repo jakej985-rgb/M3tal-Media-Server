@@ -56,7 +56,7 @@ func TestWriteAndDeletePluginFile(t *testing.T) {
 	// In the real code it checks os.Stat("deploy/plugins")
 	// Since we are running in workspace root, it might resolve deploy/plugins
 	// So we handle checking both routes paths
-	
+
 	mgr := &Manager{}
 
 	err := mgr.WriteRoutePluginFile("test-service", "test.domain.local", 8080, true, []string{"mw1", "mw2"})

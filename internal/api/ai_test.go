@@ -3,9 +3,12 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestAIRun_NotActive(t *testing.T) {
@@ -152,5 +155,75 @@ func TestAIRun_Fallback(t *testing.T) {
 	}
 	if resp.Response != "recovered using fallback" {
 		t.Errorf("expected response 'recovered using fallback', got %q", resp.Response)
+	}
+}
+
+func TestAIRun_QueueConcurrency(t *testing.T) {
+	origActive := isAIActiveCheck
+	origEnv := loadAIEnvFunc
+	defer func() {
+		isAIActiveCheck = origActive
+		loadAIEnvFunc = origEnv
+	}()
+
+	isAIActiveCheck = func() bool { return true }
+
+	var mu sync.Mutex
+	activeRequests := 0
+	maxConcurrency := 0
+	completedRequests := 0
+
+	ollamaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		activeRequests++
+		if activeRequests > maxConcurrency {
+			maxConcurrency = activeRequests
+		}
+		mu.Unlock()
+
+		time.Sleep(50 * time.Millisecond)
+
+		mu.Lock()
+		activeRequests--
+		completedRequests++
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"response": "done"}`))
+	}))
+	defer ollamaServer.Close()
+
+	loadAIEnvFunc = func() map[string]string {
+		return map[string]string{
+			"AI_MODEL":    "mock-model",
+			"OLLAMA_HOST": ollamaServer.URL,
+		}
+	}
+
+	srv := NewServer("test-token")
+
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			reqBody, _ := json.Marshal(AIRequest{Prompt: fmt.Sprintf("prompt %d", id)})
+			req := httptest.NewRequest("POST", "/ai/run", bytes.NewBuffer(reqBody))
+			w := httptest.NewRecorder()
+			srv.AIRun(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if maxConcurrency != 1 {
+		t.Errorf("expected max concurrency 1, got %d", maxConcurrency)
+	}
+	if completedRequests != 3 {
+		t.Errorf("expected 3 completed requests, got %d", completedRequests)
 	}
 }

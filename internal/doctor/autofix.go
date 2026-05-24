@@ -22,9 +22,9 @@ const (
 // Fix represents a proposed (or applied) remediation action.
 type Fix struct {
 	Action      FixAction `json:"action"`
-	Target      string    `json:"target"`       // container name or path or port string
+	Target      string    `json:"target"` // container name or path or port string
 	Description string    `json:"description"`
-	Command     string    `json:"command"`      // human-readable command equivalent
+	Command     string    `json:"command"` // human-readable command equivalent
 	Applied     bool      `json:"applied"`
 	Error       string    `json:"error,omitempty"`
 }

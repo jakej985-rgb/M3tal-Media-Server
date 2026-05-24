@@ -157,10 +157,10 @@ services:
 func TestGenerate(t *testing.T) {
 	// Test generating webapp
 	params := map[string]string{
-		"APP_NAME":  "my-custom-app",
-		"APP_PORT":  "9000",
-		"DB_USER":   "dbadmin",
-		"DB_NAME":   "maindb",
+		"APP_NAME": "my-custom-app",
+		"APP_PORT": "9000",
+		"DB_USER":  "dbadmin",
+		"DB_NAME":  "maindb",
 	}
 
 	yamlData, err := Generate("webapp", params)

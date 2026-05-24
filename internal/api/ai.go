@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
@@ -25,6 +26,94 @@ type AIResponse struct {
 	Model    string `json:"model"`
 	Response string `json:"response"`
 	Status   string `json:"status"`
+}
+
+// AIJob represents a queued AI generation task
+type AIJob struct {
+	Prompt     string
+	Mode       string
+	ResultChan chan AIJobResult
+}
+
+// AIJobResult represents the result of a processed AI job
+type AIJobResult struct {
+	Model    string
+	Response string
+	Error    error
+}
+
+var (
+	jobQueue        chan *AIJob
+	startWorkerOnce sync.Once
+)
+
+// startWorker initializes the job queue and starts the worker loop
+func startWorker() {
+	jobQueue = make(chan *AIJob, 100)
+	go workerLoop()
+}
+
+// workerLoop processes queued AI jobs sequentially (MAX=1 concurrency)
+func workerLoop() {
+	for job := range jobQueue {
+		envVars := loadAIEnvFunc()
+
+		// 1. Determine model based on mode
+		var model string
+		switch strings.ToLower(job.Mode) {
+		case "code":
+			if m, ok := envVars["AI_MODEL_CODE"]; ok && m != "" {
+				model = m
+			}
+		case "chat":
+			if m, ok := envVars["AI_MODEL_CHAT"]; ok && m != "" {
+				model = m
+			}
+		}
+		if model == "" {
+			if m, ok := envVars["AI_MODEL"]; ok && m != "" {
+				model = m
+			} else {
+				model = "qwen3-coder-next:cloud"
+			}
+		}
+
+		// 2. Build list of fallback models
+		var modelsToTry []string
+		modelsToTry = append(modelsToTry, model)
+		for i := 1; i <= 10; i++ {
+			fallbackKey := fmt.Sprintf("AI_FALLBACK_%d", i)
+			if fallbackVal, ok := envVars[fallbackKey]; ok && fallbackVal != "" {
+				modelsToTry = append(modelsToTry, fallbackVal)
+			}
+		}
+
+		// 3. Resolve Ollama Host address
+		ollamaHost := "http://localhost:11434"
+		if h, ok := envVars["OLLAMA_HOST"]; ok && h != "" {
+			ollamaHost = h
+		}
+
+		var lastErr error
+		var chosenModel string
+		var aiResp string
+
+		// 4. Fallback execution retry loop
+		for _, m := range modelsToTry {
+			chosenModel = m
+			aiResp, lastErr = callOllamaGenerate(ollamaHost, m, job.Prompt)
+			if lastErr == nil {
+				break
+			}
+			log.Printf("⚠️ AI API fallback: model %s failed, attempting next if available. Error: %v", m, lastErr)
+		}
+
+		job.ResultChan <- AIJobResult{
+			Model:    chosenModel,
+			Response: aiResp,
+			Error:    lastErr,
+		}
+	}
 }
 
 // isAIAddonActive checks if the AI stack plugin is loaded and enabled
@@ -97,68 +186,37 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envVars := loadAIEnvFunc()
+	startWorkerOnce.Do(startWorker)
 
-	// 1. Determine model based on mode
-	var model string
-	switch strings.ToLower(req.Mode) {
-	case "code":
-		if m, ok := envVars["AI_MODEL_CODE"]; ok && m != "" {
-			model = m
-		}
-	case "chat":
-		if m, ok := envVars["AI_MODEL_CHAT"]; ok && m != "" {
-			model = m
-		}
-	}
-	if model == "" {
-		if m, ok := envVars["AI_MODEL"]; ok && m != "" {
-			model = m
-		} else {
-			model = "qwen3-coder-next:cloud"
-		}
+	resultChan := make(chan AIJobResult, 1)
+	job := &AIJob{
+		Prompt:     req.Prompt,
+		Mode:       req.Mode,
+		ResultChan: resultChan,
 	}
 
-	// 2. Build list of fallback models
-	var modelsToTry []string
-	modelsToTry = append(modelsToTry, model)
-	for i := 1; i <= 10; i++ {
-		fallbackKey := fmt.Sprintf("AI_FALLBACK_%d", i)
-		if fallbackVal, ok := envVars[fallbackKey]; ok && fallbackVal != "" {
-			modelsToTry = append(modelsToTry, fallbackVal)
-		}
-	}
-
-	// 3. Resolve Ollama Host address
-	ollamaHost := "http://localhost:11434"
-	if h, ok := envVars["OLLAMA_HOST"]; ok && h != "" {
-		ollamaHost = h
-	}
-
-	var lastErr error
-	var chosenModel string
-	var aiResp string
-
-	// 4. Fallback execution retry loop
-	for _, m := range modelsToTry {
-		chosenModel = m
-		aiResp, lastErr = callOllamaGenerate(ollamaHost, m, req.Prompt)
-		if lastErr == nil {
-			break
-		}
-		log.Printf("⚠️ AI API fallback: model %s failed, attempting next if available. Error: %v", m, lastErr)
-	}
-
-	if lastErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("AI execution failed: %v", lastErr))
+	select {
+	case jobQueue <- job:
+		// Queued successfully
+	case <-r.Context().Done():
+		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out before queueing")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, AIResponse{
-		Model:    chosenModel,
-		Response: aiResp,
-		Status:   "success",
-	})
+	select {
+	case result := <-resultChan:
+		if result.Error != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("AI execution failed: %v", result.Error))
+			return
+		}
+		writeJSON(w, http.StatusOK, AIResponse{
+			Model:    result.Model,
+			Response: result.Response,
+			Status:   "success",
+		})
+	case <-r.Context().Done():
+		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out during execution")
+	}
 }
 
 // callOllamaGenerate triggers standard Ollama /api/generate REST API request

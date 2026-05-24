@@ -164,8 +164,8 @@ func TestResolveInstallOrder_InstalledSkipped(t *testing.T) {
 			},
 		},
 		{
-			Name: "B",
-			Kind: "Traefik",
+			Name:         "B",
+			Kind:         "Traefik",
 			Dependencies: nil,
 		},
 	}

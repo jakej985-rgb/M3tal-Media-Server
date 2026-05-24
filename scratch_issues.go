@@ -25,7 +25,7 @@ func main() {
 			fmt.Printf(" - Issue #%s: %s\n", id, m[2])
 		}
 	}
-	
+
 	// Fallback general regex
 	re2 := regexp.MustCompile(`/issues/(\d+)`)
 	matches2 := re2.FindAllStringSubmatch(string(data), -1)
