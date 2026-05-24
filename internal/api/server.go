@@ -84,6 +84,9 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		stackH := &StackHandlers{Store: db}
 		mwH := &MiddlewareHandlers{Store: db}
 		pluginH := NewPluginHandlers(db)
+		composeH := &ComposeHandlers{Store: db}
+		vpnH := NewVPNHandlers()
+		proxyH := NewProxyHandlers(db)
 
 		r.Route("/api/v2", func(r chi.Router) {
 			r.Use(srv.chiAuthMiddleware)
@@ -93,6 +96,12 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/routes", routeH.CreateRoute)
 			r.Delete("/routes/{id}", routeH.DeleteRoute)
 			r.Post("/routes/preview", routeH.GetRouteLabels)
+
+			// Proxy
+			r.Get("/proxy/discover", proxyH.DiscoverServices)
+			r.Post("/proxy/expose", proxyH.ExposeService)
+			r.Post("/proxy/unexpose", proxyH.UnexposeService)
+			r.Post("/proxy/secure", proxyH.ConfigureSSL)
 
 			// Stacks
 			r.Get("/stacks", stackH.ListStacks)
@@ -117,6 +126,20 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
 
+			// Compose
+			r.Post("/compose/validate", composeH.ValidateCompose)
+			r.Post("/compose/fix", composeH.FixCompose)
+			r.Get("/compose/templates", composeH.ListTemplates)
+			r.Post("/compose/generate", composeH.GenerateTemplate)
+			r.Post("/compose/save", composeH.SaveCompose)
+
+			// VPN
+			r.Get("/vpn/status", vpnH.GetStatus)
+			r.Post("/vpn/control", vpnH.ControlVPN)
+			r.Post("/vpn/region", vpnH.SwitchRegion)
+			r.Post("/vpn/sync-port", vpnH.SyncPort)
+			r.Get("/vpn/check-leak", vpnH.CheckLeak)
+
 			// AI
 			r.Post("/ai/run", srv.AIRun)
 		})
@@ -125,8 +148,12 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 	} else {
 		// Plugin endpoints work without a store
 		pluginH := NewPluginHandlers(nil)
+		composeH := &ComposeHandlers{Store: nil}
+		vpnH := NewVPNHandlers()
+		proxyH := NewProxyHandlers(nil)
 		r.Route("/api/v2", func(r chi.Router) {
 			r.Use(srv.chiAuthMiddleware)
+			// Plugins
 			r.Get("/plugins", pluginH.ListPlugins)
 			r.Get("/plugins/catalog", pluginH.ListCatalog)
 			r.Get("/plugins/{kind}", pluginH.ListPluginsByKind)
@@ -136,6 +163,26 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+
+			// Proxy
+			r.Get("/proxy/discover", proxyH.DiscoverServices)
+			r.Post("/proxy/expose", proxyH.ExposeService)
+			r.Post("/proxy/unexpose", proxyH.UnexposeService)
+			r.Post("/proxy/secure", proxyH.ConfigureSSL)
+
+			// Compose
+			r.Post("/compose/validate", composeH.ValidateCompose)
+			r.Post("/compose/fix", composeH.FixCompose)
+			r.Get("/compose/templates", composeH.ListTemplates)
+			r.Post("/compose/generate", composeH.GenerateTemplate)
+			r.Post("/compose/save", composeH.SaveCompose)
+
+			// VPN
+			r.Get("/vpn/status", vpnH.GetStatus)
+			r.Post("/vpn/control", vpnH.ControlVPN)
+			r.Post("/vpn/region", vpnH.SwitchRegion)
+			r.Post("/vpn/sync-port", vpnH.SyncPort)
+			r.Get("/vpn/check-leak", vpnH.CheckLeak)
 
 			// AI
 			r.Post("/ai/run", srv.AIRun)

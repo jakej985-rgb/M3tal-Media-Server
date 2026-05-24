@@ -9,15 +9,26 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// PortInfo represents container port mapping info
+type PortInfo struct {
+	IP          string `json:"ip,omitempty"`
+	PrivatePort int    `json:"private_port"`
+	PublicPort  int    `json:"public_port,omitempty"`
+	Type        string `json:"type"`
+}
+
 // ContainerInfo represents basic container information
 type ContainerInfo struct {
-	ID     string   `json:"id"`
-	Names  []string `json:"names"`
-	Image  string   `json:"image"`
-	Status string   `json:"status"`
-	State  string   `json:"state"`
-	CPU    float64  `json:"cpu"`
-	Memory float64  `json:"memory"`
+	ID       string            `json:"id"`
+	Names    []string          `json:"names"`
+	Image    string            `json:"image"`
+	Status   string            `json:"status"`
+	State    string            `json:"state"`
+	CPU      float64           `json:"cpu"`
+	Memory   float64           `json:"memory"`
+	Labels   map[string]string `json:"labels,omitempty"`
+	Ports    []PortInfo        `json:"ports,omitempty"`
+	Networks []string          `json:"networks,omitempty"`
 }
 
 // Provider defines the interface for container management
@@ -71,12 +82,30 @@ func (m *DockerManager) ListContainers() ([]ContainerInfo, error) {
 
 	var info []ContainerInfo
 	for _, c := range containers {
+		var ports []PortInfo
+		for _, p := range c.Ports {
+			ports = append(ports, PortInfo{
+				IP:          p.IP,
+				PrivatePort: int(p.PrivatePort),
+				PublicPort:  int(p.PublicPort),
+				Type:        p.Type,
+			})
+		}
+		var networks []string
+		if c.NetworkSettings != nil {
+			for netName := range c.NetworkSettings.Networks {
+				networks = append(networks, netName)
+			}
+		}
 		info = append(info, ContainerInfo{
-			ID:     c.ID,
-			Names:  c.Names,
-			Image:  c.Image,
-			Status: c.Status,
-			State:  c.State,
+			ID:       c.ID,
+			Names:    c.Names,
+			Image:    c.Image,
+			Status:   c.Status,
+			State:    c.State,
+			Labels:   c.Labels,
+			Ports:    ports,
+			Networks: networks,
 		})
 	}
 	return info, nil

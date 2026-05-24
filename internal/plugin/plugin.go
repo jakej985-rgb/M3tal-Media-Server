@@ -109,6 +109,7 @@ type RoutePlugin struct {
 	Entrypoints  string         `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
 	Network      string         `yaml:"network,omitempty" json:"network,omitempty"`
 	Middlewares  []string       `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	SSL          bool           `yaml:"ssl,omitempty" json:"ssl,omitempty"`
 	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
@@ -167,6 +168,7 @@ type RouteSpec struct {
 	Entrypoints string   `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
 	Network     string   `yaml:"network,omitempty" json:"network,omitempty"`
 	Middlewares []string `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	SSL         bool     `yaml:"ssl,omitempty" json:"ssl,omitempty"`
 }
 
 // MiddlewareSpec represents a middleware configuration inside a Traefik plugin.

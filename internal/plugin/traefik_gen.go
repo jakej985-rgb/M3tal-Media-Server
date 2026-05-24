@@ -20,10 +20,15 @@ type TraefikHTTPConfig struct {
 }
 
 type TraefikRouter struct {
-	Rule        string   `yaml:"rule"`
-	Service     string   `yaml:"service"`
-	EntryPoints []string `yaml:"entryPoints,omitempty"`
-	Middlewares []string `yaml:"middlewares,omitempty"`
+	Rule        string      `yaml:"rule"`
+	Service     string      `yaml:"service"`
+	EntryPoints []string    `yaml:"entryPoints,omitempty"`
+	Middlewares []string    `yaml:"middlewares,omitempty"`
+	TLS         *TraefikTLS `yaml:"tls,omitempty"`
+}
+
+type TraefikTLS struct {
+	CertResolver string `yaml:"certResolver,omitempty"`
 }
 
 type TraefikService struct {
@@ -78,6 +83,9 @@ func (r *Registry) GenerateTraefikConfig() ([]byte, error) {
 		name := rp.Metadata.Name
 
 		entrypoints := []string{"web"}
+		if rp.SSL {
+			entrypoints = []string{"web", "websecure"}
+		}
 		if rp.Entrypoints != "" {
 			entrypoints = strings.Split(rp.Entrypoints, ",")
 			for i := range entrypoints {
@@ -90,11 +98,17 @@ func (r *Registry) GenerateTraefikConfig() ([]byte, error) {
 			domainRule = rp.Domain
 		}
 
+		var routerTLS *TraefikTLS
+		if rp.SSL {
+			routerTLS = &TraefikTLS{CertResolver: "letsencrypt"}
+		}
+
 		cfg.HTTP.Routers[name] = &TraefikRouter{
 			Rule:        domainRule,
 			Service:     name,
 			EntryPoints: entrypoints,
 			Middlewares: rp.Middlewares,
+			TLS:         routerTLS,
 		}
 
 		// Use the plugin's service name or metadata name for local container name resolution

@@ -29,7 +29,7 @@ func TestRoutesCRUD(t *testing.T) {
 	db := tempDB(t)
 
 	// Create
-	id, err := db.CreateRoute("app", "app.local", 8080, "web", "media")
+	id, err := db.CreateRoute("app", "app.local", 8080, "web", "media", false, "")
 	if err != nil {
 		t.Fatalf("CreateRoute: %v", err)
 	}
@@ -85,12 +85,12 @@ func TestRoutesCRUD(t *testing.T) {
 func TestDuplicateDomain(t *testing.T) {
 	db := tempDB(t)
 
-	_, err := db.CreateRoute("app", "app.local", 8080, "", "")
+	_, err := db.CreateRoute("app", "app.local", 8080, "", "", false, "")
 	if err != nil {
 		t.Fatalf("first create: %v", err)
 	}
 
-	_, err = db.CreateRoute("other", "app.local", 9090, "", "")
+	_, err = db.CreateRoute("other", "app.local", 9090, "", "", false, "")
 	if err == nil {
 		t.Error("expected error for duplicate domain")
 	}

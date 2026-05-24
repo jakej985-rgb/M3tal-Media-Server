@@ -24,6 +24,8 @@ type RouteRecord struct {
 	Port        int    `json:"port"`
 	Entrypoints string `json:"entrypoints"`
 	Stack       string `json:"stack,omitempty"`
+	SSL         bool   `json:"ssl"`
+	Middlewares string `json:"middlewares,omitempty"`
 	CreatedAt   string `json:"created_at"`
 }
 
@@ -123,19 +125,27 @@ func (s *Store) Migrate() error {
 		}
 	}
 
+	// Schema migrations for v2 proxy (SSL and Middlewares support)
+	_, _ = s.db.Exec("ALTER TABLE routes ADD COLUMN ssl INTEGER DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE routes ADD COLUMN middlewares TEXT DEFAULT ''")
+
 	return nil
 }
 
 // --- Routes ---
 
 // CreateRoute inserts a new route and returns its ID.
-func (s *Store) CreateRoute(service, domain string, port int, entrypoints, stack string) (int64, error) {
+func (s *Store) CreateRoute(service, domain string, port int, entrypoints, stack string, ssl bool, middlewares string) (int64, error) {
 	if entrypoints == "" {
 		entrypoints = "web"
 	}
+	sslVal := 0
+	if ssl {
+		sslVal = 1
+	}
 	result, err := s.db.Exec(
-		`INSERT INTO routes (service, domain, port, entrypoints, stack) VALUES (?, ?, ?, ?, ?)`,
-		service, domain, port, entrypoints, stack,
+		`INSERT INTO routes (service, domain, port, entrypoints, stack, ssl, middlewares) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		service, domain, port, entrypoints, stack, sslVal, middlewares,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("cannot create route: %w", err)
@@ -145,7 +155,7 @@ func (s *Store) CreateRoute(service, domain string, port int, entrypoints, stack
 
 // ListRoutes returns all stored routes.
 func (s *Store) ListRoutes() ([]RouteRecord, error) {
-	rows, err := s.db.Query(`SELECT id, service, domain, port, entrypoints, stack, created_at FROM routes ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id, service, domain, port, entrypoints, stack, ssl, COALESCE(middlewares, ''), created_at FROM routes ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +164,11 @@ func (s *Store) ListRoutes() ([]RouteRecord, error) {
 	var routes []RouteRecord
 	for rows.Next() {
 		var r RouteRecord
-		if err := rows.Scan(&r.ID, &r.Service, &r.Domain, &r.Port, &r.Entrypoints, &r.Stack, &r.CreatedAt); err != nil {
+		var sslInt int
+		if err := rows.Scan(&r.ID, &r.Service, &r.Domain, &r.Port, &r.Entrypoints, &r.Stack, &sslInt, &r.Middlewares, &r.CreatedAt); err != nil {
 			return nil, err
 		}
+		r.SSL = (sslInt == 1)
 		routes = append(routes, r)
 	}
 	return routes, rows.Err()
@@ -165,16 +177,18 @@ func (s *Store) ListRoutes() ([]RouteRecord, error) {
 // GetRouteByDomain looks up a route by its domain.
 func (s *Store) GetRouteByDomain(domain string) (*RouteRecord, error) {
 	var r RouteRecord
+	var sslInt int
 	err := s.db.QueryRow(
-		`SELECT id, service, domain, port, entrypoints, stack, created_at FROM routes WHERE domain = ?`,
+		`SELECT id, service, domain, port, entrypoints, stack, ssl, COALESCE(middlewares, ''), created_at FROM routes WHERE domain = ?`,
 		domain,
-	).Scan(&r.ID, &r.Service, &r.Domain, &r.Port, &r.Entrypoints, &r.Stack, &r.CreatedAt)
+	).Scan(&r.ID, &r.Service, &r.Domain, &r.Port, &r.Entrypoints, &r.Stack, &sslInt, &r.Middlewares, &r.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	r.SSL = (sslInt == 1)
 	return &r, nil
 }
 

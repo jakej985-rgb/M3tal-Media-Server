@@ -71,7 +71,7 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	labels := engine.GenerateLabels(input)
 
 	// Store in DB
-	id, err := h.Store.CreateRoute(input.Service, input.Domain, input.Port, input.Entrypoints, "")
+	id, err := h.Store.CreateRoute(input.Service, input.Domain, input.Port, input.Entrypoints, "", false, "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

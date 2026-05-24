@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	_ "embed"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
 	"github.com/jakej985-rgb/m3tal-core/internal/auth"
+	"github.com/jakej985-rgb/m3tal-core/internal/compose"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/doctor"
 	"github.com/jakej985-rgb/m3tal-core/internal/health"
@@ -30,6 +32,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/internal/vpn"
 	"github.com/spf13/cobra"
 )
 
@@ -555,6 +558,312 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
+
+	// ─── VPN Commands ───
+	var vpnCmd = &cobra.Command{
+		Use:   "vpn",
+		Short: "Manage Gluetun VPN connections, ports, and leak detection",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
+	}
+
+	var vpnStatusCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Check VPN connection status and settings",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			status, err := mgr.GetStatus()
+			if err != nil {
+				log.Fatalf("❌ Error: %v", err)
+			}
+
+			fmt.Println("🌐 VPN Connection Status:")
+			fmt.Println("----------------------------------------")
+			if status.Connected {
+				fmt.Println("🟢 Status:      Connected (Running)")
+				fmt.Printf("🔒 Provider:    %s\n", status.Provider)
+				fmt.Printf("🌍 Region:      %s\n", status.Region)
+				fmt.Printf("📬 External IP: %s\n", status.ExternalIP)
+				if status.ForwardedPort > 0 {
+					fmt.Printf("🔌 Port:        %d (Forwarded)\n", status.ForwardedPort)
+				}
+			} else {
+				fmt.Printf("🔴 Status:      Disconnected (%s)\n", status.StatusText)
+			}
+		},
+	}
+
+	var vpnStartCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the VPN connection (gluetun container)",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			if err := mgr.Start(); err != nil {
+				log.Fatalf("❌ Failed to start VPN: %v", err)
+			}
+			fmt.Println("✅ VPN container start command sent successfully.")
+		},
+	}
+
+	var vpnStopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the VPN connection (gluetun container)",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			if err := mgr.Stop(); err != nil {
+				log.Fatalf("❌ Failed to stop VPN: %v", err)
+			}
+			fmt.Println("✅ VPN container stop command sent successfully.")
+		},
+	}
+
+	var vpnRestartCmd = &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the VPN connection (gluetun container)",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			if err := mgr.Restart(); err != nil {
+				log.Fatalf("❌ Failed to restart VPN: %v", err)
+			}
+			fmt.Println("✅ VPN container restart command sent successfully.")
+		},
+	}
+
+	var vpnRegionCmd = &cobra.Command{
+		Use:   "region [region-name]",
+		Short: "Switch VPN connection region",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			targetRegion := args[0]
+			fmt.Printf("🔄 Switching VPN region to %s...\n", targetRegion)
+			if err := mgr.SwitchRegion(targetRegion); err != nil {
+				log.Fatalf("❌ Failed to switch region: %v", err)
+			}
+			fmt.Println("✅ Region updated in configuration and stack restarted.")
+		},
+	}
+
+	var vpnSyncCmd = &cobra.Command{
+		Use:   "sync",
+		Short: "Manually sync Gluetun forwarded port to dependent containers (e.g. qBittorrent)",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			fmt.Println("🔄 Querying Gluetun forwarded port and syncing...")
+			port, err := mgr.SyncForwardedPort()
+			if err != nil {
+				log.Fatalf("❌ Failed to sync port: %v", err)
+			}
+			fmt.Printf("✅ Port %d synced to dependent services successfully.\n", port)
+		},
+	}
+
+	var vpnCheckCmd = &cobra.Command{
+		Use:   "check",
+		Short: "Run leak detection and verify kill switch status",
+		Run: func(cmd *cobra.Command, args []string) {
+			mgr, err := vpn.NewManager()
+			if err != nil {
+				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+			}
+
+			fmt.Println("🔍 Running leak check...")
+			isLeak, hostIP, vpnIP, err := mgr.CheckLeak()
+			if err != nil {
+				log.Fatalf("❌ Error: %v", err)
+			}
+
+			fmt.Println("\n🛡️  VPN Leak Detection Report:")
+			fmt.Println("----------------------------------------")
+			fmt.Printf("🏠 Host Public IP: %s\n", hostIP)
+			fmt.Printf("🔒 VPN Outbound IP: %s\n", vpnIP)
+
+			if isLeak {
+				fmt.Println("🚨 RESULT: LEAK DETECTED! Your traffic is NOT protected!")
+				fmt.Println("⚠️  Activating kill switch (stopping dependent containers)...")
+				stopped, errStop := mgr.StopDependentContainers()
+				if errStop != nil {
+					fmt.Printf("❌ Kill switch failed to stop all containers: %v\n", errStop)
+				} else if len(stopped) > 0 {
+					fmt.Printf("🛑 Successfully stopped containers: %s\n", strings.Join(stopped, ", "))
+				} else {
+					fmt.Println("✅ No active dependent containers found running.")
+				}
+			} else {
+				fmt.Println("✅ RESULT: SAFE. Outbound IP is protected by VPN.")
+			}
+		},
+	}
+
+	vpnCmd.AddCommand(vpnStatusCmd, vpnStartCmd, vpnStopCmd, vpnRestartCmd, vpnRegionCmd, vpnSyncCmd, vpnCheckCmd)
+
+	// ─── Compose Commands ───
+	var composeCmd = &cobra.Command{
+		Use:   "compose",
+		Short: "Smart Docker Compose Editor & Linter",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
+	}
+
+	var composeLintCmd = &cobra.Command{
+		Use:   "lint [file]",
+		Short: "Lint a Docker Compose file for errors and best practices",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			data, err := os.ReadFile(args[0])
+			if err != nil {
+				log.Fatalf("❌ Failed to read compose file: %v", err)
+			}
+
+			cfg, err := compose.Parse(data)
+			if err != nil {
+				log.Fatalf("❌ YAML Parse Error: %v", err)
+			}
+
+			issues := compose.Lint(cfg)
+			if len(issues) == 0 {
+				fmt.Println("✅ No issues found! Your compose file follows best practices.")
+				return
+			}
+
+			fmt.Printf("📋 Found %d issue(s) in %s:\n", len(issues), args[0])
+			for _, issue := range issues {
+				sevEmoji := "⚠️ "
+				if issue.Severity == compose.SeverityError {
+					sevEmoji = "❌"
+				}
+				svcInfo := ""
+				if issue.Service != "" {
+					svcInfo = fmt.Sprintf(" (service: %s)", issue.Service)
+				}
+				fmt.Printf("%s [%s]%s %s\n", sevEmoji, issue.Severity, svcInfo, issue.Message)
+			}
+		},
+	}
+
+	var composeFixCmd = &cobra.Command{
+		Use:   "fix [file]",
+		Short: "Auto-fix common Docker Compose issues",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+			data, err := os.ReadFile(args[0])
+			if err != nil {
+				log.Fatalf("❌ Failed to read compose file: %v", err)
+			}
+
+			fixed, fixes, err := compose.AutoFix(data)
+			if err != nil {
+				log.Fatalf("❌ Auto-fix Error: %v", err)
+			}
+
+			if len(fixes) == 0 {
+				fmt.Println("✨ No issues needed fixing.")
+				return
+			}
+
+			fmt.Println("🛠️  Applied fixes:")
+			for _, fix := range fixes {
+				fmt.Printf(" - %s\n", fix)
+			}
+
+			if dryRun {
+				fmt.Println("\n📝 Dry-run requested. Preview of fixed YAML:")
+				fmt.Println(string(fixed))
+			} else {
+				if err := os.WriteFile(args[0], fixed, 0644); err != nil {
+					log.Fatalf("❌ Failed to write fixed compose file: %v", err)
+				}
+				fmt.Println("\n💾 Fixes successfully saved to file.")
+			}
+		},
+	}
+
+	composeFixCmd.Flags().Bool("dry-run", false, "Preview fixes without modifying the file")
+
+	var composeGenerateCmd = &cobra.Command{
+		Use:   "generate [template]",
+		Short: "Generate a Docker Compose file from a pre-defined template",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			templateName := args[0]
+			var tpl *compose.Template
+			for _, t := range compose.Templates {
+				if t.Name == templateName {
+					tpl = &t
+					break
+				}
+			}
+
+			if tpl == nil {
+				var validNames []string
+				for _, t := range compose.Templates {
+					validNames = append(validNames, t.Name)
+				}
+				log.Fatalf("❌ Template %q not found. Available templates: %s", templateName, strings.Join(validNames, ", "))
+			}
+
+			fmt.Printf("🏗️  Generating %s template...\n", tpl.Name)
+			fmt.Println("Please provide values for the following parameters:")
+
+			params := make(map[string]string)
+			reader := bufio.NewReader(os.Stdin)
+
+			for paramName, desc := range tpl.Parameters {
+				fmt.Printf("👉 %s (%s): ", paramName, desc)
+				val, _ := reader.ReadString('\n')
+				val = strings.TrimSpace(val)
+				params[paramName] = val
+			}
+
+			yamlData, err := compose.Generate(templateName, params)
+			if err != nil {
+				log.Fatalf("❌ Failed to generate template: %v", err)
+			}
+
+			outputPath, _ := cmd.Flags().GetString("out")
+			if outputPath != "" {
+				if err := os.WriteFile(outputPath, yamlData, 0644); err != nil {
+					log.Fatalf("❌ Failed to write generated file: %v", err)
+				}
+				fmt.Printf("✅ Template generated and saved to: %s\n", outputPath)
+			} else {
+				fmt.Println("\n📝 Generated Compose YAML:")
+				fmt.Println(string(yamlData))
+			}
+		},
+	}
+
+	composeGenerateCmd.Flags().StringP("out", "o", "", "Output file path to save the generated compose configuration")
+
+	composeCmd.AddCommand(composeLintCmd, composeFixCmd, composeGenerateCmd)
 
 	// ─── Plugin Commands ───
 	var pluginCmd = &cobra.Command{
@@ -1346,7 +1655,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 
 	docCmd.AddCommand(doctorScanCmd, doctorFixCmd, doctorReportCmd)
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, initDashCmd(), trayCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
