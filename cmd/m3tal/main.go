@@ -23,6 +23,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
 	"github.com/jakej985-rgb/m3tal-core/internal/auth"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
+	"github.com/jakej985-rgb/m3tal-core/internal/doctor"
 	"github.com/jakej985-rgb/m3tal-core/internal/health"
 	"github.com/jakej985-rgb/m3tal-core/internal/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
@@ -1165,6 +1166,186 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	}
 
 	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd, pluginEnableCmd, pluginDisableCmd, pluginSyncCmd, pluginMatchCmd, pluginInstallStackCmd, pluginCatalogCmd, pluginInstallCmd, pluginUninstallCmd)
+
+	// ── Doctor subcommands ─────────────────────────────────────────────────────
+
+	// m3tal doctor scan containers
+	var doctorScanContainersCmd = &cobra.Command{
+		Use:   "containers",
+		Short: "Scan container health states",
+		Run: func(cmd *cobra.Command, args []string) {
+			results, err := doctor.ScanContainers()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("\n📦 Container Health Scan (%d containers)\n", len(results))
+			fmt.Println(strings.Repeat("─", 60))
+			for _, r := range results {
+				fmt.Printf("  %s\n", r.SummaryLine())
+				if r.Recommendation != "" {
+					fmt.Printf("     💡 %s\n", r.Recommendation)
+				}
+			}
+			fmt.Println()
+		},
+	}
+
+	// m3tal doctor scan mounts
+	var doctorScanMountsCmd = &cobra.Command{
+		Use:   "mounts",
+		Short: "Validate container volume and bind-mount paths",
+		Run: func(cmd *cobra.Command, args []string) {
+			results, err := doctor.ValidateMounts()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+				os.Exit(1)
+			}
+			if len(results) == 0 {
+				fmt.Println("✅ No mounts found.")
+				return
+			}
+			fmt.Printf("\n📂 Mount Validation (%d mount(s))\n", len(results))
+			fmt.Println(strings.Repeat("─", 60))
+			for _, r := range results {
+				if r.Severity != doctor.SeverityPass {
+					fmt.Printf("  %s\n", r.SummaryLine())
+					if r.Fix != "" {
+						fmt.Printf("     💡 %s\n", r.Fix)
+					}
+				}
+			}
+			ok := 0
+			for _, r := range results {
+				if r.Severity == doctor.SeverityPass {
+					ok++
+				}
+			}
+			if ok > 0 {
+				fmt.Printf("  ✅ %d mount(s) OK\n", ok)
+			}
+			fmt.Println()
+		},
+	}
+
+	// m3tal doctor scan ports
+	var doctorScanPortsCmd = &cobra.Command{
+		Use:   "ports",
+		Short: "Detect port conflicts on declared M3TAL ports",
+		Run: func(cmd *cobra.Command, args []string) {
+			results, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("\n🔌 Port Conflict Scan (%d ports checked)\n", len(results))
+			fmt.Println(strings.Repeat("─", 60))
+			for _, r := range results {
+				fmt.Printf("  %s\n", r.SummaryLine())
+			}
+			fmt.Println()
+		},
+	}
+
+	// m3tal doctor scan  (runs all scanners)
+	var doctorScanCmd = &cobra.Command{
+		Use:   "scan",
+		Short: "Run all doctor scanners (containers, mounts, ports)",
+		Run: func(cmd *cobra.Command, args []string) {
+			doctorScanContainersCmd.Run(cmd, args)
+			doctorScanMountsCmd.Run(cmd, args)
+			doctorScanPortsCmd.Run(cmd, args)
+		},
+	}
+	doctorScanCmd.AddCommand(doctorScanContainersCmd, doctorScanMountsCmd, doctorScanPortsCmd)
+
+	// m3tal doctor fix
+	var doctorFixApply bool
+	var doctorFixName string
+	var doctorFixCmd = &cobra.Command{
+		Use:   "fix",
+		Short: "Preview (or apply) automated fixes for detected issues",
+		Long: `Scans containers, mounts, and ports for issues, then proposes
+fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			conts, err := doctor.ScanContainers()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Container scan error: %v\n", err)
+			}
+			// Filter to specific container if --name given
+			if doctorFixName != "" {
+				var filtered []doctor.ContainerResult
+				for _, c := range conts {
+					if c.Name == doctorFixName {
+						filtered = append(filtered, c)
+					}
+				}
+				conts = filtered
+			}
+			mounts, err := doctor.ValidateMounts()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Mount scan error: %v\n", err)
+			}
+			ports, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Port scan error: %v\n", err)
+			}
+
+			fixes := doctor.BuildFixes(conts, mounts, ports)
+			if !doctorFixApply {
+				doctor.PrintFixes(fixes)
+				return
+			}
+
+			results := doctor.ApplyFixes(fixes)
+			doctor.PrintFixResults(results)
+		},
+	}
+	doctorFixCmd.Flags().BoolVar(&doctorFixApply, "apply", false, "Apply fixes instead of previewing")
+	doctorFixCmd.Flags().StringVar(&doctorFixName, "name", "", "Restrict container fixes to this container name")
+
+	// m3tal doctor report
+	var doctorReportJSON bool
+	var doctorReportOut string
+	var doctorReportCmd = &cobra.Command{
+		Use:   "report",
+		Short: "Generate a full system health report",
+		Run: func(cmd *cobra.Command, args []string) {
+			conts, err := doctor.ScanContainers()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Container scan error: %v\n", err)
+			}
+			mounts, err := doctor.ValidateMounts()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Mount scan error: %v\n", err)
+			}
+			ports, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Port scan error: %v\n", err)
+			}
+
+			report := doctor.GenerateReport(conts, mounts, ports)
+
+			if doctorReportJSON {
+				doctor.PrintReportJSON(report)
+				return
+			}
+			if doctorReportOut != "" {
+				if err := doctor.WriteReportJSON(report, doctorReportOut); err != nil {
+					fmt.Fprintf(os.Stderr, "❌ Failed to write report: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("✅ Report written to %s\n", doctorReportOut)
+				return
+			}
+			doctor.PrintReport(report)
+		},
+	}
+	doctorReportCmd.Flags().BoolVar(&doctorReportJSON, "json", false, "Output report as JSON")
+	doctorReportCmd.Flags().StringVar(&doctorReportOut, "out", "", "Write JSON report to file path")
+
+	docCmd.AddCommand(doctorScanCmd, doctorFixCmd, doctorReportCmd)
+
 	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, initDashCmd(), trayCmd)
 
 	if err := rootCmd.Execute(); err != nil {
