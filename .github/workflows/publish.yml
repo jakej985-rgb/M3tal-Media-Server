@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build-and-deploy:
@@ -101,3 +102,39 @@ jobs:
           name: Release ${{ env.VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Convert repo owner to lowercase
+        id: owner
+        run: |
+          OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner=$OWNER_LOWERCASE" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata (tags, labels) for Dashboard
+        id: meta-dashboard
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.owner.outputs.owner }}/m3tal-godash
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ env.VERSION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Dashboard
+        uses: docker/build-push-action@v6
+        with:
+          context: ./deploy/dashboard
+          file: ./deploy/dashboard/Dockerfile
+          push: true
+          tags: ${{ steps.meta-dashboard.outputs.tags }}
+          labels: ${{ steps.meta-dashboard.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

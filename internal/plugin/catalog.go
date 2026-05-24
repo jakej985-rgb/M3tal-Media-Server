@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -151,6 +152,9 @@ func MatchesPluginName(sourcePath, metadataName, targetName string) bool {
 // CatalogURL is the remote URL of the official M3TAL plugin catalog.
 var CatalogURL = "https://jakej985-rgb.github.io/m3tal-core/catalog.json"
 
+// DisableSignatureVerification allows tests to bypass GPG signature checks.
+var DisableSignatureVerification = false
+
 // catalogCachePathOverride allows tests to redirect the catalog cache file.
 var catalogCachePathOverride = ""
 
@@ -177,36 +181,116 @@ func getCatalogCachePath() string {
 	return filepath.Join(os.TempDir(), "m3tal-catalog.json")
 }
 
+// VerifyCatalogSignature verifies that the catalog file is signed by a trusted GPG keyring.
+func VerifyCatalogSignature(catalogPath, sigPath string) error {
+	if DisableSignatureVerification {
+		return nil
+	}
+
+	// Look for GPG keyrings in standard system paths
+	keyrings := []string{
+		"/etc/apt/trusted.gpg",
+		"/usr/share/keyrings/m3tal-archive-keyring.gpg",
+		"/etc/apt/trusted.gpg.d/m3tal.gpg",
+		"/etc/apt/trusted.gpg.d/m3tal-archive-keyring.gpg",
+		"/etc/m3tal/public.key",
+	}
+
+	var activeKeyring string
+	for _, k := range keyrings {
+		if _, err := os.Stat(k); err == nil {
+			activeKeyring = k
+			break
+		}
+	}
+
+	if activeKeyring == "" {
+		// Non-blocking warning for development / custom environments
+		fmt.Fprintln(os.Stderr, "⚠️  Catalog signature verification skipped (no trusted keyring found in standard paths)")
+		return nil
+	}
+
+	// Verify using gpgv
+	cmd := exec.Command("gpgv", "--keyring", activeKeyring, sigPath, catalogPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("gpgv signature validation failed: %w", err)
+	}
+
+	return nil
+}
+
 // FetchCatalog updates the global Catalog slice from the remote repository or local cache.
 func FetchCatalog() []CatalogItem {
 	cachePath := getCatalogCachePath()
+	sigCachePath := cachePath + ".sig"
 
-	// Try fetching from remote URL with a short timeout (3 seconds)
+	// Try fetching catalog and signature from remote URL
 	client := &http.Client{Timeout: 3 * time.Second}
+	
+	// Fetch catalog.json
 	resp, err := client.Get(CatalogURL)
 	if err == nil {
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
 			data, err := io.ReadAll(resp.Body)
 			if err == nil {
-				var remoteCatalog []CatalogItem
-				if err := json.Unmarshal(data, &remoteCatalog); err == nil && len(remoteCatalog) > 0 {
-					Catalog = remoteCatalog
-					// Save to local cache
-					_ = os.MkdirAll(filepath.Dir(cachePath), 0755)
-					_ = os.WriteFile(cachePath, data, 0644)
-					return Catalog
+				// Fetch catalog.json.sig
+				respSig, errSig := client.Get(CatalogURL + ".sig")
+				if errSig == nil {
+					defer respSig.Body.Close()
+					if respSig.StatusCode == http.StatusOK {
+						sigData, errSigRead := io.ReadAll(respSig.Body)
+						if errSigRead == nil {
+							// Write both to temporary files first to verify
+							tempDir := os.TempDir()
+							tempCatalog := filepath.Join(tempDir, "m3tal-catalog-temp.json")
+							tempSig := filepath.Join(tempDir, "m3tal-catalog-temp.json.sig")
+							
+							if errWrite := os.WriteFile(tempCatalog, data, 0644); errWrite == nil {
+								if errSigWrite := os.WriteFile(tempSig, sigData, 0644); errSigWrite == nil {
+									// Verify the GPG signature
+									if errVerify := VerifyCatalogSignature(tempCatalog, tempSig); errVerify == nil {
+										// Signature verified! Save both to local cache
+										_ = os.MkdirAll(filepath.Dir(cachePath), 0755)
+										_ = os.WriteFile(cachePath, data, 0644)
+										_ = os.WriteFile(sigCachePath, sigData, 0644)
+										
+										var remoteCatalog []CatalogItem
+										if errUnmarshal := json.Unmarshal(data, &remoteCatalog); errUnmarshal == nil && len(remoteCatalog) > 0 {
+											Catalog = remoteCatalog
+											return Catalog
+										}
+									} else {
+										fmt.Fprintf(os.Stderr, "❌ Catalog signature verification failed: %v\n", errVerify)
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 
-	// Fallback to local cache
+	// Fallback to local cache, but also verify the cached signature if possible
 	if data, err := os.ReadFile(cachePath); err == nil {
-		var cachedCatalog []CatalogItem
-		if err := json.Unmarshal(data, &cachedCatalog); err == nil && len(cachedCatalog) > 0 {
-			Catalog = cachedCatalog
-			return Catalog
+		if _, errSig := os.Stat(sigCachePath); errSig == nil {
+			if errVerify := VerifyCatalogSignature(cachePath, sigCachePath); errVerify == nil {
+				var cachedCatalog []CatalogItem
+				if errUnmarshal := json.Unmarshal(data, &cachedCatalog); errUnmarshal == nil && len(cachedCatalog) > 0 {
+					Catalog = cachedCatalog
+					return Catalog
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "⚠️  Cached catalog signature verification failed: %v\n", errVerify)
+			}
+		} else {
+			// If cached sig is missing but catalog is there, parse it with warning (developer/custom mode fallback)
+			var cachedCatalog []CatalogItem
+			if errUnmarshal := json.Unmarshal(data, &cachedCatalog); errUnmarshal == nil && len(cachedCatalog) > 0 {
+				Catalog = cachedCatalog
+				return Catalog
+			}
 		}
 	}
 

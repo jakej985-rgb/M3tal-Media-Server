@@ -324,12 +324,15 @@ func TestFetchCatalog(t *testing.T) {
 	// Backup original values
 	origURL := CatalogURL
 	origOverride := catalogCachePathOverride
+	origDisableSig := DisableSignatureVerification
 	defer func() {
 		CatalogURL = origURL
 		catalogCachePathOverride = origOverride
+		DisableSignatureVerification = origDisableSig
 	}()
 
-	CatalogURL = server.URL
+	CatalogURL = server.URL + "/catalog.json"
+	DisableSignatureVerification = true
 
 	tmpDir, err := os.MkdirTemp("", "m3tal-catalog-test-*")
 	if err != nil {
