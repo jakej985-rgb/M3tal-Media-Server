@@ -65,10 +65,7 @@ func TestWriteAndDeletePluginFile(t *testing.T) {
 	}
 
 	// Verify file is created in whichever directory was resolved
-	userDir := system.UserPluginsDir
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		userDir = "deploy/plugins"
-	}
+	userDir := system.GetUserPluginsDir()
 	expectedFile := filepath.Join(userDir, "routes", "test-service-test_domain_local.yml")
 
 	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {

@@ -260,10 +260,7 @@ func (h *PluginHandlers) Install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userDir := system.UserPluginsDir
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		userDir = "deploy/plugins"
-	}
+	userDir := system.GetUserPluginsDir()
 
 	err := plugin.InstallPlugin(req.Name, req.Kind, userDir)
 	if err != nil {
@@ -299,10 +296,7 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 
 	reg := h.ensureLoaded()
 
-	userDir := system.UserPluginsDir
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		userDir = "deploy/plugins"
-	}
+	userDir := system.GetUserPluginsDir()
 
 	var path string
 	switch req.Kind {

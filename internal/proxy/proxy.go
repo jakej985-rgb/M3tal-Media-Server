@@ -312,10 +312,7 @@ func (m *Manager) ConfigureSSL(email string) error {
 
 // WriteRoutePluginFile generates the plugin route manifest file.
 func (m *Manager) WriteRoutePluginFile(service string, domain string, port int, ssl bool, middlewares []string) error {
-	userDir := system.UserPluginsDir
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		userDir = "deploy/plugins"
-	}
+	userDir := system.GetUserPluginsDir()
 
 	routesDir := filepath.Join(userDir, "routes")
 	if err := os.MkdirAll(routesDir, 0755); err != nil {
@@ -378,10 +375,7 @@ func (m *Manager) WriteRoutePluginFile(service string, domain string, port int, 
 
 // DeletePluginFile deletes the plugin route manifest file.
 func (m *Manager) DeletePluginFile(service string, domain string) error {
-	userDir := system.UserPluginsDir
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		userDir = "deploy/plugins"
-	}
+	userDir := system.GetUserPluginsDir()
 
 	filename := fmt.Sprintf("%s-%s.yml", service, sanitizeDomainFilename(domain))
 	filePath := filepath.Join(userDir, "routes", filename)

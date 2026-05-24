@@ -33,14 +33,27 @@ const (
 // PluginSubdirs lists the standard plugin category subdirectories.
 var PluginSubdirs = []string{"routes", "stacks", "middleware", "providers", "ai"}
 
+// GetUserPluginsDir returns the active user plugins directory path, supporting overrides.
+func GetUserPluginsDir() string {
+	if p := os.Getenv("M3TAL_PLUGINS_DIR"); p != "" {
+		return p
+	}
+	if _, err := os.Stat("deploy/plugins"); err == nil {
+		return "deploy/plugins"
+	}
+	return UserPluginsDir
+}
+
 // GetPluginDirs returns the ordered list of plugin directories to scan.
 // System dir is first, user dir is second (user takes precedence in dedup).
 func GetPluginDirs() []string {
-	dirs := []string{SystemPluginsDir, UserPluginsDir}
+	userDir := GetUserPluginsDir()
+	dirs := []string{SystemPluginsDir, userDir}
 
-	// Also check local deploy/plugins for development
-	if _, err := os.Stat("deploy/plugins"); err == nil {
-		dirs = append([]string{"deploy/plugins"}, dirs...)
+	if userDir != "deploy/plugins" {
+		if _, err := os.Stat("deploy/plugins"); err == nil {
+			dirs = append([]string{"deploy/plugins"}, dirs...)
+		}
 	}
 
 	return dirs
