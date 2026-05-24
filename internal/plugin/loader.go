@@ -120,7 +120,7 @@ func LoadAll(dirs ...string) (*Registry, error) {
 
 		for i := range plugins {
 			p := &plugins[i]
-			key := p.Kind + "/" + p.Metadata.Name
+			key := p.Kind + "/" + p.GetName()
 			seen[key] = p
 		}
 	}

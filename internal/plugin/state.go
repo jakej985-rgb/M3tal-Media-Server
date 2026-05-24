@@ -22,7 +22,7 @@ func NewStateManager(db *store.Store) *StateManager {
 // GetPluginState retrieves the status of a plugin, prioritizing SQLite records if available.
 func (m *StateManager) GetPluginState(p *Plugin) (bool, string, error) {
 	if m.db != nil {
-		rec, err := m.db.GetPluginState(p.Metadata.Name)
+		rec, err := m.db.GetPluginState(p.GetName())
 		if err != nil {
 			return p.Enabled, "{}", err
 		}
@@ -74,7 +74,7 @@ func (m *StateManager) SetPluginEnabled(p *Plugin, enabled bool) error {
 				configJSON = string(data)
 			}
 		}
-		err = m.db.SetPluginState(p.Metadata.Name, p.Kind, enabled, configJSON)
+		err = m.db.SetPluginState(p.GetName(), p.Kind, enabled, configJSON)
 		if err != nil {
 			return fmt.Errorf("database plugin state save failed: %w", err)
 		}
@@ -86,14 +86,14 @@ func (m *StateManager) SetPluginEnabled(p *Plugin, enabled bool) error {
 // UninstallPlugin removes the plugin manifest from filesystem and its record from the database.
 func (m *StateManager) UninstallPlugin(p *Plugin, userPluginsDir string, reg *Registry) error {
 	// 1. Filesystem uninstall
-	err := UninstallPlugin(p.Metadata.Name, p.Kind, userPluginsDir, reg)
+	err := UninstallPlugin(p.GetName(), p.Kind, userPluginsDir, reg)
 	if err != nil {
 		return err
 	}
 
 	// 2. Database cleanup
 	if m.db != nil {
-		_ = m.db.DeletePluginState(p.Metadata.Name)
+		_ = m.db.DeletePluginState(p.GetName())
 	}
 
 	return nil

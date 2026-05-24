@@ -51,7 +51,7 @@ func ExecuteHook(ctx context.Context, hookCmd string, p *Plugin) error {
 
 	cmd := exec.CommandContext(ctx, shell, flag, hookCmd)
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("M3TAL_PLUGIN_NAME=%s", p.Metadata.Name),
+		fmt.Sprintf("M3TAL_PLUGIN_NAME=%s", p.GetName()),
 		fmt.Sprintf("M3TAL_PLUGIN_KIND=%s", p.Kind),
 		fmt.Sprintf("M3TAL_PLUGIN_PATH=%s", p.SourcePath),
 		fmt.Sprintf("M3TAL_API_URL=%s", apiURL),

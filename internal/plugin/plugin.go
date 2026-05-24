@@ -18,18 +18,66 @@ const (
 	KindTraefik    = "Traefik"
 )
 
+// Dependency represents a plugin dependency.
+type Dependency struct {
+	Name        string `yaml:"name" json:"name"`
+	Kind        string `yaml:"kind" json:"kind"`
+	Required    bool   `yaml:"required" json:"required"`
+	AutoInstall bool   `yaml:"autoInstall" json:"autoInstall"`
+}
+
 // Plugin represents a loaded plugin manifest.
 type Plugin struct {
-	APIVersion string         `yaml:"apiVersion" json:"apiVersion"`
-	Kind       string         `yaml:"kind" json:"kind"`
-	Metadata   PluginMetadata `yaml:"metadata" json:"metadata"`
-	Spec       map[string]any `yaml:"spec" json:"spec"`
-	Hooks      *PluginHooks   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	APIVersion   string         `yaml:"apiVersion" json:"apiVersion"`
+	Kind         string         `yaml:"kind" json:"kind"`
+	Name         string         `yaml:"name,omitempty" json:"name,omitempty"`
+	Version      string         `yaml:"version,omitempty" json:"version,omitempty"`
+	Author       string         `yaml:"author,omitempty" json:"author,omitempty"`
+	Description  string         `yaml:"description,omitempty" json:"description,omitempty"`
+	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	Metadata     PluginMetadata `yaml:"metadata" json:"metadata"`
+	Spec         map[string]any `yaml:"spec" json:"spec"`
+	Hooks        *PluginHooks   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 
 	// SourcePath is set by the loader to track where this plugin was loaded from.
 	SourcePath string `yaml:"-" json:"-"`
 	// Enabled indicates whether the plugin is active (no .disabled suffix).
 	Enabled bool `yaml:"-" json:"-"`
+}
+
+// GetName returns the plugin's name, checking the top-level name and nested metadata.name.
+func (p *Plugin) GetName() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Metadata.Name
+}
+
+// GetVersion returns the plugin's version.
+func (p *Plugin) GetVersion() string {
+	if p.Version != "" {
+		return p.Version
+	}
+	return p.Metadata.Version
+}
+
+// GetAuthor returns the plugin's author.
+func (p *Plugin) GetAuthor() string {
+	if p.Author != "" {
+		return p.Author
+	}
+	return p.Metadata.Author
+}
+
+// GetDescription returns the plugin's description.
+func (p *Plugin) GetDescription() string {
+	if p.Description != "" {
+		return p.Description
+	}
+	return p.Metadata.Description
 }
 
 // PluginHooks defines scripts to run during various plugin lifecycle stages.
@@ -54,45 +102,60 @@ type PluginMetadata struct {
 
 // RoutePlugin is the typed representation of a Route plugin spec.
 type RoutePlugin struct {
-	Metadata    PluginMetadata `yaml:"metadata" json:"metadata"`
-	Service     string         `yaml:"service" json:"service"`
-	Domain      string         `yaml:"domain" json:"domain"`
-	Port        int            `yaml:"port" json:"port"`
-	Entrypoints string         `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
-	Network     string         `yaml:"network,omitempty" json:"network,omitempty"`
-	Middlewares []string       `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
-	SourcePath  string         `yaml:"-" json:"-"`
-	Enabled     bool           `yaml:"-" json:"-"`
+	Metadata     PluginMetadata `yaml:"metadata" json:"metadata"`
+	Service      string         `yaml:"service" json:"service"`
+	Domain       string         `yaml:"domain" json:"domain"`
+	Port         int            `yaml:"port" json:"port"`
+	Entrypoints  string         `yaml:"entrypoints,omitempty" json:"entrypoints,omitempty"`
+	Network      string         `yaml:"network,omitempty" json:"network,omitempty"`
+	Middlewares  []string       `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	SourcePath   string         `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"-"`
 }
 
 // StackPlugin is the typed representation of a Stack plugin spec.
 type StackPlugin struct {
-	Metadata    PluginMetadata `yaml:"metadata" json:"metadata"`
-	ComposePath string         `yaml:"composePath" json:"composePath"`
-	EnvTemplate string         `yaml:"envTemplate,omitempty" json:"envTemplate,omitempty"`
-	Priority    int            `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Category    string         `yaml:"category,omitempty" json:"category,omitempty"`
-	SourcePath  string         `yaml:"-" json:"-"`
-	Enabled     bool           `yaml:"-" json:"-"`
+	Metadata     PluginMetadata `yaml:"metadata" json:"metadata"`
+	ComposePath  string         `yaml:"composePath" json:"composePath"`
+	EnvTemplate  string         `yaml:"envTemplate,omitempty" json:"envTemplate,omitempty"`
+	Priority     int            `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	SourcePath   string         `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"-"`
 }
 
 // MiddlewarePlugin is the typed representation of a Middleware plugin spec.
 type MiddlewarePlugin struct {
-	Metadata   PluginMetadata    `yaml:"metadata" json:"metadata"`
-	Name       string            `yaml:"name" json:"name"`
-	Type       string            `yaml:"type" json:"type"`
-	Config     map[string]string `yaml:"config,omitempty" json:"config,omitempty"`
-	SourcePath string            `yaml:"-" json:"-"`
-	Enabled    bool              `yaml:"-" json:"-"`
+	Metadata     PluginMetadata    `yaml:"metadata" json:"metadata"`
+	Name         string            `yaml:"name" json:"name"`
+	Type         string            `yaml:"type" json:"type"`
+	Config       map[string]string `yaml:"config,omitempty" json:"config,omitempty"`
+	Category     string            `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string            `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string            `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Dependencies []Dependency      `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	SourcePath   string            `yaml:"-" json:"-"`
+	Enabled      bool              `yaml:"-" json:"-"`
 }
 
 // TraefikPlugin is the typed representation of a Traefik plugin spec.
 type TraefikPlugin struct {
-	Metadata    PluginMetadata   `yaml:"metadata" json:"metadata"`
-	Routes      []RouteSpec      `yaml:"routes,omitempty" json:"routes,omitempty"`
-	Middlewares []MiddlewareSpec `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
-	SourcePath  string           `yaml:"-" json:"-"`
-	Enabled     bool             `yaml:"-" json:"-"`
+	Metadata     PluginMetadata   `yaml:"metadata" json:"metadata"`
+	Routes       []RouteSpec      `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Middlewares  []MiddlewareSpec `yaml:"middlewares,omitempty" json:"middlewares,omitempty"`
+	Category     string           `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string           `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string           `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Dependencies []Dependency     `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	SourcePath   string           `yaml:"-" json:"-"`
+	Enabled      bool             `yaml:"-" json:"-"`
 }
 
 // RouteSpec represents a route configuration inside a Traefik plugin.
@@ -113,6 +176,27 @@ type MiddlewareSpec struct {
 	Config map[string]string `yaml:"config,omitempty" json:"config,omitempty"`
 }
 
+// ValidCategories is the set of allowed categories.
+var ValidCategories = map[string]bool{
+	"system":     true,
+	"network":    true,
+	"ai":         true,
+	"dev":        true,
+	"monitoring": true,
+	"security":   true,
+	"storage":    true,
+	"automation": true,
+}
+
+// ValidProviders is the set of allowed providers.
+var ValidProviders = map[string]bool{
+	"traefik": true,
+	"docker":  true,
+	"caddy":   true,
+	"nginx":   true,
+	"native":  true,
+}
+
 // Validate checks a raw Plugin for structural correctness.
 func (p *Plugin) Validate() error {
 	if p.APIVersion != APIVersion {
@@ -127,8 +211,28 @@ func (p *Plugin) Validate() error {
 			p.Kind, strings.Join([]string{KindRoute, KindStack, KindMiddleware, KindTraefik}, ", "))
 	}
 
-	if p.Metadata.Name == "" {
-		return fmt.Errorf("metadata.name is required")
+	name := p.GetName()
+	if name == "" {
+		return fmt.Errorf("metadata.name or top-level name is required")
+	}
+
+	category := strings.ToLower(p.Category)
+	if category != "" && !ValidCategories[category] {
+		return fmt.Errorf("plugin %q: invalid category %q (must be one of: system, network, ai, dev, monitoring, security, storage, automation)", name, p.Category)
+	}
+
+	provider := strings.ToLower(p.Provider)
+	if provider != "" && !ValidProviders[provider] {
+		return fmt.Errorf("plugin %q: invalid provider %q (must be one of: traefik, docker, caddy, nginx, native)", name, p.Provider)
+	}
+
+	for i, dep := range p.Dependencies {
+		if dep.Name == "" {
+			return fmt.Errorf("plugin %q: dependency[%d] name is required", name, i)
+		}
+		if dep.Kind == "" {
+			return fmt.Errorf("plugin %q: dependency[%d] kind is required", name, i)
+		}
 	}
 
 	return p.validateSpec()
@@ -228,7 +332,22 @@ func (p *Plugin) AsRoute() (*RoutePlugin, error) {
 	if err := yaml.Unmarshal(data, &rp); err != nil {
 		return nil, fmt.Errorf("failed to decode Route spec: %w", err)
 	}
-	rp.Metadata = p.Metadata
+	rp.Metadata.Name = p.GetName()
+	rp.Metadata.Description = p.GetDescription()
+	rp.Metadata.Version = p.GetVersion()
+	rp.Metadata.Author = p.GetAuthor()
+	if p.Category != "" {
+		rp.Category = p.Category
+	}
+	if p.Subcategory != "" {
+		rp.Subcategory = p.Subcategory
+	}
+	if p.Provider != "" {
+		rp.Provider = p.Provider
+	}
+	if len(p.Dependencies) > 0 {
+		rp.Dependencies = p.Dependencies
+	}
 	rp.SourcePath = p.SourcePath
 	rp.Enabled = p.Enabled
 	return &rp, nil
@@ -249,7 +368,22 @@ func (p *Plugin) AsStack() (*StackPlugin, error) {
 	if err := yaml.Unmarshal(data, &sp); err != nil {
 		return nil, fmt.Errorf("failed to decode Stack spec: %w", err)
 	}
-	sp.Metadata = p.Metadata
+	sp.Metadata.Name = p.GetName()
+	sp.Metadata.Description = p.GetDescription()
+	sp.Metadata.Version = p.GetVersion()
+	sp.Metadata.Author = p.GetAuthor()
+	if p.Category != "" {
+		sp.Category = p.Category
+	}
+	if p.Subcategory != "" {
+		sp.Subcategory = p.Subcategory
+	}
+	if p.Provider != "" {
+		sp.Provider = p.Provider
+	}
+	if len(p.Dependencies) > 0 {
+		sp.Dependencies = p.Dependencies
+	}
 	sp.SourcePath = p.SourcePath
 	sp.Enabled = p.Enabled
 	return &sp, nil
@@ -270,7 +404,22 @@ func (p *Plugin) AsMiddleware() (*MiddlewarePlugin, error) {
 	if err := yaml.Unmarshal(data, &mp); err != nil {
 		return nil, fmt.Errorf("failed to decode Middleware spec: %w", err)
 	}
-	mp.Metadata = p.Metadata
+	mp.Metadata.Name = p.GetName()
+	mp.Metadata.Description = p.GetDescription()
+	mp.Metadata.Version = p.GetVersion()
+	mp.Metadata.Author = p.GetAuthor()
+	if p.Category != "" {
+		mp.Category = p.Category
+	}
+	if p.Subcategory != "" {
+		mp.Subcategory = p.Subcategory
+	}
+	if p.Provider != "" {
+		mp.Provider = p.Provider
+	}
+	if len(p.Dependencies) > 0 {
+		mp.Dependencies = p.Dependencies
+	}
 	mp.SourcePath = p.SourcePath
 	mp.Enabled = p.Enabled
 	return &mp, nil
@@ -291,7 +440,22 @@ func (p *Plugin) AsTraefik() (*TraefikPlugin, error) {
 	if err := yaml.Unmarshal(data, &tp); err != nil {
 		return nil, fmt.Errorf("failed to decode Traefik spec: %w", err)
 	}
-	tp.Metadata = p.Metadata
+	tp.Metadata.Name = p.GetName()
+	tp.Metadata.Description = p.GetDescription()
+	tp.Metadata.Version = p.GetVersion()
+	tp.Metadata.Author = p.GetAuthor()
+	if p.Category != "" {
+		tp.Category = p.Category
+	}
+	if p.Subcategory != "" {
+		tp.Subcategory = p.Subcategory
+	}
+	if p.Provider != "" {
+		tp.Provider = p.Provider
+	}
+	if len(p.Dependencies) > 0 {
+		tp.Dependencies = p.Dependencies
+	}
 	tp.SourcePath = p.SourcePath
 	tp.Enabled = p.Enabled
 	return &tp, nil

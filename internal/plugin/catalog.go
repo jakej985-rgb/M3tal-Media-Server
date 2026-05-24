@@ -10,17 +10,23 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
 
 // CatalogItem represents a plugin available in the remote official catalog.
 type CatalogItem struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Author      string `json:"author"`
-	URL         string `json:"url"`
-	ComposeURL  string `json:"composeUrl,omitempty"`
+	Name         string       `json:"name"`
+	Kind         string       `json:"kind"`
+	Description  string       `json:"description"`
+	Version      string       `json:"version"`
+	Author       string       `json:"author"`
+	URL          string       `json:"url"`
+	ComposeURL   string       `json:"composeUrl,omitempty"`
+	Category     string       `json:"category,omitempty"`
+	Subcategory  string       `json:"subcategory,omitempty"`
+	Provider     string       `json:"provider,omitempty"`
+	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
 
 // CatalogItemStatus wraps CatalogItem with its local installation state.
@@ -321,23 +327,10 @@ func downloadFile(url, dest string) error {
 	return nil
 }
 
-// InstallPlugin downloads a plugin's definition and optional compose files.
-func InstallPlugin(name, kind, userPluginsDir string) error {
-	catalog := FetchCatalog()
-	var targetItem *CatalogItem
-	for i := range catalog {
-		if strings.EqualFold(catalog[i].Name, name) && strings.EqualFold(catalog[i].Kind, kind) {
-			targetItem = &catalog[i]
-			break
-		}
-	}
-
-	if targetItem == nil {
-		return fmt.Errorf("plugin %q (kind: %s) not found in catalog", name, kind)
-	}
-
+// installSinglePlugin downloads a single plugin's definition and optional compose files.
+func installSinglePlugin(item CatalogItem, userPluginsDir string) error {
 	var subfolder string
-	switch targetItem.Kind {
+	switch item.Kind {
 	case KindRoute:
 		subfolder = "routes"
 	case KindStack:
@@ -347,17 +340,17 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 	case KindTraefik:
 		subfolder = "traefik"
 	default:
-		return fmt.Errorf("unsupported plugin kind: %s", targetItem.Kind)
+		return fmt.Errorf("unsupported plugin kind: %s", item.Kind)
 	}
 
 	// We default to .yml for catalog items unless the catalog URL specifically ends in .json
 	ext := ".yml"
-	if strings.HasSuffix(strings.ToLower(targetItem.URL), ".json") {
+	if strings.HasSuffix(strings.ToLower(item.URL), ".json") {
 		ext = ".json"
 	}
 
-	pluginDest := filepath.Join(userPluginsDir, subfolder, targetItem.Name+ext)
-	err := downloadFile(targetItem.URL, pluginDest)
+	pluginDest := filepath.Join(userPluginsDir, subfolder, item.Name+ext)
+	err := downloadFile(item.URL, pluginDest)
 	if err != nil {
 		return fmt.Errorf("failed to download plugin manifest: %w", err)
 	}
@@ -376,10 +369,10 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 	}
 
 	// Download compose file if it is a Stack plugin and has a ComposeURL
-	if targetItem.Kind == KindStack && targetItem.ComposeURL != "" {
-		composeFilename := filepath.Base(targetItem.ComposeURL)
+	if item.Kind == KindStack && item.ComposeURL != "" {
+		composeFilename := filepath.Base(item.ComposeURL)
 		composeDest := filepath.Join(userPluginsDir, subfolder, composeFilename)
-		err = downloadFile(targetItem.ComposeURL, composeDest)
+		err = downloadFile(item.ComposeURL, composeDest)
 		if err != nil {
 			_ = os.Remove(pluginDest) // clean up manifest
 			return fmt.Errorf("failed to download associated compose file %s: %w", composeFilename, err)
@@ -394,6 +387,84 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 	}
 
 	return nil
+}
+
+// InstallPlugin downloads a plugin's definition and optional compose files, resolving dependencies.
+func InstallPlugin(name, kind, userPluginsDir string) error {
+	catalog := FetchCatalog()
+
+	// Find the target item in the catalog to verify it exists
+	var targetItem *CatalogItem
+	for i := range catalog {
+		if strings.EqualFold(catalog[i].Name, name) && strings.EqualFold(catalog[i].Kind, kind) {
+			targetItem = &catalog[i]
+			break
+		}
+	}
+	if targetItem == nil {
+		return fmt.Errorf("plugin %q (kind: %s) not found in catalog", name, kind)
+	}
+
+	// Build map of currently installed plugins to avoid re-installing
+	dirs := []string{userPluginsDir}
+	if userPluginsDir != system.SystemPluginsDir {
+		dirs = append(dirs, system.SystemPluginsDir)
+	}
+	reg, err := LoadAll(dirs...)
+	installed := make(map[string]bool)
+	if err == nil && reg != nil {
+		for _, r := range reg.Routes {
+			installed[strings.ToLower(r.Metadata.Name)] = true
+		}
+		for _, s := range reg.Stacks {
+			installed[strings.ToLower(s.Metadata.Name)] = true
+		}
+		for _, m := range reg.Middlewares {
+			installed[strings.ToLower(m.Metadata.Name)] = true
+		}
+	}
+
+	// Resolve dependency install order
+	plan, err := ResolveInstallOrder(*targetItem, catalog, installed)
+	if err != nil {
+		return err
+	}
+
+	// Install all resolved dependencies first
+	for _, item := range plan {
+		if strings.EqualFold(item.Name, name) && strings.EqualFold(item.Kind, kind) {
+			continue
+		}
+
+		if installed[strings.ToLower(item.Name)] {
+			continue
+		}
+
+		// Check if the dependency is marked as autoInstall in the plan
+		isAutoInstall := false
+		for _, planItem := range plan {
+			for _, dep := range planItem.Dependencies {
+				if strings.EqualFold(dep.Name, item.Name) && dep.AutoInstall {
+					isAutoInstall = true
+					break
+				}
+			}
+		}
+
+		if isAutoInstall {
+			fmt.Printf("📥 Auto-installing dependency %s %q...\n", item.Kind, item.Name)
+			err = installSinglePlugin(item, userPluginsDir)
+			if err != nil {
+				return fmt.Errorf("failed to auto-install dependency %q: %w", item.Name, err)
+			}
+			installed[strings.ToLower(item.Name)] = true
+		} else {
+			return fmt.Errorf("missing required dependency %q (kind: %s) which is not marked as auto-installable", item.Name, item.Kind)
+		}
+	}
+
+	// Finally, install the target item itself
+	return installSinglePlugin(*targetItem, userPluginsDir)
 }
 
 // UninstallPlugin deletes a user-installed plugin's files.

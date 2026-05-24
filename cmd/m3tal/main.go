@@ -568,6 +568,10 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "list",
 		Short: "List all discovered plugins",
 		Run: func(cmd *cobra.Command, args []string) {
+			categoryFilter, _ := cmd.Flags().GetString("category")
+			subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
+			providerFilter, _ := cmd.Flags().GetString("provider")
+
 			dirs := system.GetPluginDirs()
 			reg, err := plugin.LoadAll(dirs...)
 			if err != nil {
@@ -577,8 +581,21 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			fmt.Printf("\n🔌 %s\n\n", reg.Summary())
 
 			if len(reg.ListStacks()) > 0 {
-				fmt.Println("📦 Stack Plugins:")
+				printedHeader := false
 				for _, s := range reg.ListStacks() {
+					if categoryFilter != "" && !strings.EqualFold(s.Category, categoryFilter) {
+						continue
+					}
+					if subcategoryFilter != "" && !strings.EqualFold(s.Subcategory, subcategoryFilter) {
+						continue
+					}
+					if providerFilter != "" && !strings.EqualFold(s.Provider, providerFilter) {
+						continue
+					}
+					if !printedHeader {
+						fmt.Println("📦 Stack Plugins:")
+						printedHeader = true
+					}
 					pri := ""
 					if s.Priority > 0 {
 						pri = fmt.Sprintf(" (priority: %d)", s.Priority)
@@ -589,31 +606,63 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					}
 					fmt.Printf("   %-20s %s%s%s\n", s.Metadata.Name, s.Metadata.Description, pri, status)
 				}
-				fmt.Println()
+				if printedHeader {
+					fmt.Println()
+				}
 			}
 
 			if len(reg.ListRoutes()) > 0 {
-				fmt.Println("🚦 Route Plugins:")
+				printedHeader := false
 				for _, r := range reg.ListRoutes() {
+					if categoryFilter != "" && !strings.EqualFold(r.Category, categoryFilter) {
+						continue
+					}
+					if subcategoryFilter != "" && !strings.EqualFold(r.Subcategory, subcategoryFilter) {
+						continue
+					}
+					if providerFilter != "" && !strings.EqualFold(r.Provider, providerFilter) {
+						continue
+					}
+					if !printedHeader {
+						fmt.Println("🚦 Route Plugins:")
+						printedHeader = true
+					}
 					status := " [enabled]"
 					if !r.Enabled {
 						status = " [disabled]"
 					}
 					fmt.Printf("   %-20s %s → %s:%d%s\n", r.Metadata.Name, r.Domain, r.Service, r.Port, status)
 				}
-				fmt.Println()
+				if printedHeader {
+					fmt.Println()
+				}
 			}
 
 			if len(reg.ListMiddlewares()) > 0 {
-				fmt.Println("🔐 Middleware Plugins:")
+				printedHeader := false
 				for _, m := range reg.ListMiddlewares() {
+					if categoryFilter != "" && !strings.EqualFold(m.Category, categoryFilter) {
+						continue
+					}
+					if subcategoryFilter != "" && !strings.EqualFold(m.Subcategory, subcategoryFilter) {
+						continue
+					}
+					if providerFilter != "" && !strings.EqualFold(m.Provider, providerFilter) {
+						continue
+					}
+					if !printedHeader {
+						fmt.Println("🔐 Middleware Plugins:")
+						printedHeader = true
+					}
 					status := " [enabled]"
 					if !m.Enabled {
 						status = " [disabled]"
 					}
 					fmt.Printf("   %-20s [%s] %s%s\n", m.Metadata.Name, m.Type, m.Metadata.Description, status)
 				}
-				fmt.Println()
+				if printedHeader {
+					fmt.Println()
+				}
 			}
 
 			fmt.Println("Scanned directories:")
@@ -626,6 +675,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			}
 		},
 	}
+	pluginListCmd.Flags().String("category", "", "Filter plugins by category")
+	pluginListCmd.Flags().String("subcategory", "", "Filter plugins by subcategory")
+	pluginListCmd.Flags().String("provider", "", "Filter plugins by provider")
 
 	var pluginValidateCmd = &cobra.Command{
 		Use:   "validate [path]",
@@ -890,6 +942,10 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				return
 			}
 
+			categoryFilter, _ := cmd.Flags().GetString("category")
+			subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
+			providerFilter, _ := cmd.Flags().GetString("provider")
+
 			dirs := system.GetPluginDirs()
 			reg, err := plugin.LoadAll(dirs...)
 			if err != nil {
@@ -899,6 +955,15 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			fmt.Println("\n📋 M3TAL Plugin Catalog:")
 			fmt.Println("--------------------------------------------------")
 			for _, item := range items {
+				if categoryFilter != "" && !strings.EqualFold(item.Category, categoryFilter) {
+					continue
+				}
+				if subcategoryFilter != "" && !strings.EqualFold(item.Subcategory, subcategoryFilter) {
+					continue
+				}
+				if providerFilter != "" && !strings.EqualFold(item.Provider, providerFilter) {
+					continue
+				}
 				statusColor := "⚪" // not installed
 				statusStr := "not installed"
 				if item.Installed {
@@ -916,6 +981,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		},
 	}
 	pluginCatalogCmd.Flags().String("export", "", "Export the static catalog to a JSON file path")
+	pluginCatalogCmd.Flags().String("category", "", "Filter catalog by category")
+	pluginCatalogCmd.Flags().String("subcategory", "", "Filter catalog by subcategory")
+	pluginCatalogCmd.Flags().String("provider", "", "Filter catalog by provider")
 
 	var pluginInstallCmd = &cobra.Command{
 		Use:   "install [name]",
@@ -925,16 +993,16 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			name := args[0]
 
 			catalog := plugin.FetchCatalog()
-			// Find the item in the catalog to get the Kind
-			var targetKind string
-			for _, item := range catalog {
-				if strings.EqualFold(item.Name, name) {
-					targetKind = item.Kind
-					name = item.Name // use canonical name
+			// Find the item in the catalog
+			var targetItem *plugin.CatalogItem
+			for i := range catalog {
+				if strings.EqualFold(catalog[i].Name, name) {
+					targetItem = &catalog[i]
+					name = catalog[i].Name // use canonical name
 					break
 				}
 			}
-			if targetKind == "" {
+			if targetItem == nil {
 				log.Fatalf("❌ Plugin %q not found in catalog. Run 'm3tal plugin catalog' to see available plugins.", name)
 			}
 
@@ -943,8 +1011,68 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				userDir = "deploy/plugins"
 			}
 
-			fmt.Printf("📥 Installing %s plugin %q...\n", targetKind, name)
-			err := plugin.InstallPlugin(name, targetKind, userDir)
+			// Load currently installed plugins
+			dirs := system.GetPluginDirs()
+			reg, err := plugin.LoadAll(dirs...)
+			installed := make(map[string]bool)
+			if err == nil && reg != nil {
+				for _, r := range reg.Routes {
+					installed[strings.ToLower(r.Metadata.Name)] = true
+				}
+				for _, s := range reg.Stacks {
+					installed[strings.ToLower(s.Metadata.Name)] = true
+				}
+				for _, m := range reg.Middlewares {
+					installed[strings.ToLower(m.Metadata.Name)] = true
+				}
+			}
+
+			// Resolve dependencies
+			plan, err := plugin.ResolveInstallOrder(*targetItem, catalog, installed)
+			if err != nil {
+				log.Fatalf("❌ Dependency resolution failed: %v", err)
+			}
+
+			// Prompt for required non-autoInstall dependencies
+			for _, item := range plan {
+				if strings.EqualFold(item.Name, name) {
+					continue
+				}
+				if installed[strings.ToLower(item.Name)] {
+					continue
+				}
+
+				// Check if dependency is marked as autoInstall in the plan
+				isAutoInstall := false
+				for _, planItem := range plan {
+					for _, dep := range planItem.Dependencies {
+						if strings.EqualFold(dep.Name, item.Name) && dep.AutoInstall {
+							isAutoInstall = true
+							break
+						}
+					}
+				}
+
+				if !isAutoInstall {
+					fmt.Printf("❓ Missing required dependency %s %q. Install now? [Y/n]: ", item.Kind, item.Name)
+					var response string
+					fmt.Scanln(&response)
+					response = strings.TrimSpace(strings.ToLower(response))
+					if response == "" || response == "y" || response == "yes" {
+						fmt.Printf("📥 Installing dependency %s %q...\n", item.Kind, item.Name)
+						err := plugin.InstallPlugin(item.Name, item.Kind, userDir)
+						if err != nil {
+							log.Fatalf("❌ Failed to install dependency %q: %v", item.Name, err)
+						}
+						installed[strings.ToLower(item.Name)] = true
+					} else {
+						log.Fatalf("❌ Aborted installation because required dependency %q was not installed.", item.Name)
+					}
+				}
+			}
+
+			fmt.Printf("📥 Installing %s plugin %q...\n", targetItem.Kind, name)
+			err = plugin.InstallPlugin(name, targetItem.Kind, userDir)
 			if err != nil {
 				log.Fatalf("❌ Installation failed: %v", err)
 			}
