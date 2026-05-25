@@ -2565,36 +2565,47 @@ func runConfigurationMenu(exe string) {
 			runWithSudoFallback(exe, "config", "wizard")
 		case 2:
 			stackDir := system.GetStackDir()
-			entries, _ := os.ReadDir(stackDir)
-			var stacks []string
-			for _, e := range entries {
-				if strings.HasSuffix(e.Name(), "-compose.yml") {
-					stackName := strings.TrimSuffix(e.Name(), "-compose.yml")
-					tmplPath := filepath.Join(stackDir, stackName+".env.template")
-					envPath := filepath.Join(stackDir, stackName+".env")
-					if _, err := os.Stat(tmplPath); err == nil {
-						stacks = append(stacks, stackName)
-					} else if _, err := os.Stat(envPath); err == nil {
-						stacks = append(stacks, stackName)
-					}
-				}
+			matches, err := system.FindComposeFiles(stackDir)
+			if err != nil {
+				fmt.Printf("❌ Failed to scan stack directory: %v\n", err)
+				continue
 			}
+			type stackItem struct {
+				name        string
+				composePath string
+				envPath     string
+			}
+			var stacks []stackItem
+			for _, match := range matches {
+				base := filepath.Base(match)
+				stackName := strings.TrimSuffix(base, "-compose.yml")
+				dir := filepath.Dir(match)
+				envPath := filepath.Join(dir, stackName+".env")
+				stacks = append(stacks, stackItem{
+					name:        stackName,
+					composePath: match,
+					envPath:     envPath,
+				})
+			}
+
 			if len(stacks) == 0 {
 				fmt.Println("⚠️  No stack configurations found.")
 			} else {
 				fmt.Println("\n📦 Available Stacks:")
 				for i, s := range stacks {
-					fmt.Printf("   [%d] %s\n", i+1, s)
+					dirName := filepath.Base(filepath.Dir(s.composePath))
+					if dirName != filepath.Base(stackDir) && dirName != "" {
+						fmt.Printf("   [%d] %s (nested in %s)\n", i+1, s.name, dirName)
+					} else {
+						fmt.Printf("   [%d] %s\n", i+1, s.name)
+					}
 				}
 				fmt.Print("\n👉 Stack Number: ")
 				var sNum int
 				fmt.Scanln(&sNum)
 				if sNum > 0 && sNum <= len(stacks) {
-					stackName := stacks[sNum-1]
-					composePath := filepath.Join(stackDir, stackName+"-compose.yml")
-					targetPath := filepath.Join(stackDir, stackName+".env")
-
-					runWithSudoFallback(exe, "config", "wizard", "--target", targetPath, "--compose", composePath)
+					selected := stacks[sNum-1]
+					runWithSudoFallback(exe, "config", "wizard", "--target", selected.envPath, "--compose", selected.composePath)
 				}
 			}
 		case 3:

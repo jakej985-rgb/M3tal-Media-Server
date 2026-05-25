@@ -112,36 +112,59 @@ func IsDashInstalled() bool {
 	return false
 }
 
-// FindComposeFiles recursively searches the root directory for *-compose.yml files.
+// FindComposeFiles recursively searches the root directory for *-compose.yml files, resolving symlinks.
 func FindComposeFiles(root string) ([]string, error) {
-	var files []string
-	walkRoot := root
 	resolved, err := filepath.EvalSymlinks(root)
-	if err == nil {
-		walkRoot = resolved
+	if err != nil {
+		resolved = root
 	}
+	return findComposeFilesRecursive(root, root, resolved, make(map[string]bool))
+}
 
-	err = filepath.WalkDir(walkRoot, func(path string, d os.DirEntry, err error) error {
+func findComposeFilesRecursive(rootDisplayPath string, currentDisplayPath string, resolvedPath string, visited map[string]bool) ([]string, error) {
+	if visited[resolvedPath] {
+		return nil, nil
+	}
+	visited[resolvedPath] = true
+
+	var files []string
+	err := filepath.WalkDir(resolvedPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip errors
 		}
+
+		// Handle symlinks to directories encountered during walk
+		if d.Type()&os.ModeSymlink != 0 {
+			resolvedSymlink, err := filepath.EvalSymlinks(path)
+			if err == nil {
+				info, err := os.Stat(resolvedSymlink)
+				if err == nil && info.IsDir() {
+					subDisplayPath := filepath.Join(currentDisplayPath, strings.TrimPrefix(path, resolvedPath))
+					subFiles, err := findComposeFilesRecursive(rootDisplayPath, subDisplayPath, resolvedSymlink, visited)
+					if err == nil {
+						files = append(files, subFiles...)
+					}
+					return nil
+				}
+			}
+		}
+
 		if d.IsDir() {
 			name := d.Name()
-			// Skip common non-stack directories to optimize performance
 			if name == ".git" || name == ".github" || name == "node_modules" || name == "data" || name == "db" || strings.HasPrefix(name, ".") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
+
 		if strings.HasSuffix(d.Name(), "-compose.yml") {
-			displayPath := path
-			if walkRoot != root && strings.HasPrefix(path, walkRoot) {
-				displayPath = filepath.Join(root, strings.TrimPrefix(path, walkRoot))
-			}
+			relPath := strings.TrimPrefix(path, resolvedPath)
+			displayPath := filepath.Join(currentDisplayPath, relPath)
 			log.Printf("[DEBUG] Discovered compose file: %s\n", displayPath)
 			files = append(files, displayPath)
 		}
 		return nil
 	})
+
 	return files, err
 }
