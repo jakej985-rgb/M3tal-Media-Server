@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -21,6 +22,38 @@ func StartServer(port string, token string) error {
 // for the v2 engine endpoints.
 func StartServerWithStore(port string, token string, db *store.Store) error {
 	srv := NewServer(token)
+
+	// Start background Docker events forwarder
+	go func() {
+		mgr, err := containers.GetProvider()
+		if err != nil {
+			log.Printf("⚠️ Docker provider unavailable for forwarder: %v", err)
+			return
+		}
+
+		ctx := context.Background()
+		eventCh, err := mgr.SubscribeEvents(ctx)
+		if err != nil {
+			log.Printf("⚠️ Failed to subscribe to container events: %v", err)
+			return
+		}
+
+		log.Println("🔌 Docker events forwarder started")
+		for ev := range eventCh {
+			var eventType string
+			if ev.Action == "start" {
+				eventType = "container.started"
+			} else if ev.Action == "stop" || ev.Action == "die" || ev.Action == "kill" {
+				eventType = "container.stopped"
+			}
+
+			if eventType != "" {
+				GlobalEventBus.Publish(eventType, map[string]string{
+					"container": ev.ContainerName,
+				})
+			}
+		}
+	}()
 
 	log.Printf("🚀 M3TAL API Interface starting on :%s...\n", port)
 
@@ -149,6 +182,10 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/ai/run", srv.AIRun)
 			r.Get("/ai/queue", srv.GetAIQueue)
 			r.Get("/ai/models", srv.GetAIModels)
+
+			// WebSockets
+			r.Get("/ws/events", srv.GetWSEvents)
+			r.Get("/ws/logs/{name}", srv.GetWSLogs)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -195,6 +232,10 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/ai/run", srv.AIRun)
 			r.Get("/ai/queue", srv.GetAIQueue)
 			r.Get("/ai/models", srv.GetAIModels)
+
+			// WebSockets
+			r.Get("/ws/events", srv.GetWSEvents)
+			r.Get("/ws/logs/{name}", srv.GetWSLogs)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")

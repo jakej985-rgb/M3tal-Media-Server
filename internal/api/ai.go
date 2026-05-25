@@ -80,6 +80,11 @@ func workerLoop() {
 		for _, js := range jobsTracker {
 			if js.ID == job.ID {
 				js.Status = "running"
+				GlobalEventBus.Publish("ai.job.started", map[string]string{
+					"id":     job.ID,
+					"prompt": job.Prompt,
+					"mode":   job.Mode,
+				})
 				break
 			}
 		}
@@ -148,8 +153,18 @@ func workerLoop() {
 			if js.ID == job.ID {
 				if lastErr != nil {
 					js.Status = "failed"
+					GlobalEventBus.Publish("ai.job.completed", map[string]any{
+						"id":     job.ID,
+						"status": "failed",
+						"error":  lastErr.Error(),
+					})
 				} else {
 					js.Status = "completed"
+					GlobalEventBus.Publish("ai.job.completed", map[string]any{
+						"id":     job.ID,
+						"status": "completed",
+						"model":  chosenModel,
+					})
 				}
 				break
 			}

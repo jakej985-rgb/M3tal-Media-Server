@@ -430,14 +430,19 @@ func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request
 	result, err := engine.DeployStack(composePath, 0)
 
 	// Update DB status
+	status := "running"
+	if err != nil {
+		status = "failed"
+	}
 	if h.Store != nil {
 		_ = h.Store.UpsertStack(name, composePath)
-		if err != nil {
-			_ = h.Store.UpdateStackStatus(name, "failed")
-		} else {
-			_ = h.Store.UpdateStackStatus(name, "running")
-		}
+		_ = h.Store.UpdateStackStatus(name, status)
 	}
+	GlobalEventBus.Publish("stack.updated", map[string]string{
+		"name":   name,
+		"action": "up",
+		"status": status,
+	})
 
 	if err != nil {
 		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
@@ -470,14 +475,19 @@ func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) 
 	result, err := engine.StopStack(composePath, 0)
 
 	// Update DB status
+	status := "stopped"
+	if err != nil {
+		status = "failed"
+	}
 	if h.Store != nil {
 		_ = h.Store.UpsertStack(name, composePath)
-		if err != nil {
-			_ = h.Store.UpdateStackStatus(name, "failed")
-		} else {
-			_ = h.Store.UpdateStackStatus(name, "stopped")
-		}
+		_ = h.Store.UpdateStackStatus(name, status)
 	}
+	GlobalEventBus.Publish("stack.updated", map[string]string{
+		"name":   name,
+		"action": "down",
+		"status": status,
+	})
 
 	if err != nil {
 		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{

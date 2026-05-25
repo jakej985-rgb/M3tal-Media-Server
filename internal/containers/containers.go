@@ -3,6 +3,7 @@ package containers
 import (
 	"context"
 	"io"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -31,6 +32,12 @@ type ContainerInfo struct {
 	Networks []string          `json:"networks,omitempty"`
 }
 
+// ContainerEvent represents a container lifecycle event
+type ContainerEvent struct {
+	Action        string // "start", "stop", "die", etc.
+	ContainerName string
+}
+
 // Provider defines the interface for container management
 type Provider interface {
 	ListContainers() ([]ContainerInfo, error)
@@ -38,6 +45,8 @@ type Provider interface {
 	StopContainer(name string) error
 	RestartContainer(name string) error
 	Logs(name string, tail string) (string, error)
+	SubscribeEvents(ctx context.Context) (<-chan ContainerEvent, error)
+	StreamLogs(ctx context.Context, name string, tail string) (io.ReadCloser, error)
 }
 
 var globalProvider Provider
@@ -146,6 +155,48 @@ func (m *DockerManager) Logs(name string, tail string) (string, error) {
 	return string(content), nil
 }
 
+func (m *DockerManager) SubscribeEvents(ctx context.Context) (<-chan ContainerEvent, error) {
+	msgCh, errCh := m.cli.Events(ctx, types.EventsOptions{})
+	ch := make(chan ContainerEvent, 100)
+
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err := <-errCh:
+				if err != nil {
+					return
+				}
+			case msg := <-msgCh:
+				if string(msg.Type) == "container" {
+					name := msg.Actor.Attributes["name"]
+					if name == "" {
+						name = msg.Actor.ID
+					}
+					ch <- ContainerEvent{
+						Action:        string(msg.Action),
+						ContainerName: name,
+					}
+				}
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+func (m *DockerManager) StreamLogs(ctx context.Context, name string, tail string) (io.ReadCloser, error) {
+	options := types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+		Tail:       tail,
+	}
+	return m.cli.ContainerLogs(ctx, name, options)
+}
+
 // MockProvider for testing (implements Provider)
 type MockProvider struct {
 	Containers []ContainerInfo
@@ -157,4 +208,11 @@ func (m *MockProvider) StopContainer(name string) error          { return nil }
 func (m *MockProvider) RestartContainer(name string) error       { return nil }
 func (m *MockProvider) Logs(name string, tail string) (string, error) {
 	return "mock logs for " + name, nil
+}
+func (m *MockProvider) SubscribeEvents(ctx context.Context) (<-chan ContainerEvent, error) {
+	ch := make(chan ContainerEvent)
+	return ch, nil
+}
+func (m *MockProvider) StreamLogs(ctx context.Context, name string, tail string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("mock streaming logs for " + name + "\n")), nil
 }
