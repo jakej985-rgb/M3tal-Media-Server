@@ -56,6 +56,15 @@ def login_required(role=None):
         return decorated_function
     return decorator
 
+def unwrap_api_response(response_json):
+    """Unwraps a standardized APIResponse, returning the inner data or error."""
+    if isinstance(response_json, dict) and "status" in response_json:
+        if response_json["status"] == "success":
+            return response_json.get("data")
+        elif response_json["status"] == "error":
+            return {"error": response_json.get("error", "API Error")}
+    return response_json
+
 def fetch_api(endpoint, retries=3):
     """Hardened proxy helper with retry logic."""
     for attempt in range(retries):
@@ -66,7 +75,7 @@ def fetch_api(endpoint, retries=3):
                 
             resp = requests.get(f"{GO_API_URL}{endpoint}", headers=headers, timeout=3)
             if resp.status_code == 200:
-                return resp.json()
+                return unwrap_api_response(resp.json())
             logger.warning(f"API Attempt {attempt+1} failed: HTTP {resp.status_code}")
         except Exception as e:
             logger.warning(f"API Attempt {attempt+1} failed: {e}")
@@ -187,7 +196,7 @@ def api_action():
             headers["X-API-Token"] = GO_API_TOKEN
             
         resp = requests.post(f"{GO_API_URL}/api/containers/{action}", json={"name": container}, headers=headers, timeout=15)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Action failed: {e}")
         return jsonify({"ok": False, "error": f"API Connection Failure: {e}"}), 500
@@ -211,7 +220,7 @@ def install_plugin():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/plugins/install", json=data, headers=headers, timeout=60)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to install plugin: {e}")
         return jsonify({"error": str(e)}), 500
@@ -225,7 +234,7 @@ def uninstall_plugin():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/plugins/uninstall", json=data, headers=headers, timeout=15)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to uninstall plugin: {e}")
         return jsonify({"error": str(e)}), 500
@@ -239,7 +248,7 @@ def enable_plugin():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/plugins/enable", json=data, headers=headers, timeout=10)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to enable plugin: {e}")
         return jsonify({"error": str(e)}), 500
@@ -253,7 +262,7 @@ def disable_plugin():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/plugins/disable", json=data, headers=headers, timeout=10)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to disable plugin: {e}")
         return jsonify({"error": str(e)}), 500
@@ -266,7 +275,7 @@ def sync_plugins():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/plugins/sync", headers=headers, timeout=10)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to sync plugins: {e}")
         return jsonify({"error": str(e)}), 500
@@ -279,7 +288,7 @@ def scan_stacks():
         if GO_API_TOKEN:
             headers["X-API-Token"] = GO_API_TOKEN
         resp = requests.post(f"{GO_API_URL}/api/v2/stacks/scan", headers=headers, timeout=30)
-        return jsonify(resp.json()), resp.status_code
+        return jsonify(unwrap_api_response(resp.json())), resp.status_code
     except Exception as e:
         logger.error(f"Failed to scan stacks: {e}")
         return jsonify({"error": str(e)}), 500

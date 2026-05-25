@@ -212,6 +212,14 @@ func (s *Server) chiAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// APIResponse represents the standardized JSON structure for all M3TAL API responses.
+type APIResponse struct {
+	Status string `json:"status"`
+	Data   any    `json:"data,omitempty"`
+	Meta   any    `json:"meta,omitempty"`
+	Error  any    `json:"error,omitempty"`
+}
+
 // writeJSON encodes a value as JSON and writes it to the response.
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -219,7 +227,31 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// writeError writes a JSON error response.
+// writeJSONResponse encodes a standardized APIResponse as JSON and writes it to the response.
+func writeJSONResponse(w http.ResponseWriter, status int, response APIResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(response)
+}
+
+// sendSuccess writes a standard successful response.
+func sendSuccess(w http.ResponseWriter, status int, data any, meta any) {
+	writeJSONResponse(w, status, APIResponse{
+		Status: "success",
+		Data:   data,
+		Meta:   meta,
+	})
+}
+
+// sendError writes a standard error response.
+func sendError(w http.ResponseWriter, status int, errMsg string) {
+	writeJSONResponse(w, status, APIResponse{
+		Status: "error",
+		Error:  errMsg,
+	})
+}
+
+// writeError writes a JSON error response (legacy wrapper calling sendError).
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	sendError(w, status, message)
 }

@@ -26,7 +26,7 @@ func (h *RouteHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 	if routes == nil {
 		routes = []store.RouteRecord{}
 	}
-	writeJSON(w, http.StatusOK, routes)
+	sendSuccess(w, http.StatusOK, routes, nil)
 }
 
 // CreateRoute validates and creates a new route.
@@ -41,9 +41,10 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	// Validate route input
 	errs := engine.ValidateRoute(input)
 	if len(errs) > 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":      "validation failed",
-			"violations": errs,
+		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
+			Status: "error",
+			Error:  "validation failed",
+			Data:   map[string]any{"violations": errs},
 		})
 		return
 	}
@@ -60,9 +61,10 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	uniqueErrs := engine.ValidateDomainUnique(input.Domain, existingInputs)
 	if len(uniqueErrs) > 0 {
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":      "domain conflict",
-			"violations": uniqueErrs,
+		writeJSONResponse(w, http.StatusConflict, APIResponse{
+			Status: "error",
+			Error:  "domain conflict",
+			Data:   map[string]any{"violations": uniqueErrs},
 		})
 		return
 	}
@@ -77,11 +79,11 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
+	sendSuccess(w, http.StatusCreated, map[string]any{
 		"id":     id,
 		"labels": labels,
 		"route":  input,
-	})
+	}, nil)
 }
 
 // DeleteRoute removes a route by ID.
@@ -99,7 +101,7 @@ func (h *RouteHandlers) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	sendSuccess(w, http.StatusOK, map[string]bool{"deleted": true}, nil)
 }
 
 // GetRouteLabels generates labels for a route without storing it.
@@ -113,13 +115,14 @@ func (h *RouteHandlers) GetRouteLabels(w http.ResponseWriter, r *http.Request) {
 
 	errs := engine.ValidateRoute(input)
 	if len(errs) > 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":      "validation failed",
-			"violations": errs,
+		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
+			Status: "error",
+			Error:  "validation failed",
+			Data:   map[string]any{"violations": errs},
 		})
 		return
 	}
 
 	labels := engine.GenerateLabels(input)
-	writeJSON(w, http.StatusOK, labels)
+	sendSuccess(w, http.StatusOK, labels, nil)
 }

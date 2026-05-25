@@ -101,7 +101,7 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	writeJSON(w, http.StatusOK, stacks)
+	sendSuccess(w, http.StatusOK, stacks, nil)
 }
 
 // LoadStack parses a compose file and returns its services, ports, and labels.
@@ -164,12 +164,12 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 	// Validate
 	validationErrors := engine.ValidateCompose(cf)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"path":              req.Path,
 		"services":          services,
 		"service_count":     len(services),
 		"validation_errors": validationErrors,
-	})
+	}, nil)
 }
 
 // DeployStack validates and deploys a stack.
@@ -217,14 +217,15 @@ func (h *StackHandlers) DeployStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error":  err.Error(),
-			"result": result,
+		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
+			Status: "error",
+			Error:  err.Error(),
+			Data:   result,
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	sendSuccess(w, http.StatusOK, result, nil)
 }
 
 // MiddlewareHandlers provides CRUD for Traefik middleware templates.
@@ -243,7 +244,7 @@ func (h *MiddlewareHandlers) ListMiddleware(w http.ResponseWriter, r *http.Reque
 	if mws == nil {
 		mws = []store.MiddlewareRecord{}
 	}
-	writeJSON(w, http.StatusOK, mws)
+	sendSuccess(w, http.StatusOK, mws, nil)
 }
 
 // CreateMiddleware creates a new middleware definition and generates its labels.
@@ -274,10 +275,10 @@ func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
+	sendSuccess(w, http.StatusCreated, map[string]any{
 		"id":     id,
 		"labels": labels,
-	})
+	}, nil)
 }
 
 // isPathAllowed validates that the target path resides securely within the configured stack directories.
@@ -369,8 +370,8 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 		stacks = append(stacks, info)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"ok":     true,
 		"stacks": stacks,
-	})
+	}, nil)
 }

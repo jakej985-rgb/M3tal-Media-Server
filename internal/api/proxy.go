@@ -29,7 +29,7 @@ func (h *ProxyHandlers) DiscoverServices(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, services)
+	sendSuccess(w, http.StatusOK, services, nil)
 }
 
 // ExposeService registers/exposes a service on a domain.
@@ -56,9 +56,10 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 	}
 	errs := engine.ValidateRoute(routeInput)
 	if len(errs) > 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":      "validation failed",
-			"violations": errs,
+		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
+			Status: "error",
+			Error:  "validation failed",
+			Data:   map[string]any{"violations": errs},
 		})
 		return
 	}
@@ -70,11 +71,11 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"exposed": true,
 		"route":   input,
-	})
+	}, nil)
 }
 
 // UnexposeService removes route mapping.
@@ -101,10 +102,10 @@ func (h *ProxyHandlers) UnexposeService(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"ok":        true,
 		"unexposed": true,
-	})
+	}, nil)
 }
 
 // ConfigureSSL triggers SSL automated Let's Encrypt certificates setup.
@@ -132,9 +133,9 @@ func (h *ProxyHandlers) ConfigureSSL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"secured": true,
 		"message": "Let's Encrypt SSL configured and routing stack redeployed.",
-	})
+	}, nil)
 }

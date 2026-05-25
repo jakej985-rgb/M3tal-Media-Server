@@ -32,11 +32,11 @@ func (h *ComposeHandlers) ValidateCompose(w http.ResponseWriter, r *http.Request
 
 	cfg, err := compose.Parse([]byte(req.YAML))
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{
+		sendSuccess(w, http.StatusOK, map[string]any{
 			"valid":  false,
 			"errors": []string{err.Error()},
 			"issues": []compose.LintIssue{},
-		})
+		}, nil)
 		return
 	}
 
@@ -50,11 +50,11 @@ func (h *ComposeHandlers) ValidateCompose(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"valid":  !hasErrors,
 		"errors": errs,
 		"issues": issues,
-	})
+	}, nil)
 }
 
 // FixCompose handles auto-fixing a compose YAML string.
@@ -74,16 +74,16 @@ func (h *ComposeHandlers) FixCompose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"yaml":  string(fixed),
 		"fixes": fixes,
-	})
+	}, nil)
 }
 
 // ListTemplates handles listing the pre-defined compose templates.
 // GET /api/v2/compose/templates
 func (h *ComposeHandlers) ListTemplates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, compose.Templates)
+	sendSuccess(w, http.StatusOK, compose.Templates, nil)
 }
 
 // GenerateTemplate handles generating a compose YAML from a template.
@@ -104,9 +104,9 @@ func (h *ComposeHandlers) GenerateTemplate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"yaml": string(yamlData),
-	})
+	}, nil)
 }
 
 // SaveCompose handles saving a compose file and deploying it.
@@ -155,15 +155,16 @@ func (h *ComposeHandlers) SaveCompose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error":  err.Error(),
-			"result": result,
+		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
+			Status: "error",
+			Error:  err.Error(),
+			Data:   result,
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"status": "success",
 		"result": result,
-	})
+	}, nil)
 }

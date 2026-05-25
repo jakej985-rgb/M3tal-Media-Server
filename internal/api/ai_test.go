@@ -28,12 +28,18 @@ func TestAIRun_NotActive(t *testing.T) {
 		t.Errorf("expected status 503, got %d", w.Code)
 	}
 
-	var resp map[string]string
+	var resp struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse json response: %v", err)
 	}
-	if resp["error"] != "AI addon is not active or enabled" {
-		t.Errorf("expected error message, got %q", resp["error"])
+	if resp.Status != "error" {
+		t.Errorf("expected status 'error', got %q", resp.Status)
+	}
+	if resp.Error != "AI addon is not active or enabled" {
+		t.Errorf("expected error message, got %q", resp.Error)
 	}
 }
 
@@ -81,10 +87,18 @@ func TestAIRun_Success(t *testing.T) {
 		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp AIResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("failed to parse json response: %v", err)
+	var apiResponse struct {
+		Status string     `json:"status"`
+		Data   AIResponse `json:"data"`
+		Error  any        `json:"error"`
 	}
+	if err := json.Unmarshal(w.Body.Bytes(), &apiResponse); err != nil {
+		t.Fatalf("failed to parse json response: %v, body: %s", err, w.Body.String())
+	}
+	if apiResponse.Status != "success" {
+		t.Fatalf("expected success status, got %q (error: %v)", apiResponse.Status, apiResponse.Error)
+	}
+	resp := apiResponse.Data
 	if resp.Model != "mock-model" {
 		t.Errorf("expected model 'mock-model', got %q", resp.Model)
 	}
@@ -146,10 +160,18 @@ func TestAIRun_Fallback(t *testing.T) {
 		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp AIResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("failed to parse json response: %v", err)
+	var apiResponse struct {
+		Status string     `json:"status"`
+		Data   AIResponse `json:"data"`
+		Error  any        `json:"error"`
 	}
+	if err := json.Unmarshal(w.Body.Bytes(), &apiResponse); err != nil {
+		t.Fatalf("failed to parse json response: %v, body: %s", err, w.Body.String())
+	}
+	if apiResponse.Status != "success" {
+		t.Fatalf("expected success status, got %q (error: %v)", apiResponse.Status, apiResponse.Error)
+	}
+	resp := apiResponse.Data
 	if resp.Model != "fallback-model" {
 		t.Errorf("expected fallback model to be chosen, got %q", resp.Model)
 	}

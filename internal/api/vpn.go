@@ -30,7 +30,7 @@ func (h *VPNHandlers) GetStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, status)
+	sendSuccess(w, http.StatusOK, status, nil)
 }
 
 // ControlVPN handles starting, stopping, or restarting the VPN container.
@@ -68,7 +68,7 @@ func (h *VPNHandlers) ControlVPN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "action": req.Action})
+	sendSuccess(w, http.StatusOK, map[string]string{"status": "success", "action": req.Action}, nil)
 }
 
 // SwitchRegion handles switching the VPN region.
@@ -98,7 +98,7 @@ func (h *VPNHandlers) SwitchRegion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "region": req.Region})
+	sendSuccess(w, http.StatusOK, map[string]string{"status": "success", "region": req.Region}, nil)
 }
 
 // SyncPort handles manual port sync.
@@ -116,7 +116,7 @@ func (h *VPNHandlers) SyncPort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "forwarded_port": port})
+	sendSuccess(w, http.StatusOK, map[string]any{"status": "success", "forwarded_port": port}, nil)
 }
 
 // CheckLeak handles leak check.
@@ -140,10 +140,10 @@ func (h *VPNHandlers) CheckLeak(w http.ResponseWriter, r *http.Request) {
 		stoppedContainers, _ = mgr.StopDependentContainers()
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"leak":               isLeak,
 		"host_ip":            hostIP,
 		"vpn_ip":             vpnIP,
 		"stopped_containers": stoppedContainers,
-	})
+	}, nil)
 }

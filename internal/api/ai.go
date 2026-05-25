@@ -209,11 +209,11 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, fmt.Sprintf("AI execution failed: %v", result.Error))
 			return
 		}
-		writeJSON(w, http.StatusOK, AIResponse{
+		sendSuccess(w, http.StatusOK, AIResponse{
 			Model:    result.Model,
 			Response: result.Response,
 			Status:   "success",
-		})
+		}, nil)
 	case <-r.Context().Done():
 		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out during execution")
 	}

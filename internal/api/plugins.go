@@ -45,12 +45,12 @@ func (h *PluginHandlers) ensureLoaded() *plugin.Registry {
 func (h *PluginHandlers) ListPlugins(w http.ResponseWriter, r *http.Request) {
 	reg := h.ensureLoaded()
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"summary":    reg.Summary(),
 		"routes":     reg.ListRoutes(),
 		"stacks":     reg.ListStacks(),
 		"middleware": reg.ListMiddlewares(),
-	})
+	}, nil)
 }
 
 // ListPluginsByKind returns plugins filtered by kind.
@@ -61,11 +61,11 @@ func (h *PluginHandlers) ListPluginsByKind(w http.ResponseWriter, r *http.Reques
 
 	switch kind {
 	case "routes":
-		writeJSON(w, http.StatusOK, reg.ListRoutes())
+		sendSuccess(w, http.StatusOK, reg.ListRoutes(), nil)
 	case "stacks":
-		writeJSON(w, http.StatusOK, reg.ListStacks())
+		sendSuccess(w, http.StatusOK, reg.ListStacks(), nil)
 	case "middleware":
-		writeJSON(w, http.StatusOK, reg.ListMiddlewares())
+		sendSuccess(w, http.StatusOK, reg.ListMiddlewares(), nil)
 	default:
 		writeError(w, http.StatusBadRequest, "invalid plugin kind: "+kind+" (expected: routes, stacks, middleware)")
 	}
@@ -76,10 +76,10 @@ func (h *PluginHandlers) ListPluginsByKind(w http.ResponseWriter, r *http.Reques
 func (h *PluginHandlers) Reload(w http.ResponseWriter, r *http.Request) {
 	h.registry = nil // Force reload on next access
 	reg := h.ensureLoaded()
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"reloaded": true,
 		"summary":  reg.Summary(),
-	})
+	}, nil)
 }
 
 // Enable renames a plugin file ending in `.disabled` by removing the suffix.
@@ -141,7 +141,7 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.registry = nil // force reload
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "path": p.SourcePath})
+	sendSuccess(w, http.StatusOK, map[string]any{"enabled": true, "path": p.SourcePath}, nil)
 }
 
 // Disable renames a plugin file to append `.disabled`.
@@ -203,7 +203,7 @@ func (h *PluginHandlers) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.registry = nil // force reload
-	writeJSON(w, http.StatusOK, map[string]any{"disabled": true, "path": p.SourcePath})
+	sendSuccess(w, http.StatusOK, map[string]any{"disabled": true, "path": p.SourcePath}, nil)
 }
 
 // Sync writes the dynamic Traefik configuration file
@@ -229,10 +229,10 @@ func (h *PluginHandlers) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"synced": true,
 		"path":   outputPath,
-	})
+	}, nil)
 }
 
 // ListCatalog returns all official plugins and their local installation state.
@@ -240,7 +240,7 @@ func (h *PluginHandlers) Sync(w http.ResponseWriter, r *http.Request) {
 func (h *PluginHandlers) ListCatalog(w http.ResponseWriter, r *http.Request) {
 	reg := h.ensureLoaded()
 	catalogStatus := plugin.ListCatalog(reg)
-	writeJSON(w, http.StatusOK, catalogStatus)
+	sendSuccess(w, http.StatusOK, catalogStatus, nil)
 }
 
 // Install downloads and installs a plugin from the remote catalog.
@@ -271,10 +271,10 @@ func (h *PluginHandlers) Install(w http.ResponseWriter, r *http.Request) {
 	h.registry = nil // force reload
 	reg := h.ensureLoaded()
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"installed": true,
 		"summary":   reg.Summary(),
-	})
+	}, nil)
 }
 
 // Uninstall deletes a user-installed plugin.
@@ -346,8 +346,8 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 	h.registry = nil // force reload
 	newReg := h.ensureLoaded()
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	sendSuccess(w, http.StatusOK, map[string]any{
 		"uninstalled": true,
 		"summary":     newReg.Summary(),
-	})
+	}, nil)
 }

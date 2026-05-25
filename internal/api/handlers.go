@@ -38,34 +38,31 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // GetHealth returns system health status
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	reg := health.UpdateAndSaveHealthRegistry()
-	json.NewEncoder(w).Encode(reg)
+	sendSuccess(w, http.StatusOK, reg, nil)
 }
 
 // GetServices returns the list of managed containers
 func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
 	mgr, err := containers.GetProvider()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	list, err := mgr.ListContainers()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(list)
+	sendSuccess(w, http.StatusOK, list, nil)
 }
 
 // GetStack returns information about the compose stack
 func (s *Server) GetStack(w http.ResponseWriter, r *http.Request) {
 	stackDir := system.GetStackDir()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	sendSuccess(w, http.StatusOK, map[string]string{
 		"path": stackDir,
-	})
+	}, nil)
 }
 
 // GetConfig returns the current configuration (sanitized)
@@ -86,38 +83,35 @@ func (s *Server) GetConfig(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	sendSuccess(w, http.StatusOK, config, nil)
 }
 
 // GetStats returns system metrics
 func (s *Server) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := system.GetStats()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	sendSuccess(w, http.StatusOK, stats, nil)
 }
 
 // HandleContainerAction processes start/stop/restart
 func (s *Server) HandleContainerAction(w http.ResponseWriter, r *http.Request, action func(string) error) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	var req struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		sendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := action(req.Name); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
 }

@@ -1697,7 +1697,25 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 				log.Fatalf("❌ Failed to read API response: %v", err)
 			}
 
+			var apiResp struct {
+				Status string          `json:"status"`
+				Data   json.RawMessage `json:"data"`
+				Error  string          `json:"error"`
+			}
+
+			// Try to unmarshal standard wrapped response
+			isWrapped := false
+			if err := json.Unmarshal(respBytes, &apiResp); err == nil && apiResp.Status != "" {
+				isWrapped = true
+				if apiResp.Status == "error" {
+					log.Fatalf("❌ AI API Error: %s", apiResp.Error)
+				}
+			}
+
 			if resp.StatusCode != http.StatusOK {
+				if isWrapped && apiResp.Error != "" {
+					log.Fatalf("❌ AI API Error: %s", apiResp.Error)
+				}
 				var errResp map[string]string
 				if err := json.Unmarshal(respBytes, &errResp); err == nil && errResp["error"] != "" {
 					log.Fatalf("❌ AI API Error: %s", errResp["error"])
@@ -1710,7 +1728,11 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 				Response string `json:"response"`
 				Status   string `json:"status"`
 			}
-			if err := json.Unmarshal(respBytes, &aiResp); err != nil {
+			targetBytes := respBytes
+			if isWrapped {
+				targetBytes = apiResp.Data
+			}
+			if err := json.Unmarshal(targetBytes, &aiResp); err != nil {
 				log.Fatalf("❌ Failed to parse response: %v", err)
 			}
 
@@ -1978,13 +2000,41 @@ func callAPI(cmd *cobra.Command, method, path string, body interface{}) (string,
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+
+	var apiResp struct {
+		Status string          `json:"status"`
+		Data   json.RawMessage `json:"data"`
+		Meta   any             `json:"meta"`
+		Error  string          `json:"error"`
+	}
+
+	isWrapped := false
+	if err := json.Unmarshal(data, &apiResp); err == nil && apiResp.Status != "" {
+		isWrapped = true
+		if apiResp.Status == "error" {
+			if apiResp.Error != "" {
+				return "", fmt.Errorf("%s", apiResp.Error)
+			}
+			return "", fmt.Errorf("API returned error status")
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		if isWrapped && apiResp.Error != "" {
+			return "", fmt.Errorf("%s", apiResp.Error)
+		}
+		return "", fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	if isWrapped {
+		if len(apiResp.Data) > 0 {
+			return string(apiResp.Data), nil
+		}
+		return "", nil
 	}
 
 	return string(data), nil

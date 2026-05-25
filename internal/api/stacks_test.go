@@ -86,10 +86,18 @@ spec:
 		Status      string   `json:"status"`
 	}
 
-	var response []stackInfo
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
+	var apiResponse struct {
+		Status string      `json:"status"`
+		Data   []stackInfo `json:"data"`
+		Error  any         `json:"error"`
 	}
+	if err := json.Unmarshal(w.Body.Bytes(), &apiResponse); err != nil {
+		t.Fatalf("failed to unmarshal response: %v, body: %s", err, w.Body.String())
+	}
+	if apiResponse.Status != "success" {
+		t.Fatalf("expected success status, got %q (error: %v)", apiResponse.Status, apiResponse.Error)
+	}
+	response := apiResponse.Data
 
 	// We expect routing to be filtered out (because it is disabled),
 	// and network to be first (priority 1), custom to be second (priority 100).
