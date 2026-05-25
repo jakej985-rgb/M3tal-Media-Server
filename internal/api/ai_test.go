@@ -249,3 +249,73 @@ func TestAIRun_QueueConcurrency(t *testing.T) {
 		t.Errorf("expected 3 completed requests, got %d", completedRequests)
 	}
 }
+
+func TestGetAIQueue(t *testing.T) {
+	srv := NewServer("test-token")
+	req := httptest.NewRequest("GET", "/ai/queue", nil)
+	w := httptest.NewRecorder()
+
+	srv.GetAIQueue(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Status string        `json:"status"`
+		Data   []AIJobStatus `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Status != "success" {
+		t.Errorf("expected status 'success', got %q", resp.Status)
+	}
+}
+
+func TestGetAIModels(t *testing.T) {
+	origEnv := loadAIEnvFunc
+	defer func() { loadAIEnvFunc = origEnv }()
+
+	loadAIEnvFunc = func() map[string]string {
+		return map[string]string{
+			"AI_MODEL":      "env-model-1",
+			"AI_MODEL_CHAT": "env-model-2",
+			"OLLAMA_HOST":   "http://invalid-ollama-host:11434",
+		}
+	}
+
+	srv := NewServer("test-token")
+	req := httptest.NewRequest("GET", "/ai/models", nil)
+	w := httptest.NewRecorder()
+
+	srv.GetAIModels(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Status string   `json:"status"`
+		Data   []string `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Status != "success" {
+		t.Errorf("expected status 'success', got %q", resp.Status)
+	}
+	foundModel1 := false
+	foundModel2 := false
+	for _, m := range resp.Data {
+		if m == "env-model-1" {
+			foundModel1 = true
+		}
+		if m == "env-model-2" {
+			foundModel2 = true
+		}
+	}
+	if !foundModel1 || !foundModel2 {
+		t.Errorf("expected to find env-model-1 and env-model-2 in response: %v", resp.Data)
+	}
+}

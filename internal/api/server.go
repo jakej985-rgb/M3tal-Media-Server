@@ -147,6 +147,8 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 
 			// AI
 			r.Post("/ai/run", srv.AIRun)
+			r.Get("/ai/queue", srv.GetAIQueue)
+			r.Get("/ai/models", srv.GetAIModels)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -191,6 +193,8 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 
 			// AI
 			r.Post("/ai/run", srv.AIRun)
+			r.Get("/ai/queue", srv.GetAIQueue)
+			r.Get("/ai/models", srv.GetAIModels)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")
