@@ -47,6 +47,7 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		r.Get("/api/config", srv.GetConfig)
 		r.Get("/api/containers", srv.GetServices)
 		r.Get("/api/containers/list", srv.GetServices)
+		r.Get("/api/containers/{name}/logs", srv.GetContainerLogs)
 		r.Get("/api/metrics", srv.GetStats)
 		r.Post("/ai/run", srv.AIRun)
 		r.Post("/api/v2/ai/run", srv.AIRun)
@@ -108,9 +109,12 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/stacks/load", stackH.LoadStack)
 			r.Post("/stacks/deploy", stackH.DeployStack)
 			r.Post("/stacks/scan", stackH.ScanStacks)
+			r.Post("/stacks/{name}/up", stackH.DeployStackByName)
+			r.Post("/stacks/{name}/down", stackH.StopStackByName)
 
 			// Services (pass-through to Docker provider)
 			r.Get("/services", srv.GetServices)
+			r.Get("/containers/{name}/logs", srv.GetContainerLogs)
 
 			// Middleware
 			r.Get("/middleware", mwH.ListMiddleware)

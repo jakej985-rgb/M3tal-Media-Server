@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func TestListStacks(t *testing.T) {
@@ -110,5 +113,35 @@ spec:
 	}
 	if response[1].Name != "custom" {
 		t.Errorf("expected second stack to be 'custom', got %q", response[1].Name)
+	}
+}
+
+func TestDeployStackByName_NotFound(t *testing.T) {
+	h := &StackHandlers{}
+	req := httptest.NewRequest("POST", "/api/v2/stacks/nonexistent/up", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "nonexistent")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	h.DeployStackByName(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestStopStackByName_NotFound(t *testing.T) {
+	h := &StackHandlers{}
+	req := httptest.NewRequest("POST", "/api/v2/stacks/nonexistent/down", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "nonexistent")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	h.StopStackByName(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
@@ -100,22 +101,35 @@ func main() {
 		Use:   "list",
 		Short: "List all containers",
 		Run: func(cmd *cobra.Command, args []string) {
+			var list []CLIContainer
 			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
 				if resp, err := callAPI(cmd, "GET", "/api/containers", nil); err == nil {
-					fmt.Println(resp)
-					return
+					_ = json.Unmarshal([]byte(resp), &list)
 				}
 			}
 
-			mgr, err := containers.GetProvider()
-			if err != nil {
-				log.Fatal(err)
+			if len(list) == 0 {
+				// Local fallback
+				mgr, err := containers.GetProvider()
+				if err != nil {
+					log.Fatal(err)
+				}
+				rawList, err := mgr.ListContainers()
+				if err != nil {
+					log.Fatal(err)
+				}
+				for _, c := range rawList {
+					list = append(list, CLIContainer{
+						ID:     c.ID,
+						Names:  c.Names,
+						Image:  c.Image,
+						Status: c.Status,
+						State:  c.State,
+					})
+				}
 			}
-			list, err := mgr.ListContainers()
-			if err != nil {
-				log.Fatal(err)
-			}
-			printJSON(list)
+
+			printTabularContainers(list)
 		},
 	}
 
@@ -177,18 +191,22 @@ func main() {
 		Use:   "stats",
 		Short: "Show system stats",
 		Run: func(cmd *cobra.Command, args []string) {
+			var s system.SystemStats
 			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
 				if resp, err := callAPI(cmd, "GET", "/api/metrics", nil); err == nil {
-					fmt.Println(resp)
-					return
+					_ = json.Unmarshal([]byte(resp), &s)
 				}
 			}
 
-			s, err := system.GetStats()
-			if err != nil {
-				log.Fatal(err)
+			if s.Hostname == "" {
+				localStats, err := system.GetStats()
+				if err != nil {
+					log.Fatal(err)
+				}
+				s = *localStats
 			}
-			printJSON(s)
+
+			printTabularStats(&s)
 		},
 	}
 
@@ -250,33 +268,95 @@ func main() {
 	apiCmd.Flags().String("port", "5050", "Port to listen on")
 
 	var upCmd = &cobra.Command{
-		Use:   "up",
-		Short: "Initialize and start the M3TAL environment",
+		Use:   "up [stack]",
+		Short: "Initialize and start stacks",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("🚀 Initializing M3TAL Orchestrator (using stack: %s)...\n", system.UserfacingStackPath)
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				if len(args) > 0 {
+					target := args[0]
+					fmt.Printf("🚀 Deploying stack %s via API...\n", target)
+					resp, err := callAPI(cmd, "POST", "/api/v2/stacks/"+target+"/up", nil)
+					if err != nil {
+						fmt.Printf("❌ Failed to deploy stack %s: %v\n", target, err)
+						return
+					}
+					fmt.Println("✅ Deploy result:\n", resp)
+				} else {
+					fmt.Println("🚀 Deploying all stacks via API...")
+					stacksResp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
+					if err != nil {
+						fmt.Printf("❌ Failed to list stacks: %v\n", err)
+						return
+					}
+					var stacks []struct {
+						Name string `json:"name"`
+					}
+					if err := json.Unmarshal([]byte(stacksResp), &stacks); err == nil {
+						for _, s := range stacks {
+							fmt.Printf("🚀 Deploying stack %s via API...\n", s.Name)
+							_, _ = callAPI(cmd, "POST", "/api/v2/stacks/"+s.Name+"/up", nil)
+						}
+						fmt.Println("✅ All stacks deployed.")
+					} else {
+						fmt.Printf("❌ Failed to parse stacks list: %v\n", err)
+					}
+				}
+				return
+			}
+
+			// Local fallback
+			fmt.Printf("🚀 Initializing M3TAL Orchestrator locally (using stack: %s)...\n", system.UserfacingStackPath)
 			stack := orchestrator.NewStackManager()
 			if len(stack.Files) > 0 {
 				if err := stack.Run("up", "-d"); err != nil {
 					log.Fatal(err)
 				}
 				fmt.Println("\n✅ M3TAL Stack is UP!")
-				fmt.Println("--------------------------------------------------")
-				fmt.Println("Dashboard: http://localhost:8082")
-				fmt.Println("API:       http://localhost:5050")
-				fmt.Println("--------------------------------------------------")
-				fmt.Printf("Use 'm3tal logs' or 'docker compose -f %s/m3tal-compose.yml ps' to monitor.\n", system.UserfacingStackPath)
 			} else {
 				fmt.Printf("⚠️  No stacks detected in %s.\n", system.UserfacingStackPath)
-				fmt.Println("🛰️  M3TAL is listening and ready for deployments.")
 			}
 		},
 	}
 
 	var downCmd = &cobra.Command{
-		Use:   "down",
-		Short: "Stop all M3TAL stacks",
+		Use:   "down [stack]",
+		Short: "Stop stacks",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("🛑 Stopping M3TAL Stacks (path: %s)...\n", system.UserfacingStackPath)
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				if len(args) > 0 {
+					target := args[0]
+					fmt.Printf("🛑 Stopping stack %s via API...\n", target)
+					resp, err := callAPI(cmd, "POST", "/api/v2/stacks/"+target+"/down", nil)
+					if err != nil {
+						fmt.Printf("❌ Failed to stop stack %s: %v\n", target, err)
+						return
+					}
+					fmt.Println("✅ Stop result:\n", resp)
+				} else {
+					fmt.Println("🛑 Stopping all stacks via API...")
+					stacksResp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
+					if err != nil {
+						fmt.Printf("❌ Failed to list stacks: %v\n", err)
+						return
+					}
+					var stacks []struct {
+						Name string `json:"name"`
+					}
+					if err := json.Unmarshal([]byte(stacksResp), &stacks); err == nil {
+						for _, s := range stacks {
+							fmt.Printf("🛑 Stopping stack %s via API...\n", s.Name)
+							_, _ = callAPI(cmd, "POST", "/api/v2/stacks/"+s.Name+"/down", nil)
+						}
+						fmt.Println("✅ All stacks stopped.")
+					} else {
+						fmt.Printf("❌ Failed to parse stacks list: %v\n", err)
+					}
+				}
+				return
+			}
+
+			// Local fallback
+			fmt.Printf("🛑 Stopping M3TAL Stacks locally (path: %s)...\n", system.UserfacingStackPath)
 			stack := orchestrator.NewStackManager()
 			if err := stack.Run("down"); err != nil {
 				log.Fatal(err)
@@ -286,30 +366,85 @@ func main() {
 	}
 
 	var logsCmd = &cobra.Command{
-		Use:   "logs [stack]",
-		Short: "View logs from M3TAL stacks (Interactive Menu)",
+		Use:   "logs [container]",
+		Short: "View logs from a container",
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				runLogsMenu()
 				return
 			}
 
-			// Legacy behavior for direct arguments
-			stack := orchestrator.NewStackManager()
 			target := args[0]
-			var filtered []string
-			for _, f := range stack.Files {
-				if strings.Contains(f, target) {
-					filtered = append(filtered, f)
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				resp, err := callAPI(cmd, "GET", "/api/containers/"+target+"/logs?tail=100", nil)
+				if err != nil {
+					fmt.Printf("❌ Failed to get logs for %s: %v\n", target, err)
+					return
+				}
+				var result struct {
+					Logs string `json:"logs"`
+				}
+				if err := json.Unmarshal([]byte(resp), &result); err == nil {
+					fmt.Println(result.Logs)
+				} else {
+					fmt.Println(resp)
+				}
+				return
+			}
+
+			// Local fallback
+			mgr, err := containers.GetProvider()
+			if err != nil {
+				log.Fatal(err)
+			}
+			logs, err := mgr.Logs(target, "100")
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(logs)
+		},
+	}
+
+	var stacksCmd = &cobra.Command{
+		Use:   "stacks",
+		Short: "List all stacks",
+		Run: func(cmd *cobra.Command, args []string) {
+			var stacks []struct {
+				Name        string   `json:"name"`
+				ComposePath string   `json:"compose_path"`
+				Services    []string `json:"services,omitempty"`
+				Status      string   `json:"status"`
+			}
+
+			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
+				resp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
+				if err != nil {
+					fmt.Printf("❌ Failed to list stacks via API: %v\n", err)
+					return
+				}
+				_ = json.Unmarshal([]byte(resp), &stacks)
+			} else {
+				// Local scan
+				stackDir := system.GetStackDir()
+				matches, _ := system.FindComposeFiles(stackDir)
+				for _, match := range matches {
+					base := filepath.Base(match)
+					name := strings.TrimSuffix(base, "-compose.yml")
+					stacks = append(stacks, struct {
+						Name        string   `json:"name"`
+						ComposePath string   `json:"compose_path"`
+						Services    []string `json:"services,omitempty"`
+						Status      string   `json:"status"`
+					}{
+						Name:        name,
+						ComposePath: match,
+						Status:      "discovered",
+					})
 				}
 			}
-			stack.Files = filtered
 
-			if len(stack.Files) > 0 {
-				stack.Run("logs", "--tail", "50", "-f")
-			} else {
-				fmt.Println("❌ No matching stacks found.")
-			}
+			printTabularStacks(stacks)
 		},
 	}
 
@@ -1743,7 +1878,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	}
 	aiCmd.Flags().StringP("mode", "m", "", "AI model mode (e.g., 'code' or 'chat')")
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -1941,6 +2076,85 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 func printJSON(v interface{}) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Println(string(data))
+}
+
+type CLIContainer struct {
+	ID     string   `json:"id"`
+	Names  []string `json:"names"`
+	Image  string   `json:"image"`
+	Status string   `json:"status"`
+	State  string   `json:"state"`
+}
+
+func printTabularContainers(containers []CLIContainer) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "CONTAINER ID\tNAMES\tIMAGE\tSTATE\tSTATUS")
+	fmt.Fprintln(w, "------------\t-----\t-----\t-----\t------")
+	for _, c := range containers {
+		colorizedState := c.State
+		switch c.State {
+		case "running":
+			colorizedState = "\033[32m" + c.State + "\033[0m"
+		case "exited", "stopped":
+			colorizedState = "\033[31m" + c.State + "\033[0m"
+		case "paused":
+			colorizedState = "\033[33m" + c.State + "\033[0m"
+		}
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+		img := c.Image
+		shortID := c.ID
+		if len(shortID) > 12 {
+			shortID = shortID[:12]
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", shortID, name, img, colorizedState, c.Status)
+	}
+	w.Flush()
+}
+
+func printTabularStacks(stacks []struct {
+	Name        string   `json:"name"`
+	ComposePath string   `json:"compose_path"`
+	Services    []string `json:"services,omitempty"`
+	Status      string   `json:"status"`
+}) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tSTATUS\tPATH\tSERVICES")
+	fmt.Fprintln(w, "----\t------\t----\t--------")
+	for _, s := range stacks {
+		colorizedStatus := s.Status
+		switch s.Status {
+		case "running", "success":
+			colorizedStatus = "\033[32m" + s.Status + "\033[0m"
+		case "failed", "error":
+			colorizedStatus = "\033[31m" + s.Status + "\033[0m"
+		case "discovered":
+			colorizedStatus = "\033[33m" + s.Status + "\033[0m"
+		}
+		servicesStr := strings.Join(s.Services, ", ")
+		if servicesStr == "" {
+			servicesStr = "-"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Name, colorizedStatus, s.ComposePath, servicesStr)
+	}
+	w.Flush()
+}
+
+func printTabularStats(s *system.SystemStats) {
+	fmt.Printf("💻 Hostname: %s\n", s.Hostname)
+	uptimeDur := time.Duration(s.Uptime) * time.Second
+	fmt.Printf("⏱️  Uptime:   %s\n", uptimeDur.String())
+	fmt.Println()
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "RESOURCE\tUSAGE")
+	fmt.Fprintln(w, "--------\t-----")
+	fmt.Fprintf(w, "CPU\t%.2f%%\n", s.CPUUsage)
+	fmt.Fprintf(w, "Memory\t%.2f%%\n", s.MemoryUsage)
+	fmt.Fprintf(w, "Disk\t%.2f%%\n", s.DiskUsage)
+	w.Flush()
 }
 
 func getEnvValue(content, key string) string {

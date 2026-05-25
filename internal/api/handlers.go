@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/health"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
@@ -114,4 +115,31 @@ func (s *Server) HandleContainerAction(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
+}
+
+// GetContainerLogs returns logs for a container
+func (s *Server) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		sendError(w, http.StatusBadRequest, "container name is required")
+		return
+	}
+	tail := r.URL.Query().Get("tail")
+	if tail == "" {
+		tail = "all"
+	}
+
+	mgr, err := containers.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	logs, err := mgr.Logs(name, tail)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]string{"logs": logs}, nil)
 }

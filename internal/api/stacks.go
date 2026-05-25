@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
@@ -374,4 +376,117 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 		"ok":     true,
 		"stacks": stacks,
 	}, nil)
+}
+
+func (h *StackHandlers) findStackPathByName(name string) (string, error) {
+	// 1. Try to fetch from DB first if store is active
+	if h.Store != nil {
+		stacks, err := h.Store.ListStacks()
+		if err == nil {
+			for _, s := range stacks {
+				if s.Name == name && s.ComposePath != "" {
+					// Verify file exists
+					if _, err := os.Stat(s.ComposePath); err == nil {
+						return s.ComposePath, nil
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Scan stack directory
+	stackDir := system.GetStackDir()
+	matches, err := system.FindComposeFiles(stackDir)
+	if err != nil {
+		return "", err
+	}
+	for _, match := range matches {
+		base := filepath.Base(match)
+		stackName := strings.TrimSuffix(base, "-compose.yml")
+		if stackName == name {
+			return match, nil
+		}
+	}
+
+	return "", fmt.Errorf("stack not found: %s", name)
+}
+
+// DeployStackByName handles validating and deploying a stack by its name.
+// POST /api/v2/stacks/{name}/up
+func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "stack name is required")
+		return
+	}
+
+	composePath, err := h.findStackPathByName(name)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// Deploy stack
+	result, err := engine.DeployStack(composePath, 0)
+
+	// Update DB status
+	if h.Store != nil {
+		_ = h.Store.UpsertStack(name, composePath)
+		if err != nil {
+			_ = h.Store.UpdateStackStatus(name, "failed")
+		} else {
+			_ = h.Store.UpdateStackStatus(name, "running")
+		}
+	}
+
+	if err != nil {
+		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
+			Status: "error",
+			Error:  err.Error(),
+			Data:   result,
+		})
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, result, nil)
+}
+
+// StopStackByName handles stopping a stack by its name.
+// POST /api/v2/stacks/{name}/down
+func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "stack name is required")
+		return
+	}
+
+	composePath, err := h.findStackPathByName(name)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// Stop stack
+	result, err := engine.StopStack(composePath, 0)
+
+	// Update DB status
+	if h.Store != nil {
+		_ = h.Store.UpsertStack(name, composePath)
+		if err != nil {
+			_ = h.Store.UpdateStackStatus(name, "failed")
+		} else {
+			_ = h.Store.UpdateStackStatus(name, "stopped")
+		}
+	}
+
+	if err != nil {
+		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
+			Status: "error",
+			Error:  err.Error(),
+			Data:   result,
+		})
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, result, nil)
 }
