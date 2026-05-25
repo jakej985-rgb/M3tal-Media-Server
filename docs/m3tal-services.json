@@ -80,6 +80,11 @@
     "path": "internal/queue"
   },
   {
+    "name": "registry",
+    "type": "Go package",
+    "path": "internal/registry"
+  },
+  {
     "name": "store",
     "type": "Go package",
     "path": "internal/store"
