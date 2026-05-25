@@ -75,6 +75,11 @@
     "path": "internal/proxy"
   },
   {
+    "name": "queue",
+    "type": "Go package",
+    "path": "internal/queue"
+  },
+  {
     "name": "store",
     "type": "Go package",
     "path": "internal/store"
