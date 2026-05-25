@@ -85,17 +85,17 @@ func TestEnablePlugin_UnsatisfiedDependencies(t *testing.T) {
 	mockReg := &plugin.Registry{
 		Routes: []plugin.RoutePlugin{
 			{
-				Metadata:  plugin.PluginMetadata{Name: "A"},
-				DependsOn: []string{"B"},
+				Metadata:   plugin.PluginMetadata{Name: "A"},
+				DependsOn:  []string{"B"},
 				SourcePath: "/tmp/a.yml",
-				Enabled:   false,
+				Enabled:    false,
 			},
 		},
 		Stacks: []plugin.StackPlugin{
 			{
-				Metadata: plugin.PluginMetadata{Name: "B"},
+				Metadata:   plugin.PluginMetadata{Name: "B"},
 				SourcePath: "/tmp/b.yml.disabled",
-				Enabled:  false,
+				Enabled:    false,
 			},
 		},
 	}
