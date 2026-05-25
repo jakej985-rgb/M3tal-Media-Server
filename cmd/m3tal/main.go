@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -1916,7 +1917,65 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd)
+	var uiCmd = &cobra.Command{
+		Use:   "ui",
+		Short: "Launch the Web GUI in a browser",
+		Run: func(cmd *cobra.Command, args []string) {
+			port, _ := cmd.Flags().GetString("port")
+			if port == "" {
+				port = "5050"
+			}
+			addr := fmt.Sprintf("127.0.0.1:%s", port)
+
+			// Check if API daemon is already running
+			conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+			if err == nil {
+				conn.Close()
+				fmt.Printf("🟢 M3TAL API daemon is already running on port %s.\n", port)
+			} else {
+				fmt.Printf("🚀 Starting M3TAL API server on port %s...\n", port)
+
+				token := os.Getenv("API_TOKEN")
+				if token == "" {
+					token = "m3tal-secret-token"
+				}
+
+				dbPath := store.GetStatePath()
+				db, err := store.Open(dbPath)
+				if err != nil {
+					log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
+					log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
+					go func() {
+						if err := api.StartServer(port, token); err != nil {
+							log.Fatalf("❌ API server failed: %v", err)
+						}
+					}()
+				} else {
+					log.Printf("📦 State database: %s\n", dbPath)
+					go func() {
+						if err := api.StartServerWithStore(port, token, db); err != nil {
+							log.Fatalf("❌ API server failed: %v", err)
+						}
+					}()
+				}
+				// Give the server a moment to start up and bind to the port
+				time.Sleep(1 * time.Second)
+			}
+
+			url := fmt.Sprintf("http://localhost:%s/gui/", port)
+			fmt.Printf("🖥️  Opening Web GUI at %s...\n", url)
+			openBrowser(url)
+
+			fmt.Println("Press Ctrl+C to stop...")
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+			<-sigChan
+			fmt.Println("\nStopping UI command...")
+		},
+	}
+	uiCmd.Flags().String("port", "5050", "Port to listen on")
+
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd, uiCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

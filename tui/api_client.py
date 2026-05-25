@@ -82,3 +82,15 @@ class M3TALClient:
 
     def get_plugin_catalog(self):
         return self._request("GET", "/api/v2/plugins/catalog")
+
+    def get_queue(self):
+        return self._request("GET", "/api/v2/queue")
+
+    def cancel_queue_job(self, job_id):
+        return self._request("POST", "/api/v2/queue/cancel", json_data={"id": job_id})
+
+    def get_system_metrics_history(self):
+        return self._request("GET", "/api/v2/system/metrics")
+
+    def get_system_health(self):
+        return self._request("GET", "/api/v2/system/health")

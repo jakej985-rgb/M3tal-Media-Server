@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
+	"github.com/jakej985-rgb/m3tal-core/internal/system"
 )
 
 // StartServer starts the API server on the specified port.
@@ -24,6 +25,7 @@ func StartServer(port string, token string) error {
 // StartServerWithStore starts the API server with an optional SQLite store
 // for the v2 engine endpoints.
 func StartServerWithStore(port string, token string, db *store.Store) error {
+	system.StartMetricsAggregator()
 	srv := NewServer(token)
 
 	// Start background Docker events forwarder
@@ -196,6 +198,15 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Get("/ai/queue", srv.GetAIQueue)
 			r.Get("/ai/models", srv.GetAIModels)
 
+			// Queue
+			r.Get("/queue", ListQueue)
+			r.Get("/queue/{id}", GetQueueJob)
+			r.Post("/queue/cancel", CancelQueueJob)
+
+			// System Observability
+			r.Get("/system/metrics", GetMetricsHistory)
+			r.Get("/system/health", GetSystemHealth(db))
+
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
 			r.Get("/ws/logs/{name}", srv.GetWSLogs)
@@ -245,6 +256,15 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Post("/ai/run", srv.AIRun)
 			r.Get("/ai/queue", srv.GetAIQueue)
 			r.Get("/ai/models", srv.GetAIModels)
+
+			// Queue
+			r.Get("/queue", ListQueue)
+			r.Get("/queue/{id}", GetQueueJob)
+			r.Post("/queue/cancel", CancelQueueJob)
+
+			// System Observability
+			r.Get("/system/metrics", GetMetricsHistory)
+			r.Get("/system/health", GetSystemHealth(nil))
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
@@ -336,4 +356,27 @@ func fileServer(r chi.Router, path string, root http.FileSystem) {
 		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
 		fs.ServeHTTP(w, r)
 	})
+}
+
+// GetMetricsHistory returns the sliding window history of system metrics.
+// GET /api/v2/system/metrics
+func GetMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	history := system.GlobalMetricsHistory.Get()
+	sendSuccess(w, http.StatusOK, history, nil)
+}
+
+// GetSystemHealth returns a detailed system components health check report.
+// GET /api/v2/system/health
+func GetSystemHealth(db *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		report := system.CheckHealth(db)
+		status := http.StatusOK
+		if report.Status == system.StatusUnhealthy {
+			status = http.StatusServiceUnavailable
+		}
+		writeJSONResponse(w, status, APIResponse{
+			Status: string(report.Status),
+			Data:   report,
+		})
+	}
 }

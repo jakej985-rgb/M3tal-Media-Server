@@ -102,6 +102,7 @@ class M3TALApp(App):
         Binding("e", "toggle_selected_plugin", "Enable/Disable Plugin"),
         Binding("i", "install_selected_plugin", "Install Plugin"),
         Binding("c", "toggle_plugin_catalog", "Toggle Catalog/Installed"),
+        Binding("k", "cancel_selected_job", "Cancel Job"),
     ]
 
     def __init__(self):
@@ -161,7 +162,7 @@ class M3TALApp(App):
         services_table.cursor_type = "row"
 
         ai_table = self.query_one("#ai-queue-table", DataTable)
-        ai_table.add_columns("Job ID", "Prompt", "Mode", "Status")
+        ai_table.add_columns("Job ID", "Type", "Priority", "Details", "Status")
         ai_table.cursor_type = "row"
 
         plugins_table = self.query_one("#plugins-table", DataTable)
@@ -190,6 +191,9 @@ class M3TALApp(App):
 
     def refresh_metrics(self) -> None:
         res = self.client.get_metrics()
+        history_res = self.client.get_system_metrics_history()
+        health_res = self.client.get_system_health()
+        
         panel = self.query_one("#metrics-panel", MetricsPanel)
         
         if res.get("status") == "success" and "data" in res:
@@ -213,12 +217,39 @@ class M3TALApp(App):
                 bar = "█" * filled + "░" * empty
                 return f"[{bar}] {val:.1f}%"
 
+            # Generate sparklines
+            history_list = []
+            if history_res.get("status") == "success" and "data" in history_res:
+                history_list = history_res["data"] or []
+            
+            def get_sparkline(key):
+                if not history_list:
+                    return ""
+                chars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+                # Keep last 15 ticks
+                vals = [item.get(key, 0.0) for item in history_list][-15:]
+                spark = []
+                for v in vals:
+                    idx = min(7, max(0, int(v / 12.5)))
+                    spark.append(chars[idx])
+                return " " + "".join(spark)
+            
+            # Health indicator
+            health_str = "[bold #E0E0E0]?[/bold #E0E0E0]"
+            if health_res.get("status") == "success" and "data" in health_res:
+                health_data = health_res["data"]
+                if health_data.get("status") == "healthy":
+                    health_str = "[bold #00E676]🟢 OK[/bold #00E676]"
+                else:
+                    health_str = "[bold #FF1744]🔴 FAULT[/bold #FF1744]"
+
             panel.metrics_text = (
                 f"💻 Host: [bold #00E676]{hostname}[/bold #00E676]  |  "
-                f"⏱️  Uptime: {uptime_str}  |  "
-                f"CPU: {prog_bar(cpu)}  |  "
-                f"RAM: {prog_bar(mem)}  |  "
-                f"Disk: {prog_bar(disk)}"
+                f"Health: {health_str}  |  "
+                f"Uptime: {uptime_str}  |  "
+                f"CPU: {prog_bar(cpu)}{get_sparkline('cpu_usage')}  |  "
+                f"RAM: {prog_bar(mem)}{get_sparkline('memory_usage')}  |  "
+                f"Disk: {prog_bar(disk)}{get_sparkline('disk_usage')}"
             )
         else:
             panel.metrics_text = "[bold #FF1744]🔴 API Offline (Connection Error)[/bold #FF1744]"
@@ -364,7 +395,7 @@ class M3TALApp(App):
 
     def refresh_ai_tab(self) -> None:
         # 1. Fetch queue
-        queue_res = self.client.get_ai_queue()
+        queue_res = self.client.get_queue()
         queue_table = self.query_one("#ai-queue-table", DataTable)
         current_cursor = queue_table.cursor_coordinate
         queue_table.clear()
@@ -374,9 +405,24 @@ class M3TALApp(App):
             queue_list = queue_res["data"]
             for idx, job in enumerate(queue_list):
                 jid = job.get("id", "unknown")
-                prompt = job.get("prompt", "")
-                mode = job.get("mode", "chat")
+                jtype = job.get("type", "unknown")
+                pVal = job.get("priority", 2)
                 status = job.get("status", "pending")
+                
+                # Priority string
+                prio_str = "Normal"
+                if pVal == 3:
+                    prio_str = "High"
+                elif pVal == 1:
+                    prio_str = "Low"
+
+                # Extract details from payload
+                payload = job.get("payload") or {}
+                details = ""
+                if jtype == "ai_generation":
+                    details = payload.get("prompt", "")
+                else:
+                    details = str(payload)
                 
                 # Format status color
                 color = "#FFD600" # yellow for pending/running
@@ -386,7 +432,7 @@ class M3TALApp(App):
                     color = "#FF1744" # red
                     
                 status_styled = f"[bold {color}]{status.upper()}[/bold {color}]"
-                queue_table.add_row(jid, prompt, mode, status_styled)
+                queue_table.add_row(jid, jtype, prio_str, details, status_styled, key=jid)
                 
         if current_cursor and current_cursor.row < len(queue_list):
             queue_table.cursor_coordinate = current_cursor
@@ -399,6 +445,23 @@ class M3TALApp(App):
         if models_res.get("status") == "success" and "data" in models_res:
             for model in models_res["data"]:
                 models_list_widget.add_option(model)
+
+    def action_cancel_selected_job(self) -> None:
+        queue_table = self.query_one("#ai-queue-table", DataTable)
+        try:
+            row_key, _ = queue_table.coordinate_to_cell_key(queue_table.cursor_coordinate)
+            selected_jid = row_key.value
+        except Exception:
+            self.notify("No job selected in the queue table", severity="warning")
+            return
+
+        self.notify(f"✕ Cancelling Job: {selected_jid}...", severity="warning")
+        res = self.client.cancel_queue_job(selected_jid)
+        if res.get("status") == "success":
+            self.notify(f"✅ Job {selected_jid} cancelled!", severity="success")
+        else:
+            self.notify(f"❌ Failed to cancel {selected_jid}: {res.get('error')}", severity="error")
+        self.refresh_all()
 
     def refresh_plugins_tab(self) -> None:
         table = self.query_one("#plugins-table", DataTable)

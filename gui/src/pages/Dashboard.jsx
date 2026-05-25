@@ -3,31 +3,45 @@ import { api, subscribeWS } from '../api';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [health, setHealth] = useState(null);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // 1. Fetch initial metrics and poll
-    const fetchMetrics = async () => {
-      const res = await api.getMetrics();
-      if (res.status === 'success') {
-        setMetrics(res.data);
+    const fetchStats = async () => {
+      // 1. Fetch current metrics
+      const resMetrics = await api.getMetrics();
+      if (resMetrics.status === 'success') {
+        setMetrics(resMetrics.data);
         setError(null);
       } else {
-        setError(res.error || 'Failed to fetch metrics');
+        setError(resMetrics.error || 'Failed to fetch metrics');
+      }
+
+      // 2. Fetch history
+      const resHistory = await api.getSystemMetricsHistory();
+      if (resHistory.status === 'success') {
+        setHistory(resHistory.data || []);
+      }
+
+      // 3. Fetch health status
+      const resHealth = await api.getSystemHealth();
+      if (resHealth.status === 'success') {
+        setHealth(resHealth.data);
       }
     };
 
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 2000);
+    fetchStats();
+    const interval = setInterval(fetchStats, 5000);
 
-    // 2. Subscribe to WebSocket events for live notification updates
+    // 4. Subscribe to WebSocket events for live notification updates
     const sub = subscribeWS('/api/v2/ws/events', (event) => {
       const timeStr = new Date(event.timestamp * 1000).toLocaleTimeString();
       const newEvent = {
         time: timeStr,
         type: event.type,
-        detail: JSON.stringify(event.payload),
+        detail: typeof event.payload === 'object' ? JSON.stringify(event.payload) : String(event.payload),
       };
       setEvents((prev) => [newEvent, ...prev].slice(0, 15)); // Keep last 15
     });
@@ -50,74 +64,157 @@ export default function Dashboard() {
   const getUsageColor = (val) => {
     if (val >= 85) return 'bg-rose-500';
     if (val >= 60) return 'bg-amber-500';
-    return 'bg-emerald-500';
+    return 'bg-teal-400';
   };
 
-  const getBorderColor = (val) => {
-    if (val >= 85) return 'border-rose-500';
-    if (val >= 60) return 'border-amber-500';
-    return 'border-emerald-500';
+  const getUsageGlow = (val) => {
+    if (val >= 85) return 'shadow-[0_0_12px_rgba(244,63,94,0.3)]';
+    if (val >= 60) return 'shadow-[0_0_12px_rgba(245,158,11,0.3)]';
+    return 'shadow-[0_0_12px_rgba(45,212,191,0.3)]';
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Top Header Row with health badges */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/60 backdrop-blur-md">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">System Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            System Dashboard
+          </h1>
           <p className="text-slate-400 text-sm">Real-time resource utilization and event streaming.</p>
         </div>
-        {error && (
-          <div className="px-3 py-1 text-xs rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-            {error}
-          </div>
-        )}
+
+        <div className="flex items-center gap-3">
+          {health ? (
+            <div className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 border ${
+              health.status === 'healthy' 
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                health.status === 'healthy' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400 animate-ping'
+              }`}></span>
+              SYSTEM: {health.status.toUpperCase()}
+            </div>
+          ) : (
+            <div className="px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 animate-pulse">
+              Checking Health...
+            </div>
+          )}
+          
+          {error && (
+            <div className="px-3 py-1 text-xs rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
 
       {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* CPU Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 font-semibold text-sm">Processor (CPU)</span>
-              <span className="text-lg font-bold text-white">{metrics.cpu_usage?.toFixed(1)}%</span>
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-6 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-slate-400 font-semibold text-sm">Processor (CPU)</span>
+                <span className="text-lg font-bold text-white">{metrics.cpu_usage?.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(metrics.cpu_usage)} ${getUsageGlow(metrics.cpu_usage)}`}
+                  style={{ width: `${Math.min(100, metrics.cpu_usage)}%` }}
+                ></div>
+              </div>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-3">
-              <div
-                className={`h-3 rounded-full transition-all duration-500 ${getUsageColor(metrics.cpu_usage)}`}
-                style={{ width: `${Math.min(100, metrics.cpu_usage)}%` }}
-              ></div>
+
+            {/* Sparkline History */}
+            <div className="mt-6">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">CPU History (5m)</span>
+              <div className="flex items-end justify-between h-14 gap-[2px] mt-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/40">
+                {history.length === 0 ? (
+                  <span className="text-slate-600 text-[10px] w-full text-center">Awaiting data...</span>
+                ) : (
+                  history.map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 rounded-t-sm transition-all duration-300 ${getUsageColor(h.cpu_usage)}`}
+                      style={{ height: `${Math.max(4, h.cpu_usage)}%` }}
+                      title={`CPU: ${h.cpu_usage?.toFixed(1)}%`}
+                    ></div>
+                  ))
+                )}
+              </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Average system workload across all active cores.</p>
           </div>
 
           {/* Memory Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 font-semibold text-sm">Memory (RAM)</span>
-              <span className="text-lg font-bold text-white">{metrics.memory_usage?.toFixed(1)}%</span>
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-6 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-slate-400 font-semibold text-sm">Memory (RAM)</span>
+                <span className="text-lg font-bold text-white">{metrics.memory_usage?.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(metrics.memory_usage)} ${getUsageGlow(metrics.memory_usage)}`}
+                  style={{ width: `${Math.min(100, metrics.memory_usage)}%` }}
+                ></div>
+              </div>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-3">
-              <div
-                className={`h-3 rounded-full transition-all duration-500 ${getUsageColor(metrics.memory_usage)}`}
-                style={{ width: `${Math.min(100, metrics.memory_usage)}%` }}
-              ></div>
+
+            {/* Sparkline History */}
+            <div className="mt-6">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">RAM History (5m)</span>
+              <div className="flex items-end justify-between h-14 gap-[2px] mt-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/40">
+                {history.length === 0 ? (
+                  <span className="text-slate-600 text-[10px] w-full text-center">Awaiting data...</span>
+                ) : (
+                  history.map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 rounded-t-sm transition-all duration-300 ${getUsageColor(h.memory_usage)}`}
+                      style={{ height: `${Math.max(4, h.memory_usage)}%` }}
+                      title={`RAM: ${h.memory_usage?.toFixed(1)}%`}
+                    ></div>
+                  ))
+                )}
+              </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Total physical RAM usage currently allocated.</p>
           </div>
 
           {/* Disk Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 font-semibold text-sm">Disk Storage</span>
-              <span className="text-lg font-bold text-white">{metrics.disk_usage?.toFixed(1)}%</span>
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-6 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-slate-400 font-semibold text-sm">Disk Storage</span>
+                <span className="text-lg font-bold text-white">{metrics.disk_usage?.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(metrics.disk_usage)} ${getUsageGlow(metrics.disk_usage)}`}
+                  style={{ width: `${Math.min(100, metrics.disk_usage)}%` }}
+                ></div>
+              </div>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-3">
-              <div
-                className={`h-3 rounded-full transition-all duration-500 ${getUsageColor(metrics.disk_usage)}`}
-                style={{ width: `${Math.min(100, metrics.disk_usage)}%` }}
-              ></div>
+
+            {/* Sparkline History */}
+            <div className="mt-6">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Disk History (5m)</span>
+              <div className="flex items-end justify-between h-14 gap-[2px] mt-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/40">
+                {history.length === 0 ? (
+                  <span className="text-slate-600 text-[10px] w-full text-center">Awaiting data...</span>
+                ) : (
+                  history.map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 rounded-t-sm transition-all duration-300 ${getUsageColor(h.disk_usage)}`}
+                      style={{ height: `${Math.max(4, h.disk_usage)}%` }}
+                      title={`Disk: ${h.disk_usage?.toFixed(1)}%`}
+                    ></div>
+                  ))
+                )}
+              </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Root storage usage on primary storage partition.</p>
           </div>
         </div>
       )}
@@ -148,10 +245,36 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
+
+            {/* Health Checklist */}
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider pt-4">Subsystem Health</h2>
+            <div className="border-t border-slate-800/60 pt-3 space-y-2.5">
+              {health && health.components ? (
+                Object.entries(health.components).map(([name, status]) => (
+                  <div key={name} className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 capitalize">{name}</span>
+                    <div className="flex items-center gap-2">
+                      {status === 'unhealthy' && health.details && health.details[name] && (
+                        <span className="text-[10px] text-rose-400 max-w-[150px] truncate" title={health.details[name]}>
+                          {health.details[name]}
+                        </span>
+                      )}
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
+                        status === 'healthy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                      }`}>
+                        {status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-slate-500 animate-pulse">Loading components status...</div>
+              )}
+            </div>
           </div>
 
           {/* Event Stream */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 lg:col-span-2 flex flex-col h-[320px]">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 lg:col-span-2 flex flex-col h-[380px]">
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Live System Event Log</h2>
             <div className="flex-1 overflow-y-auto space-y-2 pr-2 text-xs font-mono">
               {events.length === 0 ? (

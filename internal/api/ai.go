@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,8 +18,9 @@ import (
 
 // AIRequest represents the input to the AI endpoint
 type AIRequest struct {
-	Prompt string `json:"prompt"`
-	Mode   string `json:"mode,omitempty"`
+	Prompt   string `json:"prompt"`
+	Mode     string `json:"mode,omitempty"`
+	Priority string `json:"priority,omitempty"` // "low", "normal", "high"
 }
 
 // AIResponse represents the output of the AI endpoint
@@ -28,20 +30,12 @@ type AIResponse struct {
 	Status   string `json:"status"`
 }
 
-// AIJobStatus represents the current status of an AI job
+// AIJobStatus represents the current status of an AI job in the legacy list format
 type AIJobStatus struct {
 	ID     string `json:"id"`
 	Prompt string `json:"prompt"`
 	Mode   string `json:"mode"`
 	Status string `json:"status"` // "pending", "running", "completed", "failed"
-}
-
-// AIJob represents a queued AI generation task
-type AIJob struct {
-	ID         string
-	Prompt     string
-	Mode       string
-	ResultChan chan AIJobResult
 }
 
 // AIJobResult represents the result of a processed AI job
@@ -51,13 +45,37 @@ type AIJobResult struct {
 	Error    error
 }
 
+// AIJob implements queue.Job for AI generation tasks
+type AIJob struct {
+	id         string
+	prompt     string
+	mode       string
+	priority   int
+	resultChan chan AIJobResult
+}
+
+func (j *AIJob) ID() string {
+	return j.id
+}
+
+func (j *AIJob) Priority() int {
+	return j.priority
+}
+
+func (j *AIJob) Type() string {
+	return "ai_generation"
+}
+
+func (j *AIJob) Payload() map[string]any {
+	return map[string]any{
+		"prompt": j.prompt,
+		"mode":   j.mode,
+	}
+}
+
 var (
-	jobQueue        chan *AIJob
-	startWorkerOnce sync.Once
-	jobsTracker     []*AIJobStatus
-	jobsTrackerMu   sync.Mutex
-	jobCounter      uint64
-	jobCounterMu    sync.Mutex
+	jobCounter   uint64
+	jobCounterMu sync.Mutex
 )
 
 func generateJobID() string {
@@ -67,110 +85,101 @@ func generateJobID() string {
 	return fmt.Sprintf("job-%d", jobCounter)
 }
 
-// startWorker initializes the job queue and starts the worker loop
-func startWorker() {
-	jobQueue = make(chan *AIJob, 100)
-	go workerLoop()
-}
+// Execute runs the AI generation model selection and request fallback flow
+func (j *AIJob) Execute(ctx context.Context) (any, error) {
+	GlobalEventBus.Publish("ai.job.started", map[string]string{
+		"id":     j.id,
+		"prompt": j.prompt,
+		"mode":   j.mode,
+	})
 
-// workerLoop processes queued AI jobs sequentially (MAX=1 concurrency)
-func workerLoop() {
-	for job := range jobQueue {
-		jobsTrackerMu.Lock()
-		for _, js := range jobsTracker {
-			if js.ID == job.ID {
-				js.Status = "running"
-				GlobalEventBus.Publish("ai.job.started", map[string]string{
-					"id":     job.ID,
-					"prompt": job.Prompt,
-					"mode":   job.Mode,
-				})
-				break
-			}
+	envVars := loadAIEnvFunc()
+
+	// 1. Determine model based on mode
+	var model string
+	switch strings.ToLower(j.mode) {
+	case "code":
+		if m, ok := envVars["AI_MODEL_CODE"]; ok && m != "" {
+			model = m
 		}
-		jobsTrackerMu.Unlock()
-
-		envVars := loadAIEnvFunc()
-
-		// 1. Determine model based on mode
-		var model string
-		switch strings.ToLower(job.Mode) {
-		case "code":
-			if m, ok := envVars["AI_MODEL_CODE"]; ok && m != "" {
-				model = m
-			}
-		case "chat":
-			if m, ok := envVars["AI_MODEL_CHAT"]; ok && m != "" {
-				model = m
-			}
+	case "chat":
+		if m, ok := envVars["AI_MODEL_CHAT"]; ok && m != "" {
+			model = m
 		}
-		if model == "" {
-			if m, ok := envVars["AI_MODEL"]; ok && m != "" {
-				model = m
-			} else {
-				model = "qwen3-coder-next:cloud"
-			}
-		}
-
-		// 2. Build list of fallback models
-		var modelsToTry []string
-		modelsToTry = append(modelsToTry, model)
-		for i := 1; i <= 10; i++ {
-			fallbackKey := fmt.Sprintf("AI_FALLBACK_%d", i)
-			if fallbackVal, ok := envVars[fallbackKey]; ok && fallbackVal != "" {
-				modelsToTry = append(modelsToTry, fallbackVal)
-			}
-		}
-
-		// 3. Resolve Ollama Host address
-		ollamaHost := "http://localhost:11434"
-		if h, ok := envVars["OLLAMA_HOST"]; ok && h != "" {
-			ollamaHost = h
-		}
-
-		var lastErr error
-		var chosenModel string
-		var aiResp string
-
-		// 4. Fallback execution retry loop
-		for _, m := range modelsToTry {
-			chosenModel = m
-			aiResp, lastErr = callOllamaGenerate(ollamaHost, m, job.Prompt)
-			if lastErr == nil {
-				break
-			}
-			log.Printf("⚠️ AI API fallback: model %s failed, attempting next if available. Error: %v", m, lastErr)
-		}
-
-		job.ResultChan <- AIJobResult{
-			Model:    chosenModel,
-			Response: aiResp,
-			Error:    lastErr,
-		}
-
-		jobsTrackerMu.Lock()
-		for _, js := range jobsTracker {
-			if js.ID == job.ID {
-				if lastErr != nil {
-					js.Status = "failed"
-					GlobalEventBus.Publish("ai.job.completed", map[string]any{
-						"id":     job.ID,
-						"status": "failed",
-						"error":  lastErr.Error(),
-					})
-				} else {
-					js.Status = "completed"
-					GlobalEventBus.Publish("ai.job.completed", map[string]any{
-						"id":     job.ID,
-						"status": "completed",
-						"model":  chosenModel,
-					})
-				}
-				break
-			}
-		}
-		jobsTrackerMu.Unlock()
 	}
+	if model == "" {
+		if m, ok := envVars["AI_MODEL"]; ok && m != "" {
+			model = m
+		} else {
+			model = "qwen3-coder-next:cloud"
+		}
+	}
+
+	// 2. Build list of fallback models
+	var modelsToTry []string
+	modelsToTry = append(modelsToTry, model)
+	for i := 1; i <= 10; i++ {
+		fallbackKey := fmt.Sprintf("AI_FALLBACK_%d", i)
+		if fallbackVal, ok := envVars[fallbackKey]; ok && fallbackVal != "" {
+			modelsToTry = append(modelsToTry, fallbackVal)
+		}
+	}
+
+	// 3. Resolve Ollama Host address
+	ollamaHost := "http://localhost:11434"
+	if h, ok := envVars["OLLAMA_HOST"]; ok && h != "" {
+		ollamaHost = h
+	}
+
+	var lastErr error
+	var chosenModel string
+	var aiResp string
+
+	// 4. Fallback execution retry loop
+	for _, m := range modelsToTry {
+		if ctx.Err() != nil {
+			lastErr = ctx.Err()
+			break
+		}
+
+		chosenModel = m
+		aiResp, lastErr = callOllamaGenerate(ollamaHost, m, j.prompt)
+		if lastErr == nil {
+			break
+		}
+		log.Printf("⚠️ AI API fallback: model %s failed, attempting next if available. Error: %v", m, lastErr)
+	}
+
+	// 5. Send result and publish events
+	resVal := AIJobResult{
+		Model:    chosenModel,
+		Response: aiResp,
+		Error:    lastErr,
+	}
+
+	if j.resultChan != nil {
+		j.resultChan <- resVal
+	}
+
+	if lastErr != nil {
+		GlobalEventBus.Publish("ai.job.completed", map[string]any{
+			"id":     j.id,
+			"status": "failed",
+			"error":  lastErr.Error(),
+		})
+		return nil, lastErr
+	}
+
+	GlobalEventBus.Publish("ai.job.completed", map[string]any{
+		"id":     j.id,
+		"status": "completed",
+		"model":  chosenModel,
+	})
+
+	return map[string]any{
+		"model":    chosenModel,
+		"response": aiResp,
+	}, nil
 }
 
 // isAIAddonActive checks if the AI stack plugin is loaded and enabled
@@ -243,44 +252,26 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startWorkerOnce.Do(startWorker)
-
 	jobID := generateJobID()
-	status := &AIJobStatus{
-		ID:     jobID,
-		Prompt: req.Prompt,
-		Mode:   req.Mode,
-		Status: "pending",
+	priorityVal := 2 // Default: normal
+	switch strings.ToLower(req.Priority) {
+	case "low":
+		priorityVal = 1
+	case "high":
+		priorityVal = 3
 	}
-
-	jobsTrackerMu.Lock()
-	jobsTracker = append(jobsTracker, status)
-	if len(jobsTracker) > 50 {
-		jobsTracker = jobsTracker[len(jobsTracker)-50:]
-	}
-	jobsTrackerMu.Unlock()
 
 	resultChan := make(chan AIJobResult, 1)
 	job := &AIJob{
-		ID:         jobID,
-		Prompt:     req.Prompt,
-		Mode:       req.Mode,
-		ResultChan: resultChan,
+		id:         jobID,
+		prompt:     req.Prompt,
+		mode:       req.Mode,
+		priority:   priorityVal,
+		resultChan: resultChan,
 	}
 
-	select {
-	case jobQueue <- job:
-		// Queued successfully
-	case <-r.Context().Done():
-		jobsTrackerMu.Lock()
-		for _, js := range jobsTracker {
-			if js.ID == jobID {
-				js.Status = "failed"
-				break
-			}
-		}
-		jobsTrackerMu.Unlock()
-		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out before queueing")
+	if err := GlobalQueue.Submit(job); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to submit job: "+err.Error())
 		return
 	}
 
@@ -296,14 +287,7 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 			Status:   "success",
 		}, nil)
 	case <-r.Context().Done():
-		jobsTrackerMu.Lock()
-		for _, js := range jobsTracker {
-			if js.ID == jobID {
-				js.Status = "failed"
-				break
-			}
-		}
-		jobsTrackerMu.Unlock()
+		GlobalQueue.Cancel(jobID)
 		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out during execution")
 	}
 }
@@ -355,12 +339,26 @@ func callOllamaGenerate(host string, model string, prompt string) (string, error
 
 // GetAIQueue returns the list of queued/running AI jobs
 func (s *Server) GetAIQueue(w http.ResponseWriter, r *http.Request) {
-	jobsTrackerMu.Lock()
-	defer jobsTrackerMu.Unlock()
-
-	list := make([]AIJobStatus, len(jobsTracker))
-	for i, j := range jobsTracker {
-		list[i] = *j
+	records := GlobalQueue.List()
+	var list []AIJobStatus
+	for _, rec := range records {
+		if rec.Type != "ai_generation" {
+			continue
+		}
+		prompt := ""
+		if p, ok := rec.Payload["prompt"].(string); ok {
+			prompt = p
+		}
+		mode := ""
+		if m, ok := rec.Payload["mode"].(string); ok {
+			mode = m
+		}
+		list = append(list, AIJobStatus{
+			ID:     rec.ID,
+			Prompt: prompt,
+			Mode:   mode,
+			Status: string(rec.Status),
+		})
 	}
 	sendSuccess(w, http.StatusOK, list, nil)
 }
