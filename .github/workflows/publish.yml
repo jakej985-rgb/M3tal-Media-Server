@@ -103,12 +103,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-       - name: Log in to the Container registry
-         uses: docker/login-action@v3
-         with:
-           registry: ghcr.io
-           username: ${{ github.repository_owner }}
-           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Convert repo owner to lowercase
         id: owner
