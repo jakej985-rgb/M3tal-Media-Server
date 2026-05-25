@@ -1975,7 +1975,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	}
 	uiCmd.Flags().String("port", "5050", "Port to listen on")
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd, uiCmd)
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd, uiCmd, initStackCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
