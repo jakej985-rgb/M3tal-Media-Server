@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api, subscribeWS } from '../api';
 
 export default function Dashboard() {

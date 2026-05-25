@@ -84,7 +84,7 @@ export const subscribeWS = (path, onMessage, onError = null) => {
     try {
       const data = JSON.parse(event.data);
       onMessage(data);
-    } catch (e) {
+    } catch {
       // Handle raw text messages (like log strings)
       onMessage({ raw: true, data: event.data });
     }

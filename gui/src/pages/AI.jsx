@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api, subscribeWS } from '../api';
 
 export default function AI() {
@@ -13,7 +13,7 @@ export default function AI() {
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     // Fetch models
     const modelsRes = await api.getAIModels();
     if (modelsRes.status === 'success') {
@@ -28,7 +28,7 @@ export default function AI() {
     if (queueRes.status === 'success') {
       setQueue(queueRes.data || []);
     }
-  };
+  }, [selectedModel]);
 
   useEffect(() => {
     fetchData();
@@ -41,7 +41,7 @@ export default function AI() {
     });
 
     return () => sub.close();
-  }, []);
+  }, [fetchData]);
 
   const handleRun = async (e) => {
     e.preventDefault();

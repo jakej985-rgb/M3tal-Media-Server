@@ -46,9 +46,10 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 		log.Println("🔌 Docker events forwarder started")
 		for ev := range eventCh {
 			var eventType string
-			if ev.Action == "start" {
+			switch ev.Action {
+			case "start":
 				eventType = "container.started"
-			} else if ev.Action == "stop" || ev.Action == "die" || ev.Action == "kill" {
+			case "stop", "die", "kill":
 				eventType = "container.stopped"
 			}
 
@@ -302,12 +303,6 @@ type APIResponse struct {
 	Error  any    `json:"error,omitempty"`
 }
 
-// writeJSON encodes a value as JSON and writes it to the response.
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
 
 // writeJSONResponse encodes a standardized APIResponse as JSON and writes it to the response.
 func writeJSONResponse(w http.ResponseWriter, status int, response APIResponse) {

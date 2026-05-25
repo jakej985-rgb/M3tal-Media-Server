@@ -35,9 +35,7 @@ func (h *MetricsHistory) Get() []*SystemStats {
 	defer h.mu.RUnlock()
 
 	list := make([]*SystemStats, len(h.history))
-	for i, s := range h.history {
-		list[i] = s
-	}
+	copy(list, h.history)
 	return list
 }
 
