@@ -1,26 +1,26 @@
-# M3TAL - Getting Started Guide
+```markdown
+# GET_STARTED.md: First-Time User Setup Guide
 
-This guide provides step-by-step instructions for setting up M3TAL for the first time.
+This guide provides a step-by-step process for first-time users to set up and get started with the M3TAL Ecosystem.
 
-## Step 1: Prerequisites
+---
 
-Before you begin, ensure you have the following installed on your system:
+## 1. Prerequisites
 
-*   **Docker Engine**
-*   **Docker Compose V2**
+Before installing M3TAL, ensure the following are installed on your system:
 
-Verify your installation by running the following commands:
+-   **Docker Engine**
+-   **Docker Compose V2**
+
+You can verify their installation and version by running:
 
 ```bash
-docker --version
-docker compose version
+docker --version && docker compose version
 ```
 
-If either of these commands fails, please install Docker and Docker Compose according to their official documentation before proceeding.
+## 2. Install M3TAL via APT
 
-## Step 2: Install M3TAL via APT
-
-Install the M3TAL CLI binary by adding the official repository and then installing the package.
+Use the following commands to add the M3TAL APT repository and install the `m3tal` CLI binary:
 
 ```bash
 # 1. Add the GPG signing key
@@ -33,128 +33,153 @@ echo "deb [signed-by=/usr/share/keyrings/m3tal-archive-keyring.gpg] https://jake
 sudo apt update && sudo apt install -y m3tal
 ```
 
-## Step 3: Run the Configuration Wizard
+## 3. Run the Configuration Wizard
 
-Initialize M3TAL's configuration by running the wizard. This process will guide you through setting essential parameters.
+Initialize your M3TAL environment and set essential configuration variables using the interactive wizard.
 
 ```bash
 sudo m3tal config wizard
 ```
 
-You will be prompted with several questions. Here's what each prompt means:
+The wizard will prompt you for several values:
 
-*   **`DASHBOARD_PORT`**: The local port where the M3TAL dashboard will be accessible when `DASHBOARD_EXPOSE_MODE` is set to `local`. The default is `8082`.
-*   **`DASHBOARD_EXPOSE_MODE`**: Determines how the dashboard is made accessible.
-    *   `local`: Exposes the dashboard directly via the `DASHBOARD_PORT`. Recommended for initial setup and LAN-only access.
-    *   `traefik`: Exposes the dashboard through the Traefik reverse proxy, typically via a subdomain (e.g., `dash.yourdomain.com`). Requires Traefik to be running.
-*   **`HTTP_PORT`**: The port the M3TAL API daemon listens on. The default is `8080`.
-*   **`STATE_DIR`**: The directory where M3TAL stores its state, including the database. The default is `./state` relative to the M3TAL data directory.
-*   **`LOG_LEVEL`**: Sets the verbosity of M3TAL's logging. Options typically include `debug`, `info`, `warn`, `error`.
-*   **`DASHBOARD_SECRET`**: A secret key used by the dashboard for session management. **Change this from the default immediately.**
-*   **`API_TOKEN`**: A token for authenticating API requests. **Change this from the default immediately.**
-*   **`ADMIN_PASSWORD`**: The password for the default administrator account in the dashboard. **Change this from the default immediately.**
-*   **`NETWORK_NAME`**: The name of the Docker network M3TAL services will use. The default is `m3tal`.
-*   **`LOCAL_IP`**: Your local network IP address.
-*   **`DOMAIN`**: The domain name you intend to use for M3TAL services. Defaults to `localhost`.
-*   **`VPN_USER`**: Username for VPN access (if configured).
-*   **`VPN_PASSWORD`**: Password for VPN access (if configured).
-*   **`BASE_STORAGE_PATH`**: The base directory for M3TAL data storage. Defaults to `./data`.
-*   **`MEDIA_PATH`**: Directory for media files. Defaults to `./data/media`.
-*   **`CONFIG_PATH`**: Directory for configuration files. Defaults to `./data/config`.
-*   **`DOWNLOADS_PATH`**: Directory for downloads. Defaults to `./data/downloads`.
-*   **`PUID`**: The user ID to run Docker containers under. Typically your user ID.
-*   **`PGID`**: The group ID to run Docker containers under. Typically your user's group ID.
-*   **`TZ`**: Your timezone. e.g., `America/Denver`.
-*   **`TRAEFIK_WEB_PORT`**: The host port Traefik will use for HTTP traffic. Defaults to `80`.
-*   **`TRAEFIK_WEBHTTPS_PORT`**: The host port Traefik will use for HTTPS traffic. Defaults to `443`.
-*   **`TRAEFIK_DASHBOARD_PORT`**: The port Traefik uses internally for its own dashboard. Defaults to `8080`.
-*   **`DEBUG_MODE`**: Enable or disable debug mode for M3TAL.
-*   **`METRICS_ENABLED`**: Enable or disable metrics collection.
+-   **`DOMAIN`**: The base domain for services exposed via Traefik (e.g., `yourdomain.com`). If you're not using a domain, `localhost` is a suitable default.
+-   **`DASHBOARD_EXPOSE_MODE`**: Determines how the M3TAL Dashboard is exposed:
+    -   `local` (default): Accessible directly via `http://YOUR_IP:8082`. No Traefik configuration required for the dashboard.
+    -   `traefik`: Accessible via `http://dash.YOUR_DOMAIN` using Traefik as a reverse proxy.
+-   **`TRAEFIK_WEB_PORT`**: The host port Traefik will listen on for HTTP traffic (default: `80`).
+-   **`PUID` / `PGID`**: The User ID (PUID) and Group ID (PGID) that containers will run as. Typically, your user's PUID/PGID (default: `1000:1000`). Find yours with `id -u` and `id -g`.
+-   **`TZ`**: Your local timezone (e.g., `America/Denver`). This ensures containers have correct time.
+-   **`BASE_STORAGE_PATH`**: The base directory for M3TAL application data, including configuration and volumes for other services (default: `/mnt`).
+-   **`DASHBOARD_SECRET`**: A unique secret key for the dashboard. **Change this from the default immediately.** This enhances dashboard security.
+-   **`API_TOKEN`**: A token for programmatic access to the M3TAL API. **Change this from the default immediately.**
 
-## Step 4: Start the Routing Stack (Traefik)
+These settings are saved to `/etc/m3tal/.env`.
 
-This command starts the core routing infrastructure, primarily Traefik, which acts as a reverse proxy for your M3TAL services. It reads and applies all Docker Compose files found in the `/docker/` directory.
+## 4. Start the Routing Stack
+
+Start the core routing services, including Traefik (the reverse proxy) and optionally Cloudflared (for secure tunnels).
 
 ```bash
 m3tal up
 ```
 
-## Step 5: Start the Dashboard
+This command initiates Docker Compose operations for all `*-compose.yml` files located in `/docker/` (which is a symlink to `/opt/m3tal/stack/`). This includes `routing-compose.yml` which defines Traefik and Cloudflared.
 
-This command specifically pulls the M3TAL dashboard image and starts its container. It will use the `DASHBOARD_EXPOSE_MODE` setting from your configuration.
+## 5. Start the M3TAL Dashboard
+
+Launch the M3TAL web-based dashboard for managing your ecosystem.
 
 ```bash
 m3tal dash up
 ```
 
-## Step 6: Access the Dashboard
+This command performs the following actions:
+1.  Downloads the latest M3TAL Dashboard Compose files (`m3tal-compose.yml`, `m3tal-compose.local.yml`, `m3tal-compose.traefik.yml`).
+2.  Reads the `DASHBOARD_EXPOSE_MODE` variable from `/etc/m3tal/.env`.
+3.  Starts the `m3tal-dashboard` container using the appropriate Compose override file (`m3tal-compose.local.yml` for `local` mode, or `m3tal-compose.traefik.yml` for `traefik` mode). This pulls the dashboard image (`ghcr.io/jakej985-rgb/m3tal-godash:debug`) if not already present, and then starts the container.
 
-Open your web browser and navigate to the dashboard's address:
+## 6. Open M3TAL Dashboard in Browser
 
-*   If `DASHBOARD_EXPOSE_MODE` is set to `local` (default), access it at: `http://YOUR_IP:8082` (replace `YOUR_IP` with your server's local IP address, or `localhost` if running locally).
-*   If `DASHBOARD_EXPOSE_MODE` is set to `traefik` and Traefik is configured, access it via your defined domain: `http://dash.DOMAIN` (replace `DOMAIN` with your configured domain).
+Access the M3TAL Dashboard through your web browser based on your configured `DASHBOARD_EXPOSE_MODE`:
 
-## Step 7: Log In
+-   **If `DASHBOARD_EXPOSE_MODE` is `local` (default):**
+    Open `http://YOUR_IP:8082` (replace `YOUR_IP` with the IP address of your server).
+-   **If `DASHBOARD_EXPOSE_MODE` is `traefik` and Traefik is properly configured:**
+    Open `http://dash.DOMAIN` (replace `DOMAIN` with the domain you configured in the wizard).
 
-Upon accessing the dashboard, you will be presented with a login screen.
+## 7. Log In to the Dashboard
 
-*   **Username:** `admin`
-*   **Password:** `admin_pass` (or whatever you set during the wizard)
+The first time you access the dashboard, you will be prompted for credentials:
 
-**It is strongly recommended to change the default password immediately after logging in.**
+-   **Default Username:** `admin`
+-   **Default Password:** `admin_pass` (This is the value of `ADMIN_PASSWORD` in `/etc/m3tal/.env`).
 
-To change the dashboard password using the CLI:
+**It is highly recommended to change the default password immediately.** You can do this using the CLI:
 
 ```bash
-sudo m3tal dashpass <new_password>
+sudo m3tal dashpass
 ```
 
-Replace `<new_password>` with your desired strong password.
+This command will prompt you to set a new password for the `admin` user.
+
+---
 
 ## Filesystem Contract
 
-M3TAL utilizes a specific filesystem structure for configuration and data. Understanding these paths is crucial for advanced management and troubleshooting.
+M3TAL utilizes specific paths for configuration, data, and stack management:
 
-| Path                     | Purpose                                                          | Managed By                                  |
-| :----------------------- | :--------------------------------------------------------------- | :------------------------------------------ |
-| `/etc/m3tal/.env`        | Primary environment configuration file.                          | `m3tal config wizard` and `m3tal config set` |
-| `/var/lib/m3tal/state.db` | SQLite database for M3TAL's operational state.                 | M3TAL API daemon                            |
-| `/opt/m3tal/stack/`      | Canonical directory containing M3TAL's Docker Compose files.     | M3TAL installation                          |
-| `/docker`                | Symlink pointing to `/opt/m3tal/stack/`. User-facing path for stack operations. | M3TAL installation                          |
-| `/docker/users.json`     | Stores dashboard user credentials (username/password hashes).    | `m3tal dashpass`                            |
+| Path                       | Purpose                                                                |
+| :------------------------- | :--------------------------------------------------------------------- |
+| `/etc/m3tal/.env`          | Primary configuration file, managed by `m3tal config wizard`.          |
+| `/var/lib/m3tal/state.db`  | SQLite database storing M3TAL's internal state, auto-created by API.   |
+| `/opt/m3tal/stack/`        | Canonical directory for M3TAL's core Compose files and Traefik config. |
+| `/docker`                  | Symlink that points to `/opt/m3tal/stack/`. User-facing path for all stack operations. |
+| `/docker/users.json`       | Dashboard credential store, managed by `m3tal dashpass`.               |
 
-## Port Map
+## Port Table
 
-The following ports are utilized by M3TAL services:
+The following ports are used by M3TAL components:
 
-| Port   | Service         | Access Context                                        |
-| :----- | :-------------- | :---------------------------------------------------- |
-| 80     | Traefik         | Public ingress for HTTP traffic (when in `traefik` mode). |
-| 8080   | M3TAL API daemon | Accessible on the host system.                        |
-| 8081   | Traefik         | Traefik's internal dashboard (host-local access only).|
-| 8082   | M3TAL Dashboard | Direct port access (when in `local` mode).            |
+| Port | Service               | Access                                                 |
+| :--- | :-------------------- | :----------------------------------------------------- |
+| 80   | Traefik HTTP entry point | Public (if `TRAEFIK_WEB_PORT` is 80 and Traefik is running) |
+| 8080 | M3TAL API daemon (Go) | Host-local only, used by dashboard and internal services |
+| 8081 | Traefik dashboard     | Host-local only, for monitoring Traefik                |
+| 8082 | M3TAL Dashboard       | Direct port (if `DASHBOARD_EXPOSE_MODE=local`) or via Traefik (if `DASHBOARD_EXPOSE_MODE=traefik`) |
 
 ## Firewall Note
 
-If you intend for Traefik to be accessible from outside your local network (and `DASHBOARD_EXPOSE_MODE` is set to `traefik`), ensure that port 80 is allowed through your firewall:
+If you plan to expose M3TAL services (like Traefik) to your local network or the internet, you may need to open ports in your firewall. For example, to allow HTTP traffic through Traefik on port 80:
 
 ```bash
 sudo ufw allow 80
 ```
 
-## Service Management (API Daemon)
+If you configure HTTPS (port 443), you would also need to allow that port.
 
-The M3TAL API daemon runs as a systemd service. You can manage and monitor it using the following commands:
+## Service Management
 
-*   **Check status:**
+The M3TAL API daemon runs as a systemd service. You can manage and monitor it using `systemctl` and `journalctl`:
+
+-   **Check the status of the M3TAL API service:**
     ```bash
     systemctl status m3tal-api
     ```
-*   **View logs in real-time:**
+-   **View real-time logs for the M3TAL API service:**
     ```bash
     journalctl -u m3tal-api -f
     ```
-*   **Restart the service:**
-    ```bash
-    sudo systemctl restart m3tal-api
-    ```
+
+---
+
+## Dashboard Access Modes
+
+The M3TAL Dashboard supports two primary access modes, controlled by the `DASHBOARD_EXPOSE_MODE` variable in `/etc/m3tal/.env`. The `m3tal dash up` command dynamically selects the appropriate Docker Compose override file to achieve these modes.
+
+### Mode 1: Local (Default)
+
+-   **Configuration:** `DASHBOARD_EXPOSE_MODE=local` in `/etc/m3tal/.env`
+-   **Compose Override:** Uses `m3tal-compose.local.yml`. This file adds a direct port binding to the `m3tal-dashboard` container, typically `${DASHBOARD_PORT:-8082}:8082`.
+-   **Access Method:** `http://HOST_IP:8082` or `http://localhost:8082`.
+-   **Requirements:** No Traefik configuration is needed for the dashboard itself, making it suitable for quick local setups and initial testing.
+-   **Best For:** LAN-only deployments, users setting up M3TAL on a home server, or first-time users.
+
+### Mode 2: Traefik
+
+-   **Configuration:** `DASHBOARD_EXPOSE_MODE=traefik` in `/etc/m3tal/.env`
+-   **Compose Override:** Uses `m3tal-compose.traefik.yml`. This file applies Traefik labels to the `m3tal-dashboard` container. These labels instruct Traefik to route incoming requests for `dash.YOUR_DOMAIN` to the dashboard container's internal port 8082.
+-   **Access Method:** `http://dash.YOUR_DOMAIN` (Traefik must be running via `m3tal up` and configured correctly).
+-   **Requirements:** Traefik (from `routing-compose.yml`) must be running and properly configured to handle domain-based routing.
+-   **Best For:** Deployments requiring domain-based access, integration with other services behind a reverse proxy, and production environments with proper DNS setup.
+
+## Docker / Compose Runtime
+
+M3TAL is built on **Docker Engine** and **Docker Compose V2**. These are fundamental dependencies for M3TAL's operation.
+
+-   The `m3tal up` command orchestrates all Docker Compose files ending with `*-compose.yml` that are located in the `/docker/` directory (which symlinks to `/opt/m3tal/stack/`). This allows you to define and manage multiple services as "stacks."
+-   The `m3tal dash up` command is specifically tailored for the M3TAL Dashboard. It automatically:
+    1.  Downloads the necessary `m3tal-compose.yml` and its override files (`m3tal-compose.local.yml`, `m3tal-compose.traefik.yml`) from the M3TAL GitHub repository.
+    2.  Reads the `DASHBOARD_EXPOSE_MODE` variable from `/etc/m3tal/.env`.
+    3.  Starts the `m3tal-dashboard` container using the base `m3tal-compose.yml` combined with the selected override file, ensuring the dashboard is exposed according to your configuration.
+-   **User-defined stacks** should be placed as `my-stack-compose.yml` files within the `/docker/` directory. Running `m3tal up` will then bring up all these services, along with M3TAL's core components.
