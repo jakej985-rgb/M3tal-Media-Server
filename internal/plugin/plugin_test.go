@@ -545,4 +545,3 @@ spec:
 		t.Errorf("expected depends_on 'traefik-gateway', got %v", sp.DependsOn)
 	}
 }
-
