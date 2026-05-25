@@ -38,29 +38,13 @@ func discoverComposeFiles(reg *plugin.Registry) []string {
 		dashboardExists = true
 	}
 
-	// Scan system paths from helper (prioritizes /docker or /opt/m3tal/stack)
+	// Scan system paths recursively (prioritizes /docker or /opt/m3tal/stack)
 	stackDir := system.GetStackDir()
-	matches, _ := filepath.Glob(filepath.Join(stackDir, "*-compose.yml"))
+	matches, _ := system.FindComposeFiles(stackDir)
 	for _, match := range matches {
 		name := filepath.Base(match)
 		// Ignore dashboard compose so it is strictly managed by 'm3tal dash' commands
 		// UNLESS it has already been started and the container exists.
-		if !dashboardExists && name == "m3tal-compose.yml" {
-			continue
-		}
-		stackName := strings.TrimSuffix(name, "-compose.yml")
-		if reg != nil {
-			if sp := reg.GetStack(stackName); sp != nil && !sp.Enabled {
-				continue
-			}
-		}
-		files = append(files, match)
-	}
-
-	// Also check for files in subdirectories (legacy/extra stacks)
-	subMatches, _ := filepath.Glob(filepath.Join(stackDir, "*", "*-compose.yml"))
-	for _, match := range subMatches {
-		name := filepath.Base(match)
 		if !dashboardExists && name == "m3tal-compose.yml" {
 			continue
 		}

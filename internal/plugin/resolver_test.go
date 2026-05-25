@@ -184,3 +184,81 @@ func TestResolveInstallOrder_InstalledSkipped(t *testing.T) {
 		t.Fatalf("expected only A in resolution since B is already installed, got: %+v", order)
 	}
 }
+
+func TestResolveInstallOrder_DependsOn(t *testing.T) {
+	catalog := []CatalogItem{
+		{
+			Name:      "A",
+			Kind:      "Route",
+			DependsOn: []string{"B"},
+		},
+		{
+			Name: "B",
+			Kind: "Traefik",
+		},
+	}
+
+	installed := make(map[string]bool)
+	target := catalog[0] // A
+
+	order, err := ResolveInstallOrder(target, catalog, installed)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(order) != 2 {
+		t.Fatalf("expected 2 items, got: %d", len(order))
+	}
+	if order[0].Name != "B" || order[1].Name != "A" {
+		t.Errorf("expected B then A, got: %v then %v", order[0].Name, order[1].Name)
+	}
+}
+
+func TestResolveInstallOrder_Capabilities(t *testing.T) {
+	catalog := []CatalogItem{
+		{
+			Name:     "A",
+			Kind:     "Route",
+			Requires: []string{"identity-provider"},
+		},
+		{
+			Name:     "B",
+			Kind:     "Service",
+			Provides: []string{"identity-provider"},
+		},
+		{
+			Name:     "C",
+			Kind:     "Service",
+			Provides: []string{"identity-provider"},
+		},
+	}
+
+	// 1. Not installed -> resolve B (first provider in catalog)
+	installed := make(map[string]bool)
+	target := catalog[0] // A
+
+	order, err := ResolveInstallOrder(target, catalog, installed)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(order) != 2 {
+		t.Fatalf("expected 2 items, got: %d", len(order))
+	}
+	if order[0].Name != "B" || order[1].Name != "A" {
+		t.Errorf("expected B then A, got: %s then %s", order[0].Name, order[1].Name)
+	}
+
+	// 2. C is installed -> A's requirement is satisfied, only A is resolved
+	installed = map[string]bool{
+		"c": true,
+	}
+	order2, err := ResolveInstallOrder(target, catalog, installed)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(order2) != 1 || order2[0].Name != "A" {
+		t.Fatalf("expected only A since C is installed providing capability, got: %+v", order2)
+	}
+}

@@ -27,6 +27,9 @@ type CatalogItem struct {
 	Category     string       `json:"category,omitempty"`
 	Subcategory  string       `json:"subcategory,omitempty"`
 	Provider     string       `json:"provider,omitempty"`
+	Provides     []string     `json:"provides,omitempty"`
+	Requires     []string     `json:"requires,omitempty"`
+	DependsOn    []string     `json:"depends_on,omitempty"`
 	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
 
@@ -348,6 +351,18 @@ func ListCatalog(reg *Registry) []CatalogItemStatus {
 					break
 				}
 			}
+		case KindService:
+			for _, s := range reg.Services {
+				if MatchesPluginName(s.SourcePath, s.Metadata.Name, item.Name) {
+					status.Installed = true
+					if s.Enabled {
+						status.Status = "enabled"
+					} else {
+						status.Status = "disabled"
+					}
+					break
+				}
+			}
 		case KindTraefik:
 			for _, r := range reg.Routes {
 				if MatchesPluginName(r.SourcePath, r.Metadata.Name, item.Name) {
@@ -423,6 +438,8 @@ func installSinglePlugin(item CatalogItem, userPluginsDir string) error {
 		subfolder = "middleware"
 	case KindTraefik:
 		subfolder = "traefik"
+	case KindService:
+		subfolder = "services"
 	default:
 		return fmt.Errorf("unsupported plugin kind: %s", item.Kind)
 	}
@@ -506,6 +523,9 @@ func InstallPlugin(name, kind, userPluginsDir string) error {
 		for _, m := range reg.Middlewares {
 			installed[strings.ToLower(m.Metadata.Name)] = true
 		}
+		for _, s := range reg.Services {
+			installed[strings.ToLower(s.Metadata.Name)] = true
+		}
 	}
 
 	// Resolve dependency install order
@@ -576,6 +596,13 @@ func UninstallPlugin(name, kind, userPluginsDir string, reg *Registry) error {
 		for i := range reg.Middlewares {
 			if MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
 				sourcePath = reg.Middlewares[i].SourcePath
+				break
+			}
+		}
+	case KindService:
+		for i := range reg.Services {
+			if MatchesPluginName(reg.Services[i].SourcePath, reg.Services[i].Metadata.Name, name) {
+				sourcePath = reg.Services[i].SourcePath
 				break
 			}
 		}

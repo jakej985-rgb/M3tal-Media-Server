@@ -1,7 +1,10 @@
 package system
 
 import (
+	"log"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -107,4 +110,38 @@ func IsDashInstalled() bool {
 		return true
 	}
 	return false
+}
+
+// FindComposeFiles recursively searches the root directory for *-compose.yml files.
+func FindComposeFiles(root string) ([]string, error) {
+	var files []string
+	walkRoot := root
+	resolved, err := filepath.EvalSymlinks(root)
+	if err == nil {
+		walkRoot = resolved
+	}
+
+	err = filepath.WalkDir(walkRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip errors
+		}
+		if d.IsDir() {
+			name := d.Name()
+			// Skip common non-stack directories to optimize performance
+			if name == ".git" || name == ".github" || name == "node_modules" || name == "data" || name == "db" || strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(d.Name(), "-compose.yml") {
+			displayPath := path
+			if walkRoot != root && strings.HasPrefix(path, walkRoot) {
+				displayPath = filepath.Join(root, strings.TrimPrefix(path, walkRoot))
+			}
+			log.Printf("[DEBUG] Discovered compose file: %s\n", displayPath)
+			files = append(files, displayPath)
+		}
+		return nil
+	})
+	return files, err
 }

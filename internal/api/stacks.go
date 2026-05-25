@@ -24,7 +24,7 @@ type StackHandlers struct {
 // GET /api/v2/stacks
 func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 	stackDir := system.GetStackDir()
-	matches, err := filepath.Glob(filepath.Join(stackDir, "*-compose.yml"))
+	matches, err := system.FindComposeFiles(stackDir)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "cannot scan stack directory")
 		return
@@ -311,4 +311,66 @@ func isPathAllowed(path string) bool {
 		}
 	}
 	return false
+}
+
+// ScanStacks manually triggers discovery of compose files and returns them.
+// POST /api/v2/stacks/scan
+func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
+	stackDir := system.GetStackDir()
+	matches, err := system.FindComposeFiles(stackDir)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to scan stacks: "+err.Error())
+		return
+	}
+
+	dirs := system.GetPluginDirs()
+	reg, _ := plugin.LoadAll(dirs...)
+
+	type stackInfo struct {
+		Name        string   `json:"name"`
+		ComposePath string   `json:"compose_path"`
+		Services    []string `json:"services,omitempty"`
+		Status      string   `json:"status"`
+	}
+
+	var stacks []stackInfo
+	for _, match := range matches {
+		base := filepath.Base(match)
+		name := strings.TrimSuffix(base, "-compose.yml")
+
+		if reg != nil {
+			if sp := reg.GetStack(name); sp != nil && !sp.Enabled {
+				continue
+			}
+		}
+
+		info := stackInfo{
+			Name:        name,
+			ComposePath: match,
+			Status:      "discovered",
+		}
+
+		// Try to parse for service names
+		if cf, err := engine.ParseCompose(match); err == nil {
+			info.Services = cf.ServiceNames()
+		}
+
+		// Update DB / Check status
+		if h.Store != nil {
+			_ = h.Store.UpsertStack(name, match)
+			dbStacks, _ := h.Store.ListStacks()
+			for _, ds := range dbStacks {
+				if ds.Name == name && ds.Status != "" {
+					info.Status = ds.Status
+				}
+			}
+		}
+
+		stacks = append(stacks, info)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":     true,
+		"stacks": stacks,
+	})
 }

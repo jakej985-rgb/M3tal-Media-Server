@@ -11,6 +11,7 @@ type Registry struct {
 	Routes      []RoutePlugin
 	Stacks      []StackPlugin
 	Middlewares []MiddlewarePlugin
+	Services    []ServicePlugin
 }
 
 // BuildRegistry takes a list of validated plugins and constructs a typed Registry.
@@ -41,6 +42,13 @@ func BuildRegistry(plugins []Plugin) (*Registry, error) {
 				return nil, fmt.Errorf("plugin %q: %w", p.Metadata.Name, err)
 			}
 			r.Middlewares = append(r.Middlewares, *mp)
+
+		case KindService:
+			sp, err := p.AsService()
+			if err != nil {
+				return nil, fmt.Errorf("plugin %q: %w", p.Metadata.Name, err)
+			}
+			r.Services = append(r.Services, *sp)
 
 		case KindTraefik:
 			tp, err := p.AsTraefik()
@@ -97,12 +105,15 @@ func BuildRegistry(plugins []Plugin) (*Registry, error) {
 		return r.Stacks[i].Priority < r.Stacks[j].Priority
 	})
 
-	// Sort routes and middlewares by name for deterministic output
+	// Sort routes, middlewares, and services by name for deterministic output
 	sort.Slice(r.Routes, func(i, j int) bool {
 		return r.Routes[i].Metadata.Name < r.Routes[j].Metadata.Name
 	})
 	sort.Slice(r.Middlewares, func(i, j int) bool {
 		return r.Middlewares[i].Metadata.Name < r.Middlewares[j].Metadata.Name
+	})
+	sort.Slice(r.Services, func(i, j int) bool {
+		return r.Services[i].Metadata.Name < r.Services[j].Metadata.Name
 	})
 
 	return r, nil
@@ -138,6 +149,16 @@ func (r *Registry) GetMiddleware(name string) *MiddlewarePlugin {
 	return nil
 }
 
+// GetService returns a service plugin by metadata name, or nil if not found.
+func (r *Registry) GetService(name string) *ServicePlugin {
+	for i := range r.Services {
+		if r.Services[i].Metadata.Name == name {
+			return &r.Services[i]
+		}
+	}
+	return nil
+}
+
 // ListRoutes returns all loaded route plugins.
 func (r *Registry) ListRoutes() []RoutePlugin {
 	if r.Routes == nil {
@@ -162,15 +183,23 @@ func (r *Registry) ListMiddlewares() []MiddlewarePlugin {
 	return r.Middlewares
 }
 
+// ListServices returns all loaded service plugins.
+func (r *Registry) ListServices() []ServicePlugin {
+	if r.Services == nil {
+		return []ServicePlugin{}
+	}
+	return r.Services
+}
+
 // Count returns the total number of plugins in the registry.
 func (r *Registry) Count() int {
-	return len(r.Routes) + len(r.Stacks) + len(r.Middlewares)
+	return len(r.Routes) + len(r.Stacks) + len(r.Middlewares) + len(r.Services)
 }
 
 // Summary returns a human-readable summary of loaded plugins.
 func (r *Registry) Summary() string {
-	return fmt.Sprintf("%d plugins loaded (%d routes, %d stacks, %d middleware)",
-		r.Count(), len(r.Routes), len(r.Stacks), len(r.Middlewares))
+	return fmt.Sprintf("%d plugins loaded (%d routes, %d stacks, %d middleware, %d services)",
+		r.Count(), len(r.Routes), len(r.Stacks), len(r.Middlewares), len(r.Services))
 }
 
 // MatchService matches a service name/image/labels against Route plugins.

@@ -852,6 +852,36 @@ async function doGlobalAction(action) {
     }
 }
 
+async function rescanStacks(e) {
+    const btn = (e && e.currentTarget) ? e.currentTarget : (window.event ? window.event.currentTarget : null);
+    const origHtml = btn ? btn.innerHTML : '🔍 Rescan Stacks';
+    if (btn) {
+        btn.innerHTML = '⏳ Scanning...';
+        btn.disabled = true;
+    }
+
+    try {
+        const res = await fetch('/api/stacks/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.ok) {
+            alert('Scan completed successfully! Discovered ' + (data.stacks ? data.stacks.length : 0) + ' stacks.');
+            refreshFleet();
+        } else {
+            alert('Scan failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Scan request failed: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     // Telegram Web App Initialization

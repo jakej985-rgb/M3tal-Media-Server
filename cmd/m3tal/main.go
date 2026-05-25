@@ -510,9 +510,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Scan available Docker stacks",
 		Run: func(cmd *cobra.Command, args []string) {
 			stackDir := system.GetStackDir()
-			entries, err := os.ReadDir(stackDir)
+			matches, err := system.FindComposeFiles(stackDir)
 			if err != nil {
-				fmt.Println("❌ Unable to read docker directory:", err)
+				fmt.Println("❌ Unable to scan docker directory:", err)
 				return
 			}
 			type stackInfo struct {
@@ -521,38 +521,36 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				Env      string `json:"env,omitempty"`
 			}
 			stacks := make(map[string]stackInfo)
-			for _, e := range entries {
-				name := e.Name()
-				if strings.HasSuffix(name, "-compose.yml") {
-					stack := strings.TrimSuffix(name, "-compose.yml")
-					composePath := filepath.Join(stackDir, name)
-					templatePath := filepath.Join(stackDir, stack+".env.template")
-					envPath := filepath.Join(stackDir, stack+".env")
+			for _, match := range matches {
+				name := filepath.Base(match)
+				stack := strings.TrimSuffix(name, "-compose.yml")
+				dir := filepath.Dir(match)
+				templatePath := filepath.Join(dir, stack+".env.template")
+				envPath := filepath.Join(dir, stack+".env")
 
-					hasTemplate := false
-					hasEnv := false
+				hasTemplate := false
+				hasEnv := false
 
-					if _, err := os.Stat(templatePath); err == nil {
-						hasTemplate = true
-					}
-					if _, err := os.Stat(envPath); err == nil {
-						hasEnv = true
-					}
-
-					if !hasTemplate && !hasEnv {
-						continue
-					}
-
-					info := stackInfo{Compose: composePath}
-					if hasTemplate {
-						info.Template = templatePath
-					}
-					if hasEnv {
-						info.Env = envPath
-					}
-
-					stacks[stack] = info
+				if _, err := os.Stat(templatePath); err == nil {
+					hasTemplate = true
 				}
+				if _, err := os.Stat(envPath); err == nil {
+					hasEnv = true
+				}
+
+				if !hasTemplate && !hasEnv {
+					continue
+				}
+
+				info := stackInfo{Compose: match}
+				if hasTemplate {
+					info.Template = templatePath
+				}
+				if hasEnv {
+					info.Env = envPath
+				}
+
+				stacks[stack] = info
 			}
 			printJSON(stacks)
 		},
@@ -1334,6 +1332,9 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				}
 				for _, m := range reg.Middlewares {
 					installed[strings.ToLower(m.Metadata.Name)] = true
+				}
+				for _, s := range reg.Services {
+					installed[strings.ToLower(s.Metadata.Name)] = true
 				}
 			}
 

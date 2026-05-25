@@ -107,6 +107,7 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			r.Get("/stacks", stackH.ListStacks)
 			r.Post("/stacks/load", stackH.LoadStack)
 			r.Post("/stacks/deploy", stackH.DeployStack)
+			r.Post("/stacks/scan", stackH.ScanStacks)
 
 			// Services (pass-through to Docker provider)
 			r.Get("/services", srv.GetServices)

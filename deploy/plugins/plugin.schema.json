@@ -9,7 +9,19 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["Route", "Stack", "Middleware", "Traefik"]
+      "enum": ["Route", "Stack", "Middleware", "Traefik", "Service"]
+    },
+    "provides": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" }
     },
     "metadata": {
       "type": "object",
@@ -26,6 +38,18 @@
         },
         "author": {
           "type": "string"
+        },
+        "provides": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       },
       "required": ["name"]

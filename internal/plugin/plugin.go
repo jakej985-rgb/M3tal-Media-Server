@@ -16,6 +16,7 @@ const (
 	KindStack      = "Stack"
 	KindMiddleware = "Middleware"
 	KindTraefik    = "Traefik"
+	KindService    = "Service"
 )
 
 // Dependency represents a plugin dependency.
@@ -37,6 +38,9 @@ type Plugin struct {
 	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string       `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string       `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	Metadata     PluginMetadata `yaml:"metadata" json:"metadata"`
 	Spec         map[string]any `yaml:"spec" json:"spec"`
@@ -94,10 +98,13 @@ type PluginHooks struct {
 
 // PluginMetadata contains descriptive information about a plugin.
 type PluginMetadata struct {
-	Name        string `yaml:"name" json:"name"`
-	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-	Version     string `yaml:"version,omitempty" json:"version,omitempty"`
-	Author      string `yaml:"author,omitempty" json:"author,omitempty"`
+	Name        string   `yaml:"name" json:"name"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Version     string   `yaml:"version,omitempty" json:"version,omitempty"`
+	Author      string   `yaml:"author,omitempty" json:"author,omitempty"`
+	Provides    []string `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires    []string `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn   []string `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 }
 
 // RoutePlugin is the typed representation of a Route plugin spec.
@@ -113,6 +120,9 @@ type RoutePlugin struct {
 	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string       `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string       `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string         `yaml:"-" json:"-"`
 	Enabled      bool           `yaml:"-" json:"-"`
@@ -127,6 +137,9 @@ type StackPlugin struct {
 	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string       `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string       `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string         `yaml:"-" json:"-"`
 	Enabled      bool           `yaml:"-" json:"-"`
@@ -141,6 +154,9 @@ type MiddlewarePlugin struct {
 	Category     string            `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string            `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string            `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string          `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string          `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string          `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency      `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string            `yaml:"-" json:"-"`
 	Enabled      bool              `yaml:"-" json:"-"`
@@ -154,9 +170,31 @@ type TraefikPlugin struct {
 	Category     string           `yaml:"category,omitempty" json:"category,omitempty"`
 	Subcategory  string           `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
 	Provider     string           `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string         `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string         `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string         `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency     `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string           `yaml:"-" json:"-"`
 	Enabled      bool             `yaml:"-" json:"-"`
+}
+
+// ServicePlugin is the typed representation of a Service plugin spec.
+type ServicePlugin struct {
+	Metadata     PluginMetadata `yaml:"metadata" json:"metadata"`
+	Image        string         `yaml:"image,omitempty" json:"image,omitempty"`
+	Ports        []string       `yaml:"ports,omitempty" json:"ports,omitempty"`
+	Env          []string       `yaml:"env,omitempty" json:"env,omitempty"`
+	Volumes      []string       `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Labels       []string       `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Category     string         `yaml:"category,omitempty" json:"category,omitempty"`
+	Subcategory  string         `yaml:"subcategory,omitempty" json:"subcategory,omitempty"`
+	Provider     string         `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Provides     []string       `yaml:"provides,omitempty" json:"provides,omitempty"`
+	Requires     []string       `yaml:"requires,omitempty" json:"requires,omitempty"`
+	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
+	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	SourcePath   string         `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"-"`
 }
 
 // RouteSpec represents a route configuration inside a Traefik plugin.
@@ -206,11 +244,11 @@ func (p *Plugin) Validate() error {
 	}
 
 	switch p.Kind {
-	case KindRoute, KindStack, KindMiddleware, KindTraefik:
+	case KindRoute, KindStack, KindMiddleware, KindTraefik, KindService:
 		// valid
 	default:
 		return fmt.Errorf("unsupported kind %q (expected one of: %s)",
-			p.Kind, strings.Join([]string{KindRoute, KindStack, KindMiddleware, KindTraefik}, ", "))
+			p.Kind, strings.Join([]string{KindRoute, KindStack, KindMiddleware, KindTraefik, KindService}, ", "))
 	}
 
 	name := p.GetName()
@@ -247,6 +285,8 @@ func (p *Plugin) validateSpec() error {
 	}
 
 	switch p.Kind {
+	case KindService:
+		// Service validation (optional spec validation)
 	case KindRoute:
 		for _, required := range []string{"service", "domain", "port"} {
 			if _, ok := p.Spec[required]; !ok {
@@ -347,6 +387,21 @@ func (p *Plugin) AsRoute() (*RoutePlugin, error) {
 	if p.Provider != "" {
 		rp.Provider = p.Provider
 	}
+	if len(p.Provides) > 0 {
+		rp.Provides = p.Provides
+	} else {
+		rp.Provides = p.Metadata.Provides
+	}
+	if len(p.Requires) > 0 {
+		rp.Requires = p.Requires
+	} else {
+		rp.Requires = p.Metadata.Requires
+	}
+	if len(p.DependsOn) > 0 {
+		rp.DependsOn = p.DependsOn
+	} else {
+		rp.DependsOn = p.Metadata.DependsOn
+	}
 	if len(p.Dependencies) > 0 {
 		rp.Dependencies = p.Dependencies
 	}
@@ -382,6 +437,21 @@ func (p *Plugin) AsStack() (*StackPlugin, error) {
 	}
 	if p.Provider != "" {
 		sp.Provider = p.Provider
+	}
+	if len(p.Provides) > 0 {
+		sp.Provides = p.Provides
+	} else {
+		sp.Provides = p.Metadata.Provides
+	}
+	if len(p.Requires) > 0 {
+		sp.Requires = p.Requires
+	} else {
+		sp.Requires = p.Metadata.Requires
+	}
+	if len(p.DependsOn) > 0 {
+		sp.DependsOn = p.DependsOn
+	} else {
+		sp.DependsOn = p.Metadata.DependsOn
 	}
 	if len(p.Dependencies) > 0 {
 		sp.Dependencies = p.Dependencies
@@ -419,6 +489,21 @@ func (p *Plugin) AsMiddleware() (*MiddlewarePlugin, error) {
 	if p.Provider != "" {
 		mp.Provider = p.Provider
 	}
+	if len(p.Provides) > 0 {
+		mp.Provides = p.Provides
+	} else {
+		mp.Provides = p.Metadata.Provides
+	}
+	if len(p.Requires) > 0 {
+		mp.Requires = p.Requires
+	} else {
+		mp.Requires = p.Metadata.Requires
+	}
+	if len(p.DependsOn) > 0 {
+		mp.DependsOn = p.DependsOn
+	} else {
+		mp.DependsOn = p.Metadata.DependsOn
+	}
 	if len(p.Dependencies) > 0 {
 		mp.Dependencies = p.Dependencies
 	}
@@ -455,12 +540,78 @@ func (p *Plugin) AsTraefik() (*TraefikPlugin, error) {
 	if p.Provider != "" {
 		tp.Provider = p.Provider
 	}
+	if len(p.Provides) > 0 {
+		tp.Provides = p.Provides
+	} else {
+		tp.Provides = p.Metadata.Provides
+	}
+	if len(p.Requires) > 0 {
+		tp.Requires = p.Requires
+	} else {
+		tp.Requires = p.Metadata.Requires
+	}
+	if len(p.DependsOn) > 0 {
+		tp.DependsOn = p.DependsOn
+	} else {
+		tp.DependsOn = p.Metadata.DependsOn
+	}
 	if len(p.Dependencies) > 0 {
 		tp.Dependencies = p.Dependencies
 	}
 	tp.SourcePath = p.SourcePath
 	tp.Enabled = p.Enabled
 	return &tp, nil
+}
+
+// AsService converts a validated Service plugin to its typed struct.
+func (p *Plugin) AsService() (*ServicePlugin, error) {
+	if p.Kind != KindService {
+		return nil, fmt.Errorf("cannot convert %s plugin to ServicePlugin", p.Kind)
+	}
+
+	data, err := yaml.Marshal(p.Spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal spec: %w", err)
+	}
+
+	var sp ServicePlugin
+	if err := yaml.Unmarshal(data, &sp); err != nil {
+		return nil, fmt.Errorf("failed to decode Service spec: %w", err)
+	}
+	sp.Metadata.Name = p.GetName()
+	sp.Metadata.Description = p.GetDescription()
+	sp.Metadata.Version = p.GetVersion()
+	sp.Metadata.Author = p.GetAuthor()
+	if p.Category != "" {
+		sp.Category = p.Category
+	}
+	if p.Subcategory != "" {
+		sp.Subcategory = p.Subcategory
+	}
+	if p.Provider != "" {
+		sp.Provider = p.Provider
+	}
+	if len(p.Provides) > 0 {
+		sp.Provides = p.Provides
+	} else {
+		sp.Provides = p.Metadata.Provides
+	}
+	if len(p.Requires) > 0 {
+		sp.Requires = p.Requires
+	} else {
+		sp.Requires = p.Metadata.Requires
+	}
+	if len(p.DependsOn) > 0 {
+		sp.DependsOn = p.DependsOn
+	} else {
+		sp.DependsOn = p.Metadata.DependsOn
+	}
+	if len(p.Dependencies) > 0 {
+		sp.Dependencies = p.Dependencies
+	}
+	sp.SourcePath = p.SourcePath
+	sp.Enabled = p.Enabled
+	return &sp, nil
 }
 
 // ParsePlugin parses raw YAML bytes into a Plugin.

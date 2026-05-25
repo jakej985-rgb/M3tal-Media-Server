@@ -271,6 +271,19 @@ def sync_plugins():
         logger.error(f"Failed to sync plugins: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stacks/scan', methods=['POST'])
+@login_required()
+def scan_stacks():
+    try:
+        headers = {}
+        if GO_API_TOKEN:
+            headers["X-API-Token"] = GO_API_TOKEN
+        resp = requests.post(f"{GO_API_URL}/api/v2/stacks/scan", headers=headers, timeout=30)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Failed to scan stacks: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # --- Websocket Stream ---
 
 @socketio.on('connect')

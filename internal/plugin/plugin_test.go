@@ -495,3 +495,54 @@ func TestStateManager(t *testing.T) {
 		t.Error("expected database record to show enabled = true")
 	}
 }
+
+func TestParsePlugin_Service(t *testing.T) {
+	yamlData := `
+apiVersion: m3tal/v1
+kind: Service
+metadata:
+  name: test-service
+  description: "A test service plugin"
+  provides:
+    - identity-provider
+  depends_on:
+    - traefik-gateway
+spec:
+  image: authelia/authelia:latest
+  ports:
+    - "9091:9091"
+  volumes:
+    - "/opt/authelia/config:/config"
+`
+	p, err := ParsePlugin([]byte(yamlData))
+	if err != nil {
+		t.Fatalf("ParsePlugin failed: %v", err)
+	}
+
+	if err := p.Validate(); err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+
+	if p.Kind != KindService {
+		t.Errorf("expected kind %q, got %q", KindService, p.Kind)
+	}
+
+	sp, err := p.AsService()
+	if err != nil {
+		t.Fatalf("AsService failed: %v", err)
+	}
+
+	if sp.Image != "authelia/authelia:latest" {
+		t.Errorf("expected image 'authelia/authelia:latest', got %q", sp.Image)
+	}
+	if len(sp.Ports) != 1 || sp.Ports[0] != "9091:9091" {
+		t.Errorf("expected port '9091:9091', got %v", sp.Ports)
+	}
+	if len(sp.Provides) != 1 || sp.Provides[0] != "identity-provider" {
+		t.Errorf("expected provides 'identity-provider', got %v", sp.Provides)
+	}
+	if len(sp.DependsOn) != 1 || sp.DependsOn[0] != "traefik-gateway" {
+		t.Errorf("expected depends_on 'traefik-gateway', got %v", sp.DependsOn)
+	}
+}
+

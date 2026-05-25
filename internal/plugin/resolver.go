@@ -32,6 +32,7 @@ func ResolveInstallOrder(target CatalogItem, catalog []CatalogItem, installed ma
 
 		visited[nameLower] = 1
 
+		// 1. Resolve Dependencies
 		for _, dep := range item.Dependencies {
 			depLower := strings.ToLower(dep.Name)
 			// Skip if already installed
@@ -50,6 +51,76 @@ func ResolveInstallOrder(target CatalogItem, catalog []CatalogItem, installed ma
 			}
 
 			if err := dfs(depItem); err != nil {
+				if strings.Contains(err.Error(), "circular dependency detected") {
+					return fmt.Errorf("%s -> %s", err.Error(), item.Name)
+				}
+				return err
+			}
+		}
+
+		// 2. Resolve DependsOn
+		for _, depName := range item.DependsOn {
+			depLower := strings.ToLower(depName)
+			// Skip if already installed
+			if installed[depLower] {
+				continue
+			}
+
+			// Look up dependency in available catalog
+			depItem, found := catalogMap[depLower]
+			if !found {
+				return fmt.Errorf("missing required dependency %q (depends_on) for plugin %q", depName, item.Name)
+			}
+
+			if err := dfs(depItem); err != nil {
+				if strings.Contains(err.Error(), "circular dependency detected") {
+					return fmt.Errorf("%s -> %s", err.Error(), item.Name)
+				}
+				return err
+			}
+		}
+
+		// 3. Resolve Requires (capabilities)
+		for _, req := range item.Requires {
+			// Check if already satisfied by installed catalog items, or by items in the current resolution order
+			satisfied := false
+			for _, c := range catalog {
+				cLower := strings.ToLower(c.Name)
+				if installed[cLower] || visited[cLower] > 0 {
+					for _, prov := range c.Provides {
+						if strings.EqualFold(prov, req) {
+							satisfied = true
+							break
+						}
+					}
+				}
+				if satisfied {
+					break
+				}
+			}
+			if satisfied {
+				continue
+			}
+
+			// Find a catalog item that provides the required capability
+			var providerItem *CatalogItem
+			for _, c := range catalog {
+				for _, prov := range c.Provides {
+					if strings.EqualFold(prov, req) {
+						providerItem = &c
+						break
+					}
+				}
+				if providerItem != nil {
+					break
+				}
+			}
+
+			if providerItem == nil {
+				return fmt.Errorf("missing provider for required capability %q for plugin %q", req, item.Name)
+			}
+
+			if err := dfs(*providerItem); err != nil {
 				if strings.Contains(err.Error(), "circular dependency detected") {
 					return fmt.Errorf("%s -> %s", err.Error(), item.Name)
 				}
