@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -62,6 +65,16 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 	// Global middleware
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
+
+	// Serve static files for the React GUI
+	workDir, _ := os.Getwd()
+	guiDir := filepath.Join(workDir, "gui", "dist")
+	if _, err := os.Stat(guiDir); err == nil {
+		fileServer(r, "/gui", http.Dir(guiDir))
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/gui/", http.StatusFound)
+		})
+	}
 
 	// ─── v1 Legacy Endpoints (backward compatible) ───
 	r.Group(func(r chi.Router) {
@@ -303,4 +316,24 @@ func sendError(w http.ResponseWriter, status int, errMsg string) {
 // writeError writes a JSON error response (legacy wrapper calling sendError).
 func writeError(w http.ResponseWriter, status int, message string) {
 	sendError(w, status, message)
+}
+
+// fileServer conveniently sets up a http.FileServer for a chi router.
+func fileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
 }
