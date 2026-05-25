@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
@@ -59,15 +60,34 @@ func (h *PluginHandlers) ListPluginsByKind(w http.ResponseWriter, r *http.Reques
 	kind := chi.URLParam(r, "kind")
 	reg := h.ensureLoaded()
 
-	switch kind {
-	case "routes":
+	switch strings.ToLower(kind) {
+	case "routes", "route":
 		sendSuccess(w, http.StatusOK, reg.ListRoutes(), nil)
-	case "stacks":
+	case "stacks", "stack":
 		sendSuccess(w, http.StatusOK, reg.ListStacks(), nil)
-	case "middleware":
+	case "middleware", "middlewares":
 		sendSuccess(w, http.StatusOK, reg.ListMiddlewares(), nil)
+	case "services", "service":
+		sendSuccess(w, http.StatusOK, reg.ListServices(), nil)
 	default:
-		writeError(w, http.StatusBadRequest, "invalid plugin kind: "+kind+" (expected: routes, stacks, middleware)")
+		// Fallback to name search across all types
+		if p := reg.GetRoute(kind); p != nil {
+			sendSuccess(w, http.StatusOK, p, nil)
+			return
+		}
+		if p := reg.GetStack(kind); p != nil {
+			sendSuccess(w, http.StatusOK, p, nil)
+			return
+		}
+		if p := reg.GetMiddleware(kind); p != nil {
+			sendSuccess(w, http.StatusOK, p, nil)
+			return
+		}
+		if p := reg.GetService(kind); p != nil {
+			sendSuccess(w, http.StatusOK, p, nil)
+			return
+		}
+		writeError(w, http.StatusNotFound, "plugin not found: "+kind)
 	}
 }
 
@@ -130,6 +150,26 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 	p, err := plugin.LoadPlugin(path)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load plugin: "+err.Error())
+		return
+	}
+
+	header := plugin.PluginHeader{
+		Name:         p.GetName(),
+		Kind:         p.Kind,
+		Enabled:      true, // check as if enabled
+		Provides:     p.Provides,
+		Requires:     p.Requires,
+		DependsOn:    p.DependsOn,
+		Dependencies: p.Dependencies,
+	}
+
+	warnings := reg.GetWarningsForHeader(header)
+	if len(warnings) > 0 {
+		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
+			Status: "error",
+			Error:  "unsatisfied dependencies",
+			Data:   map[string]any{"warnings": warnings},
+		})
 		return
 	}
 

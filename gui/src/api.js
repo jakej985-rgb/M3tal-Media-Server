@@ -63,6 +63,11 @@ export const api = {
   getAIModels: () => fetchAPI('GET', '/api/v2/ai/models'),
   runAI: (prompt, mode = '') => fetchAPI('POST', '/api/v2/ai/run', { prompt, mode }),
   getPlugins: () => fetchAPI('GET', '/api/v2/plugins'),
+  enablePlugin: (name, kind) => fetchAPI('POST', '/api/v2/plugins/enable', { name, kind }),
+  disablePlugin: (name, kind) => fetchAPI('POST', '/api/v2/plugins/disable', { name, kind }),
+  installPlugin: (name, kind) => fetchAPI('POST', '/api/v2/plugins/install', { name, kind }),
+  uninstallPlugin: (name, kind) => fetchAPI('POST', '/api/v2/plugins/uninstall', { name, kind }),
+  getPluginCatalog: () => fetchAPI('GET', '/api/v2/plugins/catalog'),
 };
 
 export const subscribeWS = (path, onMessage, onError = null) => {

@@ -49,7 +49,9 @@ type Plugin struct {
 	// SourcePath is set by the loader to track where this plugin was loaded from.
 	SourcePath string `yaml:"-" json:"-"`
 	// Enabled indicates whether the plugin is active (no .disabled suffix).
-	Enabled bool `yaml:"-" json:"-"`
+	Enabled bool `yaml:"-" json:"enabled"`
+	// Warnings contains any validation or dependency warnings.
+	Warnings []string `yaml:"-" json:"warnings,omitempty"`
 }
 
 // GetName returns the plugin's name, checking the top-level name and nested metadata.name.
@@ -125,7 +127,8 @@ type RoutePlugin struct {
 	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string         `yaml:"-" json:"-"`
-	Enabled      bool           `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"enabled"`
+	Warnings     []string       `yaml:"-" json:"warnings,omitempty"`
 }
 
 // StackPlugin is the typed representation of a Stack plugin spec.
@@ -142,7 +145,8 @@ type StackPlugin struct {
 	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string         `yaml:"-" json:"-"`
-	Enabled      bool           `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"enabled"`
+	Warnings     []string       `yaml:"-" json:"warnings,omitempty"`
 }
 
 // MiddlewarePlugin is the typed representation of a Middleware plugin spec.
@@ -159,7 +163,8 @@ type MiddlewarePlugin struct {
 	DependsOn    []string          `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency      `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string            `yaml:"-" json:"-"`
-	Enabled      bool              `yaml:"-" json:"-"`
+	Enabled      bool              `yaml:"-" json:"enabled"`
+	Warnings     []string          `yaml:"-" json:"warnings,omitempty"`
 }
 
 // TraefikPlugin is the typed representation of a Traefik plugin spec.
@@ -175,7 +180,8 @@ type TraefikPlugin struct {
 	DependsOn    []string         `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency     `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string           `yaml:"-" json:"-"`
-	Enabled      bool             `yaml:"-" json:"-"`
+	Enabled      bool             `yaml:"-" json:"enabled"`
+	Warnings     []string         `yaml:"-" json:"warnings,omitempty"`
 }
 
 // ServicePlugin is the typed representation of a Service plugin spec.
@@ -194,7 +200,8 @@ type ServicePlugin struct {
 	DependsOn    []string       `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Dependencies []Dependency   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 	SourcePath   string         `yaml:"-" json:"-"`
-	Enabled      bool           `yaml:"-" json:"-"`
+	Enabled      bool           `yaml:"-" json:"enabled"`
+	Warnings     []string       `yaml:"-" json:"warnings,omitempty"`
 }
 
 // RouteSpec represents a route configuration inside a Traefik plugin.
@@ -407,6 +414,7 @@ func (p *Plugin) AsRoute() (*RoutePlugin, error) {
 	}
 	rp.SourcePath = p.SourcePath
 	rp.Enabled = p.Enabled
+	rp.Warnings = p.Warnings
 	return &rp, nil
 }
 
@@ -458,6 +466,7 @@ func (p *Plugin) AsStack() (*StackPlugin, error) {
 	}
 	sp.SourcePath = p.SourcePath
 	sp.Enabled = p.Enabled
+	sp.Warnings = p.Warnings
 	return &sp, nil
 }
 
@@ -509,6 +518,7 @@ func (p *Plugin) AsMiddleware() (*MiddlewarePlugin, error) {
 	}
 	mp.SourcePath = p.SourcePath
 	mp.Enabled = p.Enabled
+	mp.Warnings = p.Warnings
 	return &mp, nil
 }
 
@@ -560,6 +570,7 @@ func (p *Plugin) AsTraefik() (*TraefikPlugin, error) {
 	}
 	tp.SourcePath = p.SourcePath
 	tp.Enabled = p.Enabled
+	tp.Warnings = p.Warnings
 	return &tp, nil
 }
 
@@ -611,6 +622,7 @@ func (p *Plugin) AsService() (*ServicePlugin, error) {
 	}
 	sp.SourcePath = p.SourcePath
 	sp.Enabled = p.Enabled
+	sp.Warnings = p.Warnings
 	return &sp, nil
 }
 

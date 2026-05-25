@@ -24,6 +24,7 @@ class MetricsPanel(Static):
 
 class M3TALApp(App):
     TITLE = "M3TAL CONTROL CENTER (v2)"
+    show_catalog = reactive(False)
     CSS = """
     Screen {
         background: #121212;
@@ -98,6 +99,9 @@ class M3TALApp(App):
         Binding("s", "start_selected_container", "Start Container"),
         Binding("x", "stop_selected_container", "Stop Container"),
         Binding("t", "restart_selected_container", "Restart Container"),
+        Binding("e", "toggle_selected_plugin", "Enable/Disable Plugin"),
+        Binding("i", "install_selected_plugin", "Install Plugin"),
+        Binding("c", "toggle_plugin_catalog", "Toggle Catalog/Installed"),
     ]
 
     def __init__(self):
@@ -140,7 +144,7 @@ class M3TALApp(App):
                         yield OptionList(id="ai-models-list")
 
             with TabPane("Plugins Manager", id="plugins-tab"):
-                yield Label("🧩 LOADED PLUGINS (ROUTES, STACKS, MIDDLEWARE)", classes="pane-header")
+                yield Label("🧩 LOADED PLUGINS (ROUTES, STACKS, MIDDLEWARE)", id="plugins-header-label", classes="pane-header")
                 yield DataTable(id="plugins-table")
 
         yield MetricsPanel(id="metrics-panel")
@@ -161,7 +165,7 @@ class M3TALApp(App):
         ai_table.cursor_type = "row"
 
         plugins_table = self.query_one("#plugins-table", DataTable)
-        plugins_table.add_columns("Kind", "Name", "Version", "Author", "Status")
+        plugins_table.add_columns("Kind", "Name", "Version", "Author", "Status", "Warnings")
         plugins_table.cursor_type = "row"
 
         # Populate initial data and start periodic polling
@@ -397,32 +401,87 @@ class M3TALApp(App):
                 models_list_widget.add_option(model)
 
     def refresh_plugins_tab(self) -> None:
-        res = self.client.get_plugins()
         table = self.query_one("#plugins-table", DataTable)
         current_cursor = table.cursor_coordinate
         table.clear()
         
-        rows = []
-        if res.get("status") == "success" and "data" in res:
-            plugins = res["data"]
-            
-            # Map plugins by kind
-            for kind in ["routes", "stacks", "middleware"]:
-                items = plugins.get(kind, [])
+        # Update pane header label depending on whether we show catalog or installed
+        try:
+            label = self.query_one("#plugins-header-label", Label)
+        except Exception:
+            label = None
+        
+        if self.show_catalog:
+            if label:
+                label.update("🧩 PLUGINS CATALOG (AVAILABLE TO INSTALL / ENABLE)")
+            res = self.client.get_plugin_catalog()
+            rows_len = 0
+            if res.get("status") == "success" and "data" in res:
+                items = res["data"]
+                rows_len = len(items)
                 for item in items:
-                    meta = item.get("metadata", {})
-                    name = meta.get("name", item.get("name", "unknown"))
-                    version = meta.get("version", "1.0.0")
-                    author = meta.get("author", "unknown")
-                    desc = meta.get("description", "")
+                    name = item.get("name", "unknown")
+                    kind = item.get("kind", "Route")
+                    version = item.get("version", "1.0.0")
+                    author = item.get("author", "unknown")
+                    status = item.get("status", "not_installed")
                     
-                    rows.append((kind.upper(), name, version, author, desc))
+                    if status == "enabled":
+                        status_str = "[bold #00E676]ENABLED[/bold #00E676]"
+                    elif status == "disabled":
+                        status_str = "[bold #FFD600]DISABLED[/bold #FFD600]"
+                    else:
+                        status_str = "[bold #90a4ae]NOT INSTALLED[/bold #90a4ae]"
+                        
+                    warnings = ""
+                    deps = [d.get("name") for d in item.get("dependencies", []) if d.get("required")]
+                    if deps:
+                        warnings = f"Requires: {', '.join(deps)}"
                     
-        for r in rows:
-            table.add_row(*r)
+                    table.add_row(kind, name, version, author, status_str, warnings, key=f"{kind}:{name}")
             
-        if current_cursor and current_cursor.row < len(rows):
-            table.cursor_coordinate = current_cursor
+            # Restore cursor
+            if current_cursor and current_cursor.row < rows_len:
+                table.cursor_coordinate = current_cursor
+        else:
+            if label:
+                label.update("🧩 LOADED PLUGINS (ROUTES, STACKS, MIDDLEWARE)")
+            res = self.client.get_plugins()
+            rows = []
+            if res.get("status") == "success" and "data" in res:
+                plugins = res["data"]
+                for kind in ["routes", "stacks", "middleware"]:
+                    items = plugins.get(kind, [])
+                    for item in items:
+                        meta = item.get("metadata", {})
+                        name = meta.get("name", item.get("name", "unknown"))
+                        version = meta.get("version", "1.0.0")
+                        author = meta.get("author", "unknown")
+                        enabled = item.get("enabled", False)
+                        warnings_list = item.get("warnings", [])
+                        
+                        if enabled:
+                            status_str = "[bold #00E676]ENABLED[/bold #00E676]"
+                        else:
+                            status_str = "[bold #FFD600]DISABLED[/bold #FFD600]"
+                            
+                        warnings_str = ""
+                        if warnings_list:
+                            warnings_str = f"[bold #FF1744]⚠️  {', '.join(warnings_list)}[/bold #FF1744]"
+                        
+                        kind_val = "Route"
+                        if kind == "stacks":
+                            kind_val = "Stack"
+                        elif kind == "middleware":
+                            kind_val = "Middleware"
+                            
+                        rows.append((kind_val, name, version, author, status_str, warnings_str))
+                        
+            for r in rows:
+                table.add_row(*r, key=f"{r[0]}:{r[1]}")
+                
+            if current_cursor and current_cursor.row < len(rows):
+                table.cursor_coordinate = current_cursor
 
     # --- Actions / Hotkeys ---
     def action_deploy_selected_stack(self) -> None:
@@ -477,6 +536,83 @@ class M3TALApp(App):
 
     def action_refresh(self) -> None:
         self.notify("Refreshing all dashboard views...", severity="information")
+        self.refresh_all()
+
+    def action_toggle_plugin_catalog(self) -> None:
+        self.show_catalog = not self.show_catalog
+        self.notify(f"Switched view to {'Catalog' if self.show_catalog else 'Installed Plugins'}", severity="information")
+        self.refresh_all()
+
+    def action_toggle_selected_plugin(self) -> None:
+        table = self.query_one("#plugins-table", DataTable)
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+            selected_key = row_key.value
+            kind, name = selected_key.split(":")
+        except Exception:
+            self.notify("No plugin selected", severity="warning")
+            return
+
+        row_index = table.cursor_coordinate.row
+        status_cell = table.get_row_at(row_index)[4]
+        
+        is_enabled = "ENABLED" in status_cell
+        is_disabled = "DISABLED" in status_cell
+        is_not_installed = "NOT INSTALLED" in status_cell
+
+        if is_not_installed:
+            self.notify(f"Plugin {name} is not installed. Press 'i' to install it first.", severity="warning")
+            return
+
+        if is_enabled:
+            self.notify(f"🛑 Disabling plugin {name}...", severity="warning")
+            res = self.client.disable_plugin(name, kind)
+            if res.get("status") == "success":
+                self.notify(f"✅ Plugin {name} disabled!", severity="success")
+            else:
+                self.notify(f"❌ Failed to disable: {res.get('error')}", severity="error")
+        else:
+            self.notify(f"⚡ Enabling plugin {name}...", severity="information")
+            res = self.client.enable_plugin(name, kind)
+            if res.get("status") == "success":
+                self.notify(f"✅ Plugin {name} enabled!", severity="success")
+            else:
+                err_msg = res.get('error', 'unknown error')
+                if res.get("data") and "warnings" in res["data"]:
+                    warnings = res["data"]["warnings"]
+                    err_msg = f"Unsatisfied dependencies: {', '.join(warnings)}"
+                self.notify(f"❌ Failed to enable: {err_msg}", severity="error")
+                
+        self.refresh_all()
+
+    def action_install_selected_plugin(self) -> None:
+        if not self.show_catalog:
+            self.notify("Please switch to the Catalog view ('c') to install plugins", severity="warning")
+            return
+            
+        table = self.query_one("#plugins-table", DataTable)
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+            selected_key = row_key.value
+            kind, name = selected_key.split(":")
+        except Exception:
+            self.notify("No plugin selected", severity="warning")
+            return
+
+        row_index = table.cursor_coordinate.row
+        status_cell = table.get_row_at(row_index)[4]
+        
+        if "NOT INSTALLED" not in status_cell:
+            self.notify(f"Plugin {name} is already installed", severity="warning")
+            return
+
+        self.notify(f"📥 Installing plugin {name}...", severity="information")
+        res = self.client.install_plugin(name, kind)
+        if res.get("status") == "success":
+            self.notify(f"✅ Plugin {name} installed successfully!", severity="success")
+        else:
+            self.notify(f"❌ Failed to install: {res.get('error')}", severity="error")
+            
         self.refresh_all()
 
 if __name__ == "__main__":

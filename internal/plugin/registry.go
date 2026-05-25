@@ -116,6 +116,7 @@ func BuildRegistry(plugins []Plugin) (*Registry, error) {
 		return r.Services[i].Metadata.Name < r.Services[j].Metadata.Name
 	})
 
+	r.PopulateWarnings()
 	return r, nil
 }
 

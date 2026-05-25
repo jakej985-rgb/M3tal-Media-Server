@@ -378,3 +378,51 @@ func TestFetchCatalog(t *testing.T) {
 		t.Fatal("expected fallback to default Catalog containing 'm3tal', but it wasn't found")
 	}
 }
+
+func TestRegistry_PopulateWarnings(t *testing.T) {
+	reg := &Registry{
+		Routes: []RoutePlugin{
+			{
+				Metadata:  PluginMetadata{Name: "route-a"},
+				DependsOn: []string{"stack-b"},
+				Requires:  []string{"capability-c"},
+				Enabled:   true,
+			},
+		},
+		Stacks: []StackPlugin{
+			{
+				Metadata: PluginMetadata{Name: "stack-b"},
+				Enabled:  false, // disabled provider!
+			},
+		},
+	}
+
+	reg.PopulateWarnings()
+
+	if len(reg.Routes) != 1 {
+		t.Fatal("expected 1 route plugin")
+	}
+
+	warnings := reg.Routes[0].Warnings
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d: %v", len(warnings), warnings)
+	}
+
+	hasDependencyWarning := false
+	hasCapabilityWarning := false
+	for _, w := range warnings {
+		if strings.Contains(w, "Dependency plugin stack-b is disabled") {
+			hasDependencyWarning = true
+		}
+		if strings.Contains(w, "Missing provider for capability: capability-c") {
+			hasCapabilityWarning = true
+		}
+	}
+
+	if !hasDependencyWarning {
+		t.Errorf("expected dependency warning for disabled stack-b, got warnings: %v", warnings)
+	}
+	if !hasCapabilityWarning {
+		t.Errorf("expected capability warning for capability-c, got warnings: %v", warnings)
+	}
+}

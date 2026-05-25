@@ -67,3 +67,18 @@ class M3TALClient:
 
     def get_plugins(self):
         return self._request("GET", "/api/v2/plugins")
+
+    def enable_plugin(self, name, kind):
+        return self._request("POST", "/api/v2/plugins/enable", json_data={"name": name, "kind": kind})
+
+    def disable_plugin(self, name, kind):
+        return self._request("POST", "/api/v2/plugins/disable", json_data={"name": name, "kind": kind})
+
+    def install_plugin(self, name, kind):
+        return self._request("POST", "/api/v2/plugins/install", json_data={"name": name, "kind": kind})
+
+    def uninstall_plugin(self, name, kind):
+        return self._request("POST", "/api/v2/plugins/uninstall", json_data={"name": name, "kind": kind})
+
+    def get_plugin_catalog(self):
+        return self._request("GET", "/api/v2/plugins/catalog")
