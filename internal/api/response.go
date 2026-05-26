@@ -10,9 +10,9 @@ import (
 // APIResponse represents the standardized JSON structure for all M3TAL API responses.
 type APIResponse struct {
 	Status string                `json:"status"`
-	Data   any                   `json:"data"`            // Explicitly serialized to null if nil
-	Meta   any                   `json:"meta,omitempty"`  // Omitted if empty/nil
-	Error  *models.ErrorResponse `json:"error"`           // Explicitly serialized to null if nil
+	Data   any                   `json:"data"`           // Explicitly serialized to null if nil
+	Meta   any                   `json:"meta,omitempty"` // Omitted if empty/nil
+	Error  *models.ErrorResponse `json:"error"`          // Explicitly serialized to null if nil
 }
 
 // writeJSONResponse encodes a standardized APIResponse as JSON and writes it to the response.

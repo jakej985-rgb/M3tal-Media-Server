@@ -82,27 +82,27 @@ type Model struct {
 	status  *models.Status
 
 	// Stacks Tab State
-	stacks            []models.Stack
-	selectedStackIdx  int
-	containers        []models.Container
+	stacks               []models.Stack
+	selectedStackIdx     int
+	containers           []models.Container
 	selectedContainerIdx int
-	focusOnStacks     bool // true = stacks list, false = services list
+	focusOnStacks        bool // true = stacks list, false = services list
 
 	// Logs Tab State
-	logContainers            []models.Container
-	selectedLogContainerIdx  int
-	logs                     string
-	logScrollOffset          int
-	logScrollHeight          int
-	lastLogContainer         string
-	lastLogContent           string
+	logContainers           []models.Container
+	selectedLogContainerIdx int
+	logs                    string
+	logScrollOffset         int
+	logScrollHeight         int
+	lastLogContainer        string
+	lastLogContent          string
 
 	// AI Queue & Models State
-	queue             []models.JobRecord
-	selectedJobIdx    int
-	aiModels          []string
-	selectedModelIdx  int
-	focusOnQueue      bool // true = job queue list, false = Ollama models list
+	queue            []models.JobRecord
+	selectedJobIdx   int
+	aiModels         []string
+	selectedModelIdx int
+	focusOnQueue     bool // true = job queue list, false = Ollama models list
 
 	// Plugins Tab State
 	plugins           *models.PluginsResponse

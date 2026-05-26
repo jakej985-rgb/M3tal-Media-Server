@@ -13,15 +13,15 @@ import (
 // Common UI Styling using Lip Gloss
 var (
 	// Colors
-	colorBg      = lipgloss.Color("#121212")
-	colorPanelBg = lipgloss.Color("#181818")
-	colorGreen   = lipgloss.Color("#00E676")
-	colorYellow  = lipgloss.Color("#FFD600")
-	colorRed     = lipgloss.Color("#FF1744")
-	colorCyan    = lipgloss.Color("#00B0FF")
-	colorGray    = lipgloss.Color("#90A4AE")
-	colorDarkGray= lipgloss.Color("#2A2A2A")
-	colorText    = lipgloss.Color("#E0E0E0")
+	colorBg            = lipgloss.Color("#121212")
+	colorPanelBg       = lipgloss.Color("#181818")
+	colorGreen         = lipgloss.Color("#00E676")
+	colorYellow        = lipgloss.Color("#FFD600")
+	colorRed           = lipgloss.Color("#FF1744")
+	colorCyan          = lipgloss.Color("#00B0FF")
+	colorGray          = lipgloss.Color("#90A4AE")
+	colorDarkGray      = lipgloss.Color("#2A2A2A")
+	colorText          = lipgloss.Color("#E0E0E0")
 	colorHighlightText = lipgloss.Color("#FFFFFF")
 
 	// Styles
@@ -40,8 +40,8 @@ var (
 			BorderForeground(colorGreen)
 
 	styleTabInactive = lipgloss.NewStyle().
-			Foreground(colorGray).
-			Padding(0, 1)
+				Foreground(colorGray).
+				Padding(0, 1)
 
 	styleFocusedPanel = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
@@ -106,7 +106,7 @@ func (m Model) View() string {
 
 	if m.err != nil && m.activeTab == TabStacks && len(m.stacks) == 0 {
 		// Connection error placeholder
-		content = m.renderConnectionError(m.width - 4, contentHeight)
+		content = m.renderConnectionError(m.width-4, contentHeight)
 	} else {
 		// Render active tab view
 		switch m.activeTab {
@@ -130,7 +130,7 @@ func (m Model) View() string {
 	var builder strings.Builder
 	builder.WriteString(header + "\n")
 	builder.WriteString(tabs + "\n")
-	
+
 	// Add toast notification if active
 	if notificationHeight > 0 {
 		notificationStr := styleNotification.Render(fmt.Sprintf("🔔 %s", m.notification))
@@ -167,7 +167,7 @@ func (m Model) renderHeader() string {
 
 	title := styleAppTitle.Render("M3TAL CONTROL CENTER (Go-TUI)")
 	statusInfo := fmt.Sprintf("💻 Host: %s | Uptime: %s | Health: %s", hostname, uptimeStr, healthStr)
-	
+
 	// Calculate spaces to right-align the status info
 	spaces := m.width - lipgloss.Width(title) - lipgloss.Width(statusInfo) - 2
 	if spaces < 0 {
@@ -211,7 +211,7 @@ func (m Model) viewStacks(height int) string {
 	if m.focusOnStacks {
 		leftStyle = styleFocusedPanel
 	}
-	leftContent := m.renderStacksList(leftWidth - 4, height - 2)
+	leftContent := m.renderStacksList(leftWidth-4, height-2)
 	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
 
 	// 2. Render Right panel: Services List
@@ -219,7 +219,7 @@ func (m Model) viewStacks(height int) string {
 	if m.focusOnStacks {
 		rightStyle = styleUnfocusedPanel
 	}
-	rightContent := m.renderServicesList(rightWidth - 2, height - 2)
+	rightContent := m.renderServicesList(rightWidth-2, height-2)
 	rightBox := rightStyle.Width(rightWidth).Height(height).Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
@@ -332,7 +332,7 @@ func (m Model) viewLogs(height int) string {
 	if m.focusOnStacks { // in logs page we repurpose focus variable
 		leftStyle = styleFocusedPanel
 	}
-	leftContent := m.renderLogsContainerList(leftWidth - 4, height - 2)
+	leftContent := m.renderLogsContainerList(leftWidth-4, height-2)
 	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
 
 	// 2. Render Right panel: Logs viewer
@@ -340,7 +340,7 @@ func (m Model) viewLogs(height int) string {
 	if m.focusOnStacks {
 		rightStyle = styleUnfocusedPanel
 	}
-	rightContent := m.renderLogsStream(rightWidth - 2, height - 2)
+	rightContent := m.renderLogsStream(rightWidth-2, height-2)
 	rightBox := rightStyle.Width(rightWidth).Height(height).Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
@@ -453,7 +453,7 @@ func (m Model) viewAI(height int) string {
 	if m.focusOnQueue {
 		leftStyle = styleFocusedPanel
 	}
-	leftContent := m.renderAIQueue(leftWidth - 4, height - 2)
+	leftContent := m.renderAIQueue(leftWidth-4, height-2)
 	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
 
 	// 2. Render Right panel: Ollama Models
@@ -461,7 +461,7 @@ func (m Model) viewAI(height int) string {
 	if m.focusOnQueue {
 		rightStyle = styleUnfocusedPanel
 	}
-	rightContent := m.renderAIModels(rightWidth - 2, height - 2)
+	rightContent := m.renderAIModels(rightWidth-2, height-2)
 	rightBox := rightStyle.Width(rightWidth).Height(height).Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
@@ -564,9 +564,9 @@ func (m Model) viewPlugins(height int) string {
 
 	var content string
 	if m.showCatalog {
-		content = m.renderPluginCatalog(width - 4, height - 2)
+		content = m.renderPluginCatalog(width-4, height-2)
 	} else {
-		content = m.renderPluginsList(width - 4, height - 2)
+		content = m.renderPluginsList(width-4, height-2)
 	}
 
 	return panelStyle.Width(width).Height(height).Render(content)

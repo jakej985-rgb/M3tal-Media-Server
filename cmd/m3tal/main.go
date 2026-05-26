@@ -42,8 +42,6 @@ import (
 //go:embed .env.example
 var envExample string
 
-
-
 func main() {
 	// First-run check for Linux system installations
 	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
@@ -1671,7 +1669,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 			c.HTTPClient.Timeout = 5 * time.Minute
 
 			fmt.Println("🧠 Sending request to M3TAL AI queue...")
-			
+
 			var aiResp struct {
 				Model    string `json:"model"`
 				Response string `json:"response"`
@@ -1956,8 +1954,6 @@ func printJSON(v interface{}) {
 	fmt.Println(string(data))
 }
 
-
-
 func getEnvValue(content, key string) string {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
@@ -1987,8 +1983,6 @@ func replaceSecret(content, key, secret string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
-
 
 func runLogsMenu() {
 	fmt.Println("\n📋 M3TAL Logs Explorer")

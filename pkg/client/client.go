@@ -295,4 +295,3 @@ func (c *Client) UninstallPlugin(name, kind string) error {
 	body := map[string]string{"name": name, "kind": kind}
 	return c.request("POST", "/api/v2/plugins/uninstall", body, nil)
 }
-

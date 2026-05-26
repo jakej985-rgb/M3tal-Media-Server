@@ -407,7 +407,7 @@ func (m Model) fetchActiveTabCmd() tea.Cmd {
 		return func() tea.Msg {
 			queue, err := m.client.GetQueue()
 			modelsList, err2 := m.client.GetAIModels()
-			
+
 			// Consolidate error
 			var finalErr error
 			if err != nil {
@@ -515,7 +515,7 @@ func (m Model) togglePluginCmd() tea.Cmd {
 			err = m.client.DisablePlugin(pName, pKind)
 			return actionResultMsg{message: fmt.Sprintf("✅ Plugin %s disabled!", pName), err: err}
 		}
-		
+
 		err = m.client.EnablePlugin(pName, pKind)
 		return actionResultMsg{message: fmt.Sprintf("✅ Plugin %s enabled!", pName), err: err}
 	}

@@ -15,10 +15,10 @@ type MockJob struct {
 	execute  func(ctx context.Context) (any, error)
 }
 
-func (m *MockJob) ID() string { return m.id }
-func (m *MockJob) Priority() int { return m.priority }
+func (m *MockJob) ID() string              { return m.id }
+func (m *MockJob) Priority() int           { return m.priority }
 func (m *MockJob) Payload() map[string]any { return m.payload }
-func (m *MockJob) Type() string { return m.jobType }
+func (m *MockJob) Type() string            { return m.jobType }
 func (m *MockJob) Execute(ctx context.Context) (any, error) {
 	if m.execute != nil {
 		return m.execute(ctx)
