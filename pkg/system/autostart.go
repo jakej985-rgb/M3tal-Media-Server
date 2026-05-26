@@ -43,6 +43,9 @@ func EnsureAPIRunning(baseURL, token string, maxWait time.Duration) error {
 
 	cmdDaemon := exec.Command(exe, "api")
 	cmdDaemon.Env = os.Environ()
+	if token != "" {
+		cmdDaemon.Env = append(cmdDaemon.Env, "API_TOKEN="+token)
+	}
 	cmdDaemon.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,
 	}
