@@ -2,10 +2,10 @@
 set -e
 
 # M3TAL Core Repository Setup Script
-# Usage: curl -fsSL https://jakej985-rgb.github.io/m3tal-core/install.sh | sudo bash
+# Usage: curl -fsSL https://jakej985-rgb.github.io/m3tal-apt-key/install.sh | sudo bash
 
-REPO_URL="https://jakej985-rgb.github.io/m3tal-core"
-GPG_KEY_URL="${REPO_URL}/m3tal.gpg"
+REPO_URL="https://jakej985-rgb.github.io/m3tal-apt-key"
+GPG_KEY_URL="${REPO_URL}/public.key"
 KEYRING_PATH="/usr/share/keyrings/m3tal-archive-keyring.gpg"
 LIST_PATH="/etc/apt/sources.list.d/m3tal.list"
 
@@ -25,4 +25,4 @@ echo "🔄 Updating package lists..."
 sudo apt-get update
 
 echo "✅ M3TAL Core repository is now configured!"
-echo "   You can now install the agent with: sudo apt install m3tal-core"
+echo "   You can now install the agent with: sudo apt install m3tal"

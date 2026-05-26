@@ -153,7 +153,7 @@ func MatchesPluginName(sourcePath, metadataName, targetName string) bool {
 }
 
 // CatalogURL is the remote URL of the official M3TAL plugin catalog.
-var CatalogURL = "https://jakej985-rgb.github.io/m3tal-core/catalog.json"
+var CatalogURL = "https://jakej985-rgb.github.io/m3tal-plugin-page/catalog.json"
 
 // DisableSignatureVerification allows tests to bypass GPG signature checks.
 var DisableSignatureVerification = false

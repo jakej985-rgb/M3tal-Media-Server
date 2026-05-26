@@ -72,10 +72,11 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: Checkout gh-pages branch to retain existing packages
+      - name: Checkout m3tal-apt-key repo to retain existing packages
         uses: actions/checkout@v4
         with:
-          ref: gh-pages
+          repository: jakej985-rgb/m3tal-apt-key
+          token: ${{ secrets.GH_PAT }}
           path: repo
         continue-on-error: true
 
@@ -87,12 +88,50 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: ./scripts/update-repo.sh
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy APT repository to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GH_PAT }}
+          external_repository: jakej985-rgb/m3tal-apt-key
           publish_dir: ./repo
-          publish_branch: gh-pages
+          publish_branch: main
+          force_orphan: false
+
+      - name: Checkout m3tal-plugin-page repo
+        uses: actions/checkout@v4
+        with:
+          repository: jakej985-rgb/m3tal-plugin-page
+          token: ${{ secrets.GH_PAT }}
+          path: plugin-repo
+        continue-on-error: true
+
+      - name: Remove nested .git directory in plugin-repo
+        run: rm -rf plugin-repo/.git || true
+
+      - name: Generate and Sign Plugin Catalog
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          mkdir -p plugin-repo
+          go build -o m3tal ./cmd/m3tal
+          ./m3tal plugin catalog --export plugin-repo/catalog.json
+          
+          # Sign the catalog
+          GPG_OPTS="-u B95A45C647577DEBCC877C49AF6190B0C01346DD"
+          if [ -n "$GPG_PASSPHRASE" ]; then
+              GPG_OPTS="$GPG_OPTS --batch --yes --pinentry-mode loopback --passphrase $GPG_PASSPHRASE"
+          fi
+          rm -f plugin-repo/catalog.json.sig
+          gpg --batch --no-tty $GPG_OPTS -abs -o plugin-repo/catalog.json.sig plugin-repo/catalog.json
+          touch plugin-repo/.nojekyll
+
+      - name: Deploy Plugins to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GH_PAT }}
+          external_repository: jakej985-rgb/m3tal-plugin-page
+          publish_dir: ./plugin-repo
+          publish_branch: main
           force_orphan: false
 
       - name: Create Release
