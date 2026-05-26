@@ -91,7 +91,7 @@ jobs:
       - name: Deploy APT repository to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GH_PAT }}
+          personal_token: ${{ secrets.GH_PAT }}
           external_repository: jakej985-rgb/m3tal-apt-key
           publish_dir: ./repo
           publish_branch: main
@@ -128,7 +128,7 @@ jobs:
       - name: Deploy Plugins to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GH_PAT }}
+          personal_token: ${{ secrets.GH_PAT }}
           external_repository: jakej985-rgb/m3tal-plugin-page
           publish_dir: ./plugin-repo
           publish_branch: main
