@@ -35,6 +35,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"github.com/jakej985-rgb/m3tal-core/pkg/output"
+	"github.com/jakej985-rgb/m3tal-core/pkg/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -1690,39 +1691,11 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	var tuiCmd = &cobra.Command{
 		Use:   "tui",
 		Short: "Launch interactive TUI dashboard",
-		Run: func(cmd *cobra.Command, args []string) {
-			apiURL, _ := cmd.Flags().GetString("api-url")
-			apiToken, _ := cmd.Flags().GetString("api-token")
-
-			pythonPath := "/home/m3tal/.m3tal-venv/bin/python"
-			if _, err := os.Stat(pythonPath); os.IsNotExist(err) {
-				fmt.Println("⚠️  Virtual environment Python not found. Falling back to system python3...")
-				pythonPath = "python3"
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			if err := tui.Run(c); err != nil {
+				output.FatalError(err)
 			}
-
-			tuiScript := "tui/app.py"
-			if _, err := os.Stat(tuiScript); os.IsNotExist(err) {
-				prodScript := "/opt/m3tal/tui/app.py"
-				if _, err := os.Stat(prodScript); err == nil {
-					tuiScript = prodScript
-				} else {
-					log.Fatalf("❌ TUI script not found. Make sure you are running m3tal from the project root or it is installed in %s.", prodScript)
-				}
-			}
-
-			c := exec.Command(pythonPath, tuiScript)
-			c.Env = os.Environ()
-			c.Env = append(c.Env, "API_URL="+apiURL)
-			c.Env = append(c.Env, "API_TOKEN="+apiToken)
-
-			c.Stdin = os.Stdin
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-
-			if err := c.Run(); err != nil {
-				log.Fatalf("❌ TUI execution failed: %v", err)
-			}
-		},
+		}),
 	}
 
 	var uiCmd = &cobra.Command{

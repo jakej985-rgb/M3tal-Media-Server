@@ -98,6 +98,16 @@ func (c *Client) Request(method, path string, body any, target any) error {
 	return c.request(method, path, body, target)
 }
 
+// GetStats returns the host system metrics response.
+func (c *Client) GetStats() (*models.MetricsResponse, error) {
+	var metrics models.MetricsResponse
+	err := c.request("GET", "/api/metrics", nil, &metrics)
+	if err != nil {
+		return nil, err
+	}
+	return &metrics, nil
+}
+
 // GetStatus checks the detailed system components health check report.
 func (c *Client) GetStatus() (*models.Status, error) {
 	var status models.Status
@@ -208,5 +218,81 @@ func (c *Client) CheckVPNLeak() (*models.VPNLeakReport, error) {
 		return nil, err
 	}
 	return &report, nil
+}
+
+// ControlContainer starts, stops, or restarts a container via the API.
+func (c *Client) ControlContainer(name, action string) error {
+	body := map[string]string{"name": name}
+	return c.request("POST", fmt.Sprintf("/api/containers/%s", action), body, nil)
+}
+
+// GetQueue returns the list of all queued and finished tasks.
+func (c *Client) GetQueue() ([]models.JobRecord, error) {
+	var queue []models.JobRecord
+	err := c.request("GET", "/api/v2/queue", nil, &queue)
+	if err != nil {
+		return nil, err
+	}
+	return queue, nil
+}
+
+// CancelQueueJob aborts a pending or active job by ID.
+func (c *Client) CancelQueueJob(id string) error {
+	body := map[string]string{"id": id}
+	return c.request("POST", "/api/v2/queue/cancel", body, nil)
+}
+
+// GetAIModels returns the list of available AI models from the Ollama backend.
+func (c *Client) GetAIModels() ([]string, error) {
+	var models []string
+	err := c.request("GET", "/api/v2/ai/models", nil, &models)
+	if err != nil {
+		return nil, err
+	}
+	return models, nil
+}
+
+// GetPlugins returns all loaded plugins across all kinds.
+func (c *Client) GetPlugins() (*models.PluginsResponse, error) {
+	var response models.PluginsResponse
+	err := c.request("GET", "/api/v2/plugins", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+// GetPluginCatalog correlates remote catalog items with local loaded plugins.
+func (c *Client) GetPluginCatalog() ([]models.CatalogItemStatus, error) {
+	var catalog []models.CatalogItemStatus
+	err := c.request("GET", "/api/v2/plugins/catalog", nil, &catalog)
+	if err != nil {
+		return nil, err
+	}
+	return catalog, nil
+}
+
+// EnablePlugin enables a plugin by name and kind.
+func (c *Client) EnablePlugin(name, kind string) error {
+	body := map[string]string{"name": name, "kind": kind}
+	return c.request("POST", "/api/v2/plugins/enable", body, nil)
+}
+
+// DisablePlugin disables a plugin by name and kind.
+func (c *Client) DisablePlugin(name, kind string) error {
+	body := map[string]string{"name": name, "kind": kind}
+	return c.request("POST", "/api/v2/plugins/disable", body, nil)
+}
+
+// InstallPlugin downloads and installs a plugin by name and kind.
+func (c *Client) InstallPlugin(name, kind string) error {
+	body := map[string]string{"name": name, "kind": kind}
+	return c.request("POST", "/api/v2/plugins/install", body, nil)
+}
+
+// UninstallPlugin uninstalls a plugin by name and kind.
+func (c *Client) UninstallPlugin(name, kind string) error {
+	body := map[string]string{"name": name, "kind": kind}
+	return c.request("POST", "/api/v2/plugins/uninstall", body, nil)
 }
 
