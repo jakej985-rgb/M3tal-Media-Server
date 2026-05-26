@@ -20,13 +20,13 @@ func NewVPNHandlers() *VPNHandlers {
 func (h *VPNHandlers) GetStatus(w http.ResponseWriter, r *http.Request) {
 	mgr, err := vpn.NewManager()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize VPN manager: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_INIT_FAILED", "failed to initialize VPN manager: "+err.Error(), nil)
 		return
 	}
 
 	status, err := mgr.GetStatus()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_STATUS_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -40,13 +40,13 @@ func (h *VPNHandlers) ControlVPN(w http.ResponseWriter, r *http.Request) {
 		Action string `json:"action"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	mgr, err := vpn.NewManager()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize VPN manager: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_INIT_FAILED", "failed to initialize VPN manager: "+err.Error(), nil)
 		return
 	}
 
@@ -59,12 +59,12 @@ func (h *VPNHandlers) ControlVPN(w http.ResponseWriter, r *http.Request) {
 	case "restart":
 		opErr = mgr.Restart()
 	default:
-		writeError(w, http.StatusBadRequest, "invalid action: must be 'start', 'stop', or 'restart'")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "invalid action: must be 'start', 'stop', or 'restart'", nil)
 		return
 	}
 
 	if opErr != nil {
-		writeError(w, http.StatusInternalServerError, opErr.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_ACTION_FAILED", opErr.Error(), nil)
 		return
 	}
 
@@ -78,23 +78,23 @@ func (h *VPNHandlers) SwitchRegion(w http.ResponseWriter, r *http.Request) {
 		Region string `json:"region"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Region == "" {
-		writeError(w, http.StatusBadRequest, "region is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "region is required", nil)
 		return
 	}
 
 	mgr, err := vpn.NewManager()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize VPN manager: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_INIT_FAILED", "failed to initialize VPN manager: "+err.Error(), nil)
 		return
 	}
 
 	if err := mgr.SwitchRegion(req.Region); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_REGION_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -106,13 +106,13 @@ func (h *VPNHandlers) SwitchRegion(w http.ResponseWriter, r *http.Request) {
 func (h *VPNHandlers) SyncPort(w http.ResponseWriter, r *http.Request) {
 	mgr, err := vpn.NewManager()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize VPN manager: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_INIT_FAILED", "failed to initialize VPN manager: "+err.Error(), nil)
 		return
 	}
 
 	port, err := mgr.SyncForwardedPort()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_SYNC_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -124,13 +124,13 @@ func (h *VPNHandlers) SyncPort(w http.ResponseWriter, r *http.Request) {
 func (h *VPNHandlers) CheckLeak(w http.ResponseWriter, r *http.Request) {
 	mgr, err := vpn.NewManager()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize VPN manager: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_INIT_FAILED", "failed to initialize VPN manager: "+err.Error(), nil)
 		return
 	}
 
 	isLeak, hostIP, vpnIP, err := mgr.CheckLeak()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "VPN_LEAK_CHECK_FAILED", err.Error(), nil)
 		return
 	}
 

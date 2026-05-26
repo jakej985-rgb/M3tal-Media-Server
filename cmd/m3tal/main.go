@@ -2,13 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/rand"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,7 +18,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"text/tabwriter"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
@@ -34,12 +31,17 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/preflight"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
-	"github.com/jakej985-rgb/m3tal-core/internal/vpn"
+	"github.com/jakej985-rgb/m3tal-core/pkg/client"
+	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
+	"github.com/jakej985-rgb/m3tal-core/pkg/output"
 	"github.com/spf13/cobra"
 )
 
 //go:embed .env.example
 var envExample string
+
+
 
 func main() {
 	// First-run check for Linux system installations
@@ -97,41 +99,16 @@ func main() {
 	rootCmd.PersistentFlags().String("api-url", "http://localhost:5050", "M3TAL API URL")
 	rootCmd.PersistentFlags().String("api-token", os.Getenv("API_TOKEN"), "M3TAL API Token")
 	rootCmd.PersistentFlags().Bool("local", false, "Force local execution (skip API)")
-
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List all containers",
-		Run: func(cmd *cobra.Command, args []string) {
-			var list []CLIContainer
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				if resp, err := callAPI(cmd, "GET", "/api/containers", nil); err == nil {
-					_ = json.Unmarshal([]byte(resp), &list)
-				}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			list, err := c.GetContainers()
+			if err != nil {
+				output.FatalError(err)
 			}
-
-			if len(list) == 0 {
-				// Local fallback
-				mgr, err := containers.GetProvider()
-				if err != nil {
-					log.Fatal(err)
-				}
-				rawList, err := mgr.ListContainers()
-				if err != nil {
-					log.Fatal(err)
-				}
-				for _, c := range rawList {
-					list = append(list, CLIContainer{
-						ID:     c.ID,
-						Names:  c.Names,
-						Image:  c.Image,
-						Status: c.Status,
-						State:  c.State,
-					})
-				}
-			}
-
-			printTabularContainers(list)
-		},
+			output.PrintContainersTable(list)
+		}),
 	}
 
 	var psCmd = &cobra.Command{
@@ -144,98 +121,119 @@ func main() {
 		Use:   "start [name]",
 		Short: "Start a container",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				body := map[string]string{"name": args[0]}
-				if _, err := callAPI(cmd, "POST", "/api/containers/start", body); err == nil {
-					fmt.Printf("Started %s (via API)\n", args[0])
-					return
-				}
-			}
-
-			mgr, err := containers.GetProvider()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			var result any
+			err := c.Request("POST", "/api/containers/start", map[string]string{"name": args[0]}, &result)
 			if err != nil {
-				log.Fatal(err)
+				output.FatalError(err)
 			}
-			if err := mgr.StartContainer(args[0]); err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("Started %s\n", args[0])
-		},
+			fmt.Printf("Started %s (via API)\n", args[0])
+		}),
 	}
 
 	var stopCmd = &cobra.Command{
 		Use:   "stop [name]",
 		Short: "Stop a container",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				body := map[string]string{"name": args[0]}
-				if _, err := callAPI(cmd, "POST", "/api/containers/stop", body); err == nil {
-					fmt.Printf("Stopped %s (via API)\n", args[0])
-					return
-				}
-			}
-
-			mgr, err := containers.GetProvider()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			var result any
+			err := c.Request("POST", "/api/containers/stop", map[string]string{"name": args[0]}, &result)
 			if err != nil {
-				log.Fatal(err)
+				output.FatalError(err)
 			}
-			if err := mgr.StopContainer(args[0]); err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("Stopped %s\n", args[0])
-		},
+			fmt.Printf("Stopped %s (via API)\n", args[0])
+		}),
 	}
 
 	var statsCmd = &cobra.Command{
 		Use:   "stats",
 		Short: "Show system stats",
-		Run: func(cmd *cobra.Command, args []string) {
-			var s system.SystemStats
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				if resp, err := callAPI(cmd, "GET", "/api/metrics", nil); err == nil {
-					_ = json.Unmarshal([]byte(resp), &s)
-				}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			var s models.MetricsResponse
+			err := c.Request("GET", "/api/metrics", nil, &s)
+			if err != nil {
+				output.FatalError(err)
 			}
-
-			if s.Hostname == "" {
-				localStats, err := system.GetStats()
-				if err != nil {
-					log.Fatal(err)
-				}
-				s = *localStats
-			}
-
-			printTabularStats(&s)
-		},
+			output.PrintStats(&s)
+		}),
 	}
 
 	var daemonCmd = &cobra.Command{
 		Use:   "daemon",
-		Short: "Run M3TAL background agents",
+		Short: "Manage M3TAL background API daemon and agents",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Println("🚀 M3TAL Core Daemon starting...")
-
-			// Background Metrics Collection
-			go func() {
-				for {
-					stats, err := system.GetStats()
-					if err == nil {
-						data, _ := json.Marshal(stats)
-						stateDir := os.Getenv("STATE_DIR")
-						if stateDir != "" {
-							_ = os.WriteFile(filepath.Join(stateDir, "metrics.json"), data, 0644)
-						}
-					}
-					time.Sleep(10 * time.Second)
-				}
-			}()
-
-			// Keep alive
-			select {}
+			cmd.Help()
 		},
 	}
+
+	var daemonStartCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the background M3TAL API server daemon",
+		Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
+			status, err := c.GetStatus()
+			if err == nil && status != nil {
+				fmt.Println("🟢 M3TAL API daemon is already running.")
+				return
+			}
+
+			fmt.Println("🚀 Starting M3TAL API server daemon...")
+			exe, err := os.Executable()
+			if err != nil {
+				exe = os.Args[0]
+			}
+
+			cmdDaemon := exec.Command(exe, "api")
+			cmdDaemon.Env = os.Environ()
+			cmdDaemon.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
+			logPath := filepath.Join(os.TempDir(), "m3tal-api.log")
+			if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+				cmdDaemon.Stdout = lf
+				cmdDaemon.Stderr = lf
+			}
+			if err := cmdDaemon.Start(); err != nil {
+				output.FatalErrorMsg("Failed to start API server daemon: %v", err)
+			} else {
+				fmt.Println("✅ M3TAL API server started in background (PID:", cmdDaemon.Process.Pid, ")")
+				_ = cmdDaemon.Process.Release()
+			}
+		}),
+	}
+
+	var daemonStopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the background M3TAL API server daemon",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("🛑 Stopping M3TAL API Server Daemon...")
+			_ = exec.Command("pkill", "-f", "m3tal api").Run()
+			fmt.Println("✅ Stopped background API processes.")
+		},
+	}
+
+	var daemonStatusCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Check background M3TAL API server status",
+		Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
+			status, err := c.GetStatus()
+			if err != nil {
+				fmt.Printf("🔴 Status: Disconnected (API daemon is not running)\n")
+				return
+			}
+			fmt.Println("🌐 M3TAL API Status:")
+			fmt.Println("----------------------------------------")
+			fmt.Printf("🟢 Status:     Running (Healthy)\n")
+			fmt.Printf("🏥 Health:     %s\n", status.Status)
+			if len(status.Components) > 0 {
+				fmt.Println("🧩 Components:")
+				for comp, compStat := range status.Components {
+					fmt.Printf("   - %s: %s\n", comp, compStat)
+				}
+			}
+		}),
+	}
+
+	daemonCmd.AddCommand(daemonStartCmd, daemonStopCmd, daemonStatusCmd)
 
 	var apiCmd = &cobra.Command{
 		Use:   "api",
@@ -271,182 +269,108 @@ func main() {
 	var upCmd = &cobra.Command{
 		Use:   "up [stack]",
 		Short: "Initialize and start stacks",
-		Run: func(cmd *cobra.Command, args []string) {
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				if len(args) > 0 {
-					target := args[0]
-					fmt.Printf("🚀 Deploying stack %s via API...\n", target)
-					resp, err := callAPI(cmd, "POST", "/api/v2/stacks/"+target+"/up", nil)
-					if err != nil {
-						fmt.Printf("❌ Failed to deploy stack %s: %v\n", target, err)
-						return
-					}
-					fmt.Println("✅ Deploy result:\n", resp)
-				} else {
-					fmt.Println("🚀 Deploying all stacks via API...")
-					stacksResp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
-					if err != nil {
-						fmt.Printf("❌ Failed to list stacks: %v\n", err)
-						return
-					}
-					var stacks []struct {
-						Name string `json:"name"`
-					}
-					if err := json.Unmarshal([]byte(stacksResp), &stacks); err == nil {
-						for _, s := range stacks {
-							fmt.Printf("🚀 Deploying stack %s via API...\n", s.Name)
-							_, _ = callAPI(cmd, "POST", "/api/v2/stacks/"+s.Name+"/up", nil)
-						}
-						fmt.Println("✅ All stacks deployed.")
-					} else {
-						fmt.Printf("❌ Failed to parse stacks list: %v\n", err)
-					}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				target := args[0]
+				fmt.Printf("🚀 Deploying stack %s via API...\n", target)
+				_, err := c.StartStack(target)
+				if err != nil {
+					output.FatalError(err)
 				}
-				return
-			}
-
-			// Local fallback
-			fmt.Printf("🚀 Initializing M3TAL Orchestrator locally (using stack: %s)...\n", system.UserfacingStackPath)
-			stack := orchestrator.NewStackManager()
-			if len(stack.Files) > 0 {
-				if err := stack.Run("up", "-d"); err != nil {
-					log.Fatal(err)
-				}
-				fmt.Println("\n✅ M3TAL Stack is UP!")
+				fmt.Println("✅ Stack deployed successfully.")
 			} else {
-				fmt.Printf("⚠️  No stacks detected in %s.\n", system.UserfacingStackPath)
+				fmt.Println("🚀 Deploying all stacks via API...")
+				stacks, err := c.GetStacks()
+				if err != nil {
+					output.FatalError(err)
+				}
+				for _, s := range stacks {
+					fmt.Printf("🚀 Deploying stack %s via API...\n", s.Name)
+					_, _ = c.StartStack(s.Name)
+				}
+				fmt.Println("✅ All stacks deployed.")
 			}
-		},
+		}),
 	}
 
 	var downCmd = &cobra.Command{
 		Use:   "down [stack]",
 		Short: "Stop stacks",
-		Run: func(cmd *cobra.Command, args []string) {
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				if len(args) > 0 {
-					target := args[0]
-					fmt.Printf("🛑 Stopping stack %s via API...\n", target)
-					resp, err := callAPI(cmd, "POST", "/api/v2/stacks/"+target+"/down", nil)
-					if err != nil {
-						fmt.Printf("❌ Failed to stop stack %s: %v\n", target, err)
-						return
-					}
-					fmt.Println("✅ Stop result:\n", resp)
-				} else {
-					fmt.Println("🛑 Stopping all stacks via API...")
-					stacksResp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
-					if err != nil {
-						fmt.Printf("❌ Failed to list stacks: %v\n", err)
-						return
-					}
-					var stacks []struct {
-						Name string `json:"name"`
-					}
-					if err := json.Unmarshal([]byte(stacksResp), &stacks); err == nil {
-						for _, s := range stacks {
-							fmt.Printf("🛑 Stopping stack %s via API...\n", s.Name)
-							_, _ = callAPI(cmd, "POST", "/api/v2/stacks/"+s.Name+"/down", nil)
-						}
-						fmt.Println("✅ All stacks stopped.")
-					} else {
-						fmt.Printf("❌ Failed to parse stacks list: %v\n", err)
-					}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				target := args[0]
+				fmt.Printf("🛑 Stopping stack %s via API...\n", target)
+				_, err := c.StopStack(target)
+				if err != nil {
+					output.FatalError(err)
 				}
-				return
+				fmt.Println("✅ Stack stopped successfully.")
+			} else {
+				fmt.Println("🛑 Stopping all stacks via API...")
+				stacks, err := c.GetStacks()
+				if err != nil {
+					output.FatalError(err)
+				}
+				for _, s := range stacks {
+					fmt.Printf("🛑 Stopping stack %s via API...\n", s.Name)
+					_, _ = c.StopStack(s.Name)
+				}
+				fmt.Println("✅ All stacks stopped.")
 			}
+		}),
+	}
 
-			// Local fallback
-			fmt.Printf("🛑 Stopping M3TAL Stacks locally (path: %s)...\n", system.UserfacingStackPath)
-			stack := orchestrator.NewStackManager()
-			if err := stack.Run("down"); err != nil {
-				log.Fatal(err)
+	var restartCmd = &cobra.Command{
+		Use:   "restart [stack]",
+		Short: "Restart stacks",
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				target := args[0]
+				fmt.Printf("🔄 Restarting stack %s via API...\n", target)
+				_, err := c.RestartStack(target)
+				if err != nil {
+					output.FatalError(err)
+				}
+				fmt.Println("✅ Stack restarted successfully.")
+			} else {
+				fmt.Println("🔄 Restarting all stacks via API...")
+				stacks, err := c.GetStacks()
+				if err != nil {
+					output.FatalError(err)
+				}
+				for _, s := range stacks {
+					fmt.Printf("🔄 Restarting stack %s via API...\n", s.Name)
+					_, _ = c.RestartStack(s.Name)
+				}
+				fmt.Println("✅ All stacks restarted.")
 			}
-			fmt.Println("✅ All services stopped.")
-		},
+		}),
 	}
 
 	var logsCmd = &cobra.Command{
 		Use:   "logs [container]",
 		Short: "View logs from a container",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				runLogsMenu()
-				return
-			}
-
+		Args:  cobra.ExactArgs(1),
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			target := args[0]
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				resp, err := callAPI(cmd, "GET", "/api/containers/"+target+"/logs?tail=100", nil)
-				if err != nil {
-					fmt.Printf("❌ Failed to get logs for %s: %v\n", target, err)
-					return
-				}
-				var result struct {
-					Logs string `json:"logs"`
-				}
-				if err := json.Unmarshal([]byte(resp), &result); err == nil {
-					fmt.Println(result.Logs)
-				} else {
-					fmt.Println(resp)
-				}
-				return
-			}
-
-			// Local fallback
-			mgr, err := containers.GetProvider()
+			logs, err := c.GetLogs(target)
 			if err != nil {
-				log.Fatal(err)
-			}
-			logs, err := mgr.Logs(target, "100")
-			if err != nil {
-				log.Fatal(err)
+				output.FatalError(err)
 			}
 			fmt.Println(logs)
-		},
+		}),
 	}
 
 	var stacksCmd = &cobra.Command{
 		Use:   "stacks",
 		Short: "List all stacks",
-		Run: func(cmd *cobra.Command, args []string) {
-			var stacks []struct {
-				Name        string   `json:"name"`
-				ComposePath string   `json:"compose_path"`
-				Services    []string `json:"services,omitempty"`
-				Status      string   `json:"status"`
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			stacks, err := c.GetStacks()
+			if err != nil {
+				output.FatalError(err)
 			}
-
-			if useAPI, _ := cmd.Flags().GetBool("local"); !useAPI {
-				resp, err := callAPI(cmd, "GET", "/api/v2/stacks", nil)
-				if err != nil {
-					fmt.Printf("❌ Failed to list stacks via API: %v\n", err)
-					return
-				}
-				_ = json.Unmarshal([]byte(resp), &stacks)
-			} else {
-				// Local scan
-				stackDir := system.GetStackDir()
-				matches, _ := system.FindComposeFiles(stackDir)
-				for _, match := range matches {
-					base := filepath.Base(match)
-					name := strings.TrimSuffix(base, "-compose.yml")
-					stacks = append(stacks, struct {
-						Name        string   `json:"name"`
-						ComposePath string   `json:"compose_path"`
-						Services    []string `json:"services,omitempty"`
-						Status      string   `json:"status"`
-					}{
-						Name:        name,
-						ComposePath: match,
-						Status:      "discovered",
-					})
-				}
-			}
-
-			printTabularStacks(stacks)
-		},
+			output.PrintStacksTable(stacks)
+		}),
 	}
 
 	var pullCmd = &cobra.Command{
@@ -705,153 +629,90 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	var vpnStatusCmd = &cobra.Command{
 		Use:   "status",
 		Short: "Check VPN connection status and settings",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			status, err := c.GetVPNStatus()
 			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
+				output.FatalError(err)
 			}
-
-			status, err := mgr.GetStatus()
-			if err != nil {
-				log.Fatalf("❌ Error: %v", err)
-			}
-
-			fmt.Println("🌐 VPN Connection Status:")
-			fmt.Println("----------------------------------------")
-			if status.Connected {
-				fmt.Println("🟢 Status:      Connected (Running)")
-				fmt.Printf("🔒 Provider:    %s\n", status.Provider)
-				fmt.Printf("🌍 Region:      %s\n", status.Region)
-				fmt.Printf("📬 External IP: %s\n", status.ExternalIP)
-				if status.ForwardedPort > 0 {
-					fmt.Printf("🔌 Port:        %d (Forwarded)\n", status.ForwardedPort)
-				}
-			} else {
-				fmt.Printf("🔴 Status:      Disconnected (%s)\n", status.StatusText)
-			}
-		},
+			output.PrintVPNStatus(status)
+		}),
 	}
 
 	var vpnStartCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the VPN connection (gluetun container)",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.ControlVPN("start")
 			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
-			if err := mgr.Start(); err != nil {
-				log.Fatalf("❌ Failed to start VPN: %v", err)
+				output.FatalError(err)
 			}
 			fmt.Println("✅ VPN container start command sent successfully.")
-		},
+		}),
 	}
 
 	var vpnStopCmd = &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the VPN connection (gluetun container)",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.ControlVPN("stop")
 			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
-			if err := mgr.Stop(); err != nil {
-				log.Fatalf("❌ Failed to stop VPN: %v", err)
+				output.FatalError(err)
 			}
 			fmt.Println("✅ VPN container stop command sent successfully.")
-		},
+		}),
 	}
 
 	var vpnRestartCmd = &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the VPN connection (gluetun container)",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.ControlVPN("restart")
 			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
-			if err := mgr.Restart(); err != nil {
-				log.Fatalf("❌ Failed to restart VPN: %v", err)
+				output.FatalError(err)
 			}
 			fmt.Println("✅ VPN container restart command sent successfully.")
-		},
+		}),
 	}
 
 	var vpnRegionCmd = &cobra.Command{
 		Use:   "region [region-name]",
 		Short: "Switch VPN connection region",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
-			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			targetRegion := args[0]
 			fmt.Printf("🔄 Switching VPN region to %s...\n", targetRegion)
-			if err := mgr.SwitchRegion(targetRegion); err != nil {
-				log.Fatalf("❌ Failed to switch region: %v", err)
+			_, err := c.SwitchVPNRegion(targetRegion)
+			if err != nil {
+				output.FatalError(err)
 			}
 			fmt.Println("✅ Region updated in configuration and stack restarted.")
-		},
+		}),
 	}
 
 	var vpnSyncCmd = &cobra.Command{
 		Use:   "sync",
 		Short: "Manually sync Gluetun forwarded port to dependent containers (e.g. qBittorrent)",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
-			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			fmt.Println("🔄 Querying Gluetun forwarded port and syncing...")
-			port, err := mgr.SyncForwardedPort()
+			port, err := c.SyncVPNPort()
 			if err != nil {
-				log.Fatalf("❌ Failed to sync port: %v", err)
+				output.FatalError(err)
 			}
 			fmt.Printf("✅ Port %d synced to dependent services successfully.\n", port)
-		},
+		}),
 	}
 
 	var vpnCheckCmd = &cobra.Command{
 		Use:   "check",
 		Short: "Run leak detection and verify kill switch status",
-		Run: func(cmd *cobra.Command, args []string) {
-			mgr, err := vpn.NewManager()
-			if err != nil {
-				log.Fatalf("❌ Failed to initialize VPN manager: %v", err)
-			}
-
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			fmt.Println("🔍 Running leak check...")
-			isLeak, hostIP, vpnIP, err := mgr.CheckLeak()
+			report, err := c.CheckVPNLeak()
 			if err != nil {
-				log.Fatalf("❌ Error: %v", err)
+				output.FatalError(err)
 			}
-
-			fmt.Println("\n🛡️  VPN Leak Detection Report:")
-			fmt.Println("----------------------------------------")
-			fmt.Printf("🏠 Host Public IP: %s\n", hostIP)
-			fmt.Printf("🔒 VPN Outbound IP: %s\n", vpnIP)
-
-			if isLeak {
-				fmt.Println("🚨 RESULT: LEAK DETECTED! Your traffic is NOT protected!")
-				fmt.Println("⚠️  Activating kill switch (stopping dependent containers)...")
-				stopped, errStop := mgr.StopDependentContainers()
-				if errStop != nil {
-					fmt.Printf("❌ Kill switch failed to stop all containers: %v\n", errStop)
-				} else if len(stopped) > 0 {
-					fmt.Printf("🛑 Successfully stopped containers: %s\n", strings.Join(stopped, ", "))
-				} else {
-					fmt.Println("✅ No active dependent containers found running.")
-				}
-			} else {
-				fmt.Println("✅ RESULT: SAFE. Outbound IP is protected by VPN.")
-			}
-		},
+			output.PrintVPNLeakReport(report)
+		}),
 	}
 
 	vpnCmd.AddCommand(vpnStatusCmd, vpnStartCmd, vpnStopCmd, vpnRestartCmd, vpnRegionCmd, vpnSyncCmd, vpnCheckCmd)
@@ -1796,86 +1657,33 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 		Use:   "ai [prompt]",
 		Short: "Query the M3TAL AI system",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			prompt := args[0]
 			mode, _ := cmd.Flags().GetString("mode")
-
-			apiURL, _ := cmd.Flags().GetString("api-url")
-			apiToken, _ := cmd.Flags().GetString("api-token")
 
 			payload := map[string]string{
 				"prompt": prompt,
 				"mode":   mode,
 			}
-			data, _ := json.Marshal(payload)
-
-			req, err := http.NewRequest("POST", apiURL+"/api/v2/ai/run", bytes.NewBuffer(data))
-			if err != nil {
-				log.Fatalf("❌ Failed to create request: %v", err)
-			}
-
-			if apiToken != "" {
-				req.Header.Set("X-API-Token", apiToken)
-			}
-			req.Header.Set("Content-Type", "application/json")
 
 			// Use a longer timeout for AI generation (e.g. 5 minutes)
-			client := &http.Client{Timeout: 5 * time.Minute}
+			c.HTTPClient.Timeout = 5 * time.Minute
+
 			fmt.Println("🧠 Sending request to M3TAL AI queue...")
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Fatalf("❌ API request failed: %v", err)
-			}
-			defer resp.Body.Close()
-
-			respBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.Fatalf("❌ Failed to read API response: %v", err)
-			}
-
-			var apiResp struct {
-				Status string          `json:"status"`
-				Data   json.RawMessage `json:"data"`
-				Error  string          `json:"error"`
-			}
-
-			// Try to unmarshal standard wrapped response
-			isWrapped := false
-			if err := json.Unmarshal(respBytes, &apiResp); err == nil && apiResp.Status != "" {
-				isWrapped = true
-				if apiResp.Status == "error" {
-					log.Fatalf("❌ AI API Error: %s", apiResp.Error)
-				}
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				if isWrapped && apiResp.Error != "" {
-					log.Fatalf("❌ AI API Error: %s", apiResp.Error)
-				}
-				var errResp map[string]string
-				if err := json.Unmarshal(respBytes, &errResp); err == nil && errResp["error"] != "" {
-					log.Fatalf("❌ AI API Error: %s", errResp["error"])
-				}
-				log.Fatalf("❌ API returned status %d: %s", resp.StatusCode, string(respBytes))
-			}
-
+			
 			var aiResp struct {
 				Model    string `json:"model"`
 				Response string `json:"response"`
-				Status   string `json:"status"`
 			}
-			targetBytes := respBytes
-			if isWrapped {
-				targetBytes = apiResp.Data
-			}
-			if err := json.Unmarshal(targetBytes, &aiResp); err != nil {
-				log.Fatalf("❌ Failed to parse response: %v", err)
+			err := c.Request("POST", "/api/v2/ai/run", payload, &aiResp)
+			if err != nil {
+				output.FatalError(err)
 			}
 
 			fmt.Println("\n🤖 Response from AI (" + aiResp.Model + "):")
 			fmt.Println("----------------------------------------")
 			fmt.Println(aiResp.Response)
-		},
+		}),
 	}
 	aiCmd.Flags().StringP("mode", "m", "", "AI model mode (e.g., 'code' or 'chat')")
 
@@ -1975,7 +1783,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	}
 	uiCmd.Flags().String("port", "5050", "Port to listen on")
 
-	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd, uiCmd, initStackCmd())
+	rootCmd.AddCommand(listCmd, psCmd, startCmd, stopCmd, statsCmd, daemonCmd, apiCmd, upCmd, downCmd, restartCmd, logsCmd, pullCmd, dashpassCmd, initCmd, docCmd, configCmd, pluginCmd, composeCmd, vpnCmd, initProxyCmds(), initDashCmd(), trayCmd, aiCmd, stacksCmd, tuiCmd, uiCmd, initStackCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -2175,84 +1983,7 @@ func printJSON(v interface{}) {
 	fmt.Println(string(data))
 }
 
-type CLIContainer struct {
-	ID     string   `json:"id"`
-	Names  []string `json:"names"`
-	Image  string   `json:"image"`
-	Status string   `json:"status"`
-	State  string   `json:"state"`
-}
 
-func printTabularContainers(containers []CLIContainer) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "CONTAINER ID\tNAMES\tIMAGE\tSTATE\tSTATUS")
-	fmt.Fprintln(w, "------------\t-----\t-----\t-----\t------")
-	for _, c := range containers {
-		colorizedState := c.State
-		switch c.State {
-		case "running":
-			colorizedState = "\033[32m" + c.State + "\033[0m"
-		case "exited", "stopped":
-			colorizedState = "\033[31m" + c.State + "\033[0m"
-		case "paused":
-			colorizedState = "\033[33m" + c.State + "\033[0m"
-		}
-		name := ""
-		if len(c.Names) > 0 {
-			name = strings.TrimPrefix(c.Names[0], "/")
-		}
-		img := c.Image
-		shortID := c.ID
-		if len(shortID) > 12 {
-			shortID = shortID[:12]
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", shortID, name, img, colorizedState, c.Status)
-	}
-	w.Flush()
-}
-
-func printTabularStacks(stacks []struct {
-	Name        string   `json:"name"`
-	ComposePath string   `json:"compose_path"`
-	Services    []string `json:"services,omitempty"`
-	Status      string   `json:"status"`
-}) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSTATUS\tPATH\tSERVICES")
-	fmt.Fprintln(w, "----\t------\t----\t--------")
-	for _, s := range stacks {
-		colorizedStatus := s.Status
-		switch s.Status {
-		case "running", "success":
-			colorizedStatus = "\033[32m" + s.Status + "\033[0m"
-		case "failed", "error":
-			colorizedStatus = "\033[31m" + s.Status + "\033[0m"
-		case "discovered":
-			colorizedStatus = "\033[33m" + s.Status + "\033[0m"
-		}
-		servicesStr := strings.Join(s.Services, ", ")
-		if servicesStr == "" {
-			servicesStr = "-"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Name, colorizedStatus, s.ComposePath, servicesStr)
-	}
-	w.Flush()
-}
-
-func printTabularStats(s *system.SystemStats) {
-	fmt.Printf("💻 Hostname: %s\n", s.Hostname)
-	uptimeDur := time.Duration(s.Uptime) * time.Second
-	fmt.Printf("⏱️  Uptime:   %s\n", uptimeDur.String())
-	fmt.Println()
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "RESOURCE\tUSAGE")
-	fmt.Fprintln(w, "--------\t-----")
-	fmt.Fprintf(w, "CPU\t%.2f%%\n", s.CPUUsage)
-	fmt.Fprintf(w, "Memory\t%.2f%%\n", s.MemoryUsage)
-	fmt.Fprintf(w, "Disk\t%.2f%%\n", s.DiskUsage)
-	w.Flush()
-}
 
 func getEnvValue(content, key string) string {
 	lines := strings.Split(content, "\n")
@@ -2284,72 +2015,7 @@ func replaceSecret(content, key, secret string) string {
 	return strings.Join(lines, "\n")
 }
 
-func callAPI(cmd *cobra.Command, method, path string, body interface{}) (string, error) {
-	apiURL, _ := cmd.Flags().GetString("api-url")
-	apiToken, _ := cmd.Flags().GetString("api-token")
 
-	var bodyReader io.Reader
-	if body != nil {
-		data, _ := json.Marshal(body)
-		bodyReader = bytes.NewBuffer(data)
-	}
-
-	req, err := http.NewRequest(method, apiURL+path, bodyReader)
-	if err != nil {
-		return "", err
-	}
-
-	if apiToken != "" {
-		req.Header.Set("X-API-Token", apiToken)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var apiResp struct {
-		Status string          `json:"status"`
-		Data   json.RawMessage `json:"data"`
-		Meta   any             `json:"meta"`
-		Error  string          `json:"error"`
-	}
-
-	isWrapped := false
-	if err := json.Unmarshal(data, &apiResp); err == nil && apiResp.Status != "" {
-		isWrapped = true
-		if apiResp.Status == "error" {
-			if apiResp.Error != "" {
-				return "", fmt.Errorf("%s", apiResp.Error)
-			}
-			return "", fmt.Errorf("API returned error status")
-		}
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		if isWrapped && apiResp.Error != "" {
-			return "", fmt.Errorf("%s", apiResp.Error)
-		}
-		return "", fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	if isWrapped {
-		if len(apiResp.Data) > 0 {
-			return string(apiResp.Data), nil
-		}
-		return "", nil
-	}
-
-	return string(data), nil
-}
 
 func runLogsMenu() {
 	fmt.Println("\n📋 M3TAL Logs Explorer")

@@ -10,6 +10,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/health"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 // Server handles API requests
@@ -30,7 +31,7 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			token = r.URL.Query().Get("token")
 		}
 		if token != s.APIToken {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			sendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
 			return
 		}
 		next(w, r)
@@ -40,29 +41,72 @@ func (s *Server) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // GetHealth returns system health status
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	reg := health.UpdateAndSaveHealthRegistry()
-	sendSuccess(w, http.StatusOK, reg, nil)
+
+	components := map[string]string{
+		"system": reg.System.Status,
+		"docker": reg.Docker.Status,
+		"agents": reg.Agents.Status,
+		"disk":   reg.Disk.Status,
+	}
+	details := map[string]string{
+		"last_seen_healthy": reg.System.LastSeenHealthy,
+		"last_failure":      reg.System.LastFailure,
+	}
+
+	sendSuccess(w, http.StatusOK, models.Status{
+		Status:     reg.System.Status,
+		Components: components,
+		Details:    details,
+	}, nil)
 }
 
 // GetServices returns the list of managed containers
 func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
 	mgr, err := containers.GetProvider()
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return
 	}
 	list, err := mgr.ListContainers()
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
 		return
 	}
-	sendSuccess(w, http.StatusOK, list, nil)
+
+	typedList := make([]models.Container, len(list))
+	for i, c := range list {
+		ports := make([]models.PortInfo, len(c.Ports))
+		for j, p := range c.Ports {
+			ports[j] = models.PortInfo{
+				IP:          p.IP,
+				PrivatePort: p.PrivatePort,
+				PublicPort:  p.PublicPort,
+				Type:        p.Type,
+			}
+		}
+		typedList[i] = models.Container{
+			ID:       c.ID,
+			Names:    c.Names,
+			Image:    c.Image,
+			Status:   c.Status,
+			State:    c.State,
+			CPU:      c.CPU,
+			Memory:   c.Memory,
+			Labels:   c.Labels,
+			Ports:    ports,
+			Networks: c.Networks,
+		}
+	}
+	sendSuccess(w, http.StatusOK, typedList, nil)
 }
 
 // GetStack returns information about the compose stack
 func (s *Server) GetStack(w http.ResponseWriter, r *http.Request) {
 	stackDir := system.GetStackDir()
-	sendSuccess(w, http.StatusOK, map[string]string{
-		"path": stackDir,
+	sendSuccess(w, http.StatusOK, models.Stack{
+		Name:        "default",
+		ComposePath: stackDir,
+		Status:      "active",
 	}, nil)
 }
 
@@ -73,9 +117,7 @@ func (s *Server) GetConfig(w http.ResponseWriter, r *http.Request) {
 		pair := strings.SplitN(env, "=", 2)
 		if len(pair) == 2 {
 			key := pair[0]
-			// Only include M3TAL related env vars
 			if strings.HasPrefix(key, "M3TAL_") || key == "BASE_STORAGE_PATH" {
-				// Sanitize sensitive info
 				if strings.Contains(key, "TOKEN") || strings.Contains(key, "SECRET") || strings.Contains(key, "PASSWORD") {
 					config[key] = "********"
 				} else {
@@ -91,27 +133,37 @@ func (s *Server) GetConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := system.GetStats()
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "SYSTEM_METRICS_ERROR", err.Error(), nil)
 		return
 	}
-	sendSuccess(w, http.StatusOK, stats, nil)
+	sendSuccess(w, http.StatusOK, models.MetricsResponse{
+		CPUUsage:    stats.CPUUsage,
+		MemoryUsage: stats.MemoryUsage,
+		DiskUsage:   stats.DiskUsage,
+		Uptime:      stats.Uptime,
+		Hostname:    stats.Hostname,
+	}, nil)
 }
 
 // HandleContainerAction processes start/stop/restart
 func (s *Server) HandleContainerAction(w http.ResponseWriter, r *http.Request, action func(string) error) {
 	if r.Method != http.MethodPost {
-		sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		sendError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Method not allowed", nil)
 		return
 	}
 	var req struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendError(w, http.StatusBadRequest, err.Error())
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", err.Error(), nil)
+		return
+	}
+	if req.Name == "" {
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "container name is required", nil)
 		return
 	}
 	if err := action(req.Name); err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "CONTAINER_ACTION_FAILED", err.Error(), nil)
 		return
 	}
 	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
@@ -121,7 +173,7 @@ func (s *Server) HandleContainerAction(w http.ResponseWriter, r *http.Request, a
 func (s *Server) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
-		sendError(w, http.StatusBadRequest, "container name is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "container name is required", nil)
 		return
 	}
 	tail := r.URL.Query().Get("tail")
@@ -131,13 +183,13 @@ func (s *Server) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
 
 	mgr, err := containers.GetProvider()
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return
 	}
 
 	logs, err := mgr.Logs(name, tail)
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
 		return
 	}
 

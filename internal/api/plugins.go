@@ -33,7 +33,6 @@ func (h *PluginHandlers) ensureLoaded() *plugin.Registry {
 	dirs := system.GetPluginDirs()
 	reg, err := plugin.LoadAll(dirs...)
 	if err != nil {
-		// Return empty registry on error
 		h.registry = &plugin.Registry{}
 		return h.registry
 	}
@@ -70,7 +69,6 @@ func (h *PluginHandlers) ListPluginsByKind(w http.ResponseWriter, r *http.Reques
 	case "services", "service":
 		sendSuccess(w, http.StatusOK, reg.ListServices(), nil)
 	default:
-		// Fallback to name search across all types
 		if p := reg.GetRoute(kind); p != nil {
 			sendSuccess(w, http.StatusOK, p, nil)
 			return
@@ -87,14 +85,14 @@ func (h *PluginHandlers) ListPluginsByKind(w http.ResponseWriter, r *http.Reques
 			sendSuccess(w, http.StatusOK, p, nil)
 			return
 		}
-		writeError(w, http.StatusNotFound, "plugin not found: "+kind)
+		sendError(w, http.StatusNotFound, "PLUGIN_NOT_FOUND", "plugin not found: "+kind, nil)
 	}
 }
 
 // Reload forces a reload of the plugin registry from disk.
 // POST /api/v2/plugins/reload
 func (h *PluginHandlers) Reload(w http.ResponseWriter, r *http.Request) {
-	h.registry = nil // Force reload on next access
+	h.registry = nil
 	reg := h.ensureLoaded()
 	sendSuccess(w, http.StatusOK, map[string]any{
 		"reloaded": true,
@@ -110,7 +108,7 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 		Kind string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
@@ -143,20 +141,20 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if path == "" {
-		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		sendError(w, http.StatusNotFound, "PLUGIN_NOT_FOUND", "plugin not found: "+req.Name, nil)
 		return
 	}
 
 	p, err := plugin.LoadPlugin(path)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load plugin: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "PLUGIN_LOAD_FAILED", "failed to load plugin: "+err.Error(), nil)
 		return
 	}
 
 	header := plugin.PluginHeader{
 		Name:         p.GetName(),
 		Kind:         p.Kind,
-		Enabled:      true, // check as if enabled
+		Enabled:      true,
 		Provides:     p.Provides,
 		Requires:     p.Requires,
 		DependsOn:    p.DependsOn,
@@ -165,22 +163,18 @@ func (h *PluginHandlers) Enable(w http.ResponseWriter, r *http.Request) {
 
 	warnings := reg.GetWarningsForHeader(header)
 	if len(warnings) > 0 {
-		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
-			Status: "error",
-			Error:  "unsatisfied dependencies",
-			Data:   map[string]any{"warnings": warnings},
-		})
+		sendError(w, http.StatusBadRequest, "UNSATISFIED_DEPENDENCIES", "unsatisfied dependencies", map[string]any{"warnings": warnings})
 		return
 	}
 
 	mgr := plugin.NewStateManager(h.db)
 	err = mgr.SetPluginEnabled(p, true)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to enable: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "PLUGIN_ENABLE_FAILED", "failed to enable: "+err.Error(), nil)
 		return
 	}
 
-	h.registry = nil // force reload
+	h.registry = nil
 	sendSuccess(w, http.StatusOK, map[string]any{"enabled": true, "path": p.SourcePath}, nil)
 }
 
@@ -192,7 +186,7 @@ func (h *PluginHandlers) Disable(w http.ResponseWriter, r *http.Request) {
 		Kind string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
@@ -225,24 +219,24 @@ func (h *PluginHandlers) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if path == "" {
-		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		sendError(w, http.StatusNotFound, "PLUGIN_NOT_FOUND", "plugin not found: "+req.Name, nil)
 		return
 	}
 
 	p, err := plugin.LoadPlugin(path)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load plugin: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "PLUGIN_LOAD_FAILED", "failed to load plugin: "+err.Error(), nil)
 		return
 	}
 
 	mgr := plugin.NewStateManager(h.db)
 	err = mgr.SetPluginEnabled(p, false)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to disable: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "PLUGIN_DISABLE_FAILED", "failed to disable: "+err.Error(), nil)
 		return
 	}
 
-	h.registry = nil // force reload
+	h.registry = nil
 	sendSuccess(w, http.StatusOK, map[string]any{"disabled": true, "path": p.SourcePath}, nil)
 }
 
@@ -252,20 +246,20 @@ func (h *PluginHandlers) Sync(w http.ResponseWriter, r *http.Request) {
 	reg := h.ensureLoaded()
 	configData, err := reg.GenerateTraefikConfig()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to generate Traefik config: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "CONFIG_GENERATION_FAILED", "failed to generate Traefik config: "+err.Error(), nil)
 		return
 	}
 
 	stackDir := system.GetStackDir()
 	dynamicDir := filepath.Join(stackDir, "dynamic")
 	if err := os.MkdirAll(dynamicDir, 0755); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create dynamic directory: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "DIR_CREATE_FAILED", "failed to create dynamic directory: "+err.Error(), nil)
 		return
 	}
 
 	outputPath := filepath.Join(dynamicDir, "m3tal-plugins.yml")
 	if err := os.WriteFile(outputPath, configData, 0644); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to write config file: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "CONFIG_WRITE_FAILED", "failed to write config file: "+err.Error(), nil)
 		return
 	}
 
@@ -291,12 +285,12 @@ func (h *PluginHandlers) Install(w http.ResponseWriter, r *http.Request) {
 		Kind string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Name == "" || req.Kind == "" {
-		writeError(w, http.StatusBadRequest, "missing name or kind")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "missing name or kind", nil)
 		return
 	}
 
@@ -304,11 +298,11 @@ func (h *PluginHandlers) Install(w http.ResponseWriter, r *http.Request) {
 
 	err := plugin.InstallPlugin(req.Name, req.Kind, userDir)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to install plugin: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "INSTALL_FAILED", "failed to install plugin: "+err.Error(), nil)
 		return
 	}
 
-	h.registry = nil // force reload
+	h.registry = nil
 	reg := h.ensureLoaded()
 
 	sendSuccess(w, http.StatusOK, map[string]any{
@@ -325,17 +319,16 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 		Kind string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Name == "" || req.Kind == "" {
-		writeError(w, http.StatusBadRequest, "missing name or kind")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "missing name or kind", nil)
 		return
 	}
 
 	reg := h.ensureLoaded()
-
 	userDir := system.GetUserPluginsDir()
 
 	var path string
@@ -366,24 +359,24 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if path == "" {
-		writeError(w, http.StatusNotFound, "plugin not found: "+req.Name)
+		sendError(w, http.StatusNotFound, "PLUGIN_NOT_FOUND", "plugin not found: "+req.Name, nil)
 		return
 	}
 
 	p, err := plugin.LoadPlugin(path)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load plugin manifest: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "PLUGIN_LOAD_FAILED", "failed to load plugin manifest: "+err.Error(), nil)
 		return
 	}
 
 	mgr := plugin.NewStateManager(h.db)
 	err = mgr.UninstallPlugin(p, userDir, reg)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to uninstall plugin: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "UNINSTALL_FAILED", "failed to uninstall plugin: "+err.Error(), nil)
 		return
 	}
 
-	h.registry = nil // force reload
+	h.registry = nil
 	newReg := h.ensureLoaded()
 
 	sendSuccess(w, http.StatusOK, map[string]any{

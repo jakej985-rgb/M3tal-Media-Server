@@ -70,7 +70,7 @@ func (s *Server) GetWSEvents(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetWSLogs(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
-		http.Error(w, "Container name is required", http.StatusBadRequest)
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "Container name is required", nil)
 		return
 	}
 

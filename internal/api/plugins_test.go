@@ -123,20 +123,23 @@ func TestEnablePlugin_UnsatisfiedDependencies(t *testing.T) {
 
 	var response struct {
 		Status string `json:"status"`
-		Error  string `json:"error"`
-		Data   struct {
-			Warnings []string `json:"warnings"`
-		} `json:"data"`
+		Error  struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Details struct {
+				Warnings []string `json:"warnings"`
+			} `json:"details"`
+		} `json:"error"`
 	}
 
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if response.Status != "error" || !strings.Contains(response.Error, "unsatisfied dependencies") {
+	if response.Status != "error" || !strings.Contains(response.Error.Message, "unsatisfied dependencies") {
 		t.Errorf("expected error status for unsatisfied dependencies, got: %+v", response)
 	}
-	if len(response.Data.Warnings) == 0 || !strings.Contains(response.Data.Warnings[0], "Dependency plugin B is disabled") {
-		t.Errorf("expected warning about B being disabled, got warnings: %v", response.Data.Warnings)
+	if len(response.Error.Details.Warnings) == 0 || !strings.Contains(response.Error.Details.Warnings[0], "Dependency plugin B is disabled") {
+		t.Errorf("expected warning about B being disabled, got warnings: %v", response.Error.Details.Warnings)
 	}
 }

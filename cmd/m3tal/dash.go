@@ -2,12 +2,16 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"io"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/client"
+	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
+	"github.com/jakej985-rgb/m3tal-core/pkg/output"
 	"github.com/spf13/cobra"
 )
 
@@ -15,84 +19,146 @@ func initDashCmd() *cobra.Command {
 	var dashCmd = &cobra.Command{
 		Use:   "dash",
 		Short: "Manage the M3TAL Dashboard",
-		Long:  `Start, stop, and monitor the M3TAL dashboard container.`,
+		Long:  `Start, stop, and monitor the M3TAL dashboard container via the API.`,
 	}
 
 	var startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the dashboard service",
-		Run: func(cmd *cobra.Command, args []string) {
-			runDashCompose("up", "-d")
-		},
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.StartStack("m3tal")
+			if err != nil {
+				output.FatalError(err)
+			}
+			fmt.Println("✅ Dashboard started successfully.")
+		}),
 	}
 
 	var stopCmd = &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the dashboard service",
-		Run: func(cmd *cobra.Command, args []string) {
-			runDashCompose("stop")
-		},
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.StopStack("m3tal")
+			if err != nil {
+				output.FatalError(err)
+			}
+			fmt.Println("✅ Dashboard stopped successfully.")
+		}),
 	}
 
 	var restartCmd = &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the dashboard service",
-		Run: func(cmd *cobra.Command, args []string) {
-			runDashCompose("restart")
-		},
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			_, err := c.RestartStack("m3tal")
+			if err != nil {
+				output.FatalError(err)
+			}
+			fmt.Println("✅ Dashboard restarted successfully.")
+		}),
 	}
 
 	var logsCmd = &cobra.Command{
 		Use:   "logs",
 		Short: "View dashboard logs",
-		Run: func(cmd *cobra.Command, args []string) {
-			runDashCompose("logs", "-f", "--tail=100")
-		},
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			containers, err := c.GetContainers()
+			if err != nil {
+				output.FatalError(err)
+			}
+			found := false
+			for _, container := range containers {
+				for _, name := range container.Names {
+					if strings.Contains(name, "dashboard") || strings.Contains(name, "m3tal-dashboard") {
+						logs, err := c.GetLogs(container.ID)
+						if err != nil {
+							output.FatalError(err)
+						}
+						fmt.Println(logs)
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+			if !found {
+				fmt.Println("⚠️  No active dashboard container found.")
+			}
+		}),
 	}
 
 	var statusCmd = &cobra.Command{
 		Use:   "status",
 		Short: "Check dashboard status",
-		Run: func(cmd *cobra.Command, args []string) {
-			runDashCompose("ps")
-		},
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			stacks, err := c.GetStacks()
+			if err != nil {
+				output.FatalError(err)
+			}
+			for _, s := range stacks {
+				if s.Name == "m3tal" {
+					fmt.Printf("Dashboard Stack Status: %s\n", s.Status)
+					return
+				}
+			}
+			fmt.Println("Dashboard Stack Status: not found")
+		}),
 	}
 
 	var upCmd = &cobra.Command{
 		Use:   "up",
 		Short: "Pull config, start API, and start dashboard",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			pullConfig()
 
-			fmt.Println("🚀 Starting M3TAL API service...")
-			if err := exec.Command("sudo", "systemctl", "start", "m3tal-api.service").Run(); err != nil {
-				fmt.Println("⚠️  Could not start m3tal-api.service. It may already be running or systemd is not available.")
+			fmt.Println("🚀 Deploying Dashboard via API...")
+			_, err := c.StartStack("m3tal")
+			if err != nil {
+				output.FatalError(err)
 			}
-
-			runDashCompose("pull")
-			runDashCompose("up", "-d")
-		},
+			fmt.Println("✅ Dashboard successfully started!")
+		}),
 	}
 
 	var pullCmd = &cobra.Command{
 		Use:   "pull",
 		Short: "Pull dashboard image and config",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
 			pullConfig()
-			runDashCompose("pull")
-		},
+			fmt.Println("✅ Dashboard configuration files downloaded. Images will be pulled automatically when starting.")
+		}),
 	}
 
 	var pullConfigCmd = &cobra.Command{
 		Use:   "pull-config",
 		Short: "Download the latest dashboard compose file from GitHub",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
 			pullConfig()
-		},
+		}),
 	}
 
 	dashCmd.AddCommand(upCmd, pullCmd, pullConfigCmd, startCmd, stopCmd, restartCmd, logsCmd, statusCmd)
 	return dashCmd
+}
+
+func downloadFile(url, targetPath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad HTTP status: %s", resp.Status)
+	}
+	out, err := os.Create(targetPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 func pullConfig() {
@@ -131,11 +197,10 @@ func pullConfig() {
 				continue
 			}
 		}
-		cmd := exec.Command("curl", "-fsSL", "-o", targetFile, url)
-		if err := cmd.Run(); err != nil {
+		if err := downloadFile(url, targetFile); err != nil {
 			fmt.Printf("⚠️  Failed to download %s: %v\n", filename, err)
-			if _, err := os.Stat(targetFile); err != nil {
-				log.Fatalf("❌ No local %s found and download failed.", filename)
+			if _, err := os.Stat(targetFile); err == nil {
+				output.FatalErrorMsg("No local %s found and download failed.", filename)
 			}
 		} else {
 			fmt.Printf("✅ Saved to %s\n", targetFile)
@@ -145,27 +210,11 @@ func pullConfig() {
 	ensureUsersFile(stackDir)
 }
 
-// ensureUsersFile checks if users.json is a directory (Docker bind mount artifact) and replaces it with a default config file.
 func ensureUsersFile(stackDir string) {
 	usersPath := filepath.Join(stackDir, "users.json")
 	if info, err := os.Stat(usersPath); err == nil && info.IsDir() {
 		fmt.Printf("⚠️  Found directory named users.json. Removing to recreate as file...\n")
-		errRemove := os.RemoveAll(usersPath)
-		if errRemove != nil {
-			fmt.Printf("⚠️  Failed to remove directory users.json: %v. Trying to stop dashboard container first...\n", errRemove)
-			// Stop dashboard container to release active volume mounts
-			_ = exec.Command("docker", "rm", "-f", "m3tal-dashboard").Run()
-			composeFile := filepath.Join(stackDir, "m3tal-compose.yml")
-			_ = exec.Command("docker", "compose", "-p", "m3tal", "-f", composeFile, "down").Run()
-
-			// Retry removal
-			errRemoveRetry := os.RemoveAll(usersPath)
-			if errRemoveRetry != nil {
-				fmt.Printf("❌ Failed to remove directory users.json: %v\n", errRemoveRetry)
-				fmt.Printf("👉 Please run: docker compose -p m3tal -f %s down && sudo rm -rf %s\n", composeFile, usersPath)
-				return
-			}
-		}
+		_ = os.RemoveAll(usersPath)
 	}
 	if _, err := os.Stat(usersPath); os.IsNotExist(err) {
 		defaultUsers := "[\n  {\n    \"username\": \"admin\",\n    \"token_hash\": \"$2b$12$XAGHaPhf67CK3AQF.w26E.fQ5/iS4E0FNHobqhMMYIEdQ2v/1z4l2\",\n    \"role\": \"admin\"\n  }\n]\n"
@@ -174,65 +223,5 @@ func ensureUsersFile(stackDir string) {
 		} else {
 			fmt.Println("✅ Initialized default users.json configuration file.")
 		}
-	}
-}
-
-func runDashCompose(action string, args ...string) {
-	stackDir := system.GetStackDir()
-	composeFile := filepath.Join(stackDir, "m3tal-compose.yml")
-
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		log.Fatalf("❌ Dashboard compose file not found at %s", composeFile)
-	}
-
-	// Guard: ensure users.json is a FILE, not a directory before invoking compose.
-	ensureUsersFile(stackDir)
-
-	fmt.Printf("🚀 Dashboard: %s...\n", action)
-
-	envFile := system.GetConfigPath()
-	cmdArgs := []string{"compose", "-p", "m3tal"}
-
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		fmt.Printf("⚠️  Configuration missing at %s\n", envFile)
-		fmt.Println("👉 Launching Configuration Wizard...")
-		runWizard(envFile, "", false, true)
-	}
-
-	if _, err := os.Stat(envFile); err == nil {
-		cmdArgs = append(cmdArgs, "--env-file", envFile)
-	}
-
-	cmdArgs = append(cmdArgs, "-f", composeFile)
-
-	mode := "local" // Default
-	if data, err := os.ReadFile(envFile); err == nil {
-		if val := getEnvValue(string(data), "DASHBOARD_EXPOSE_MODE"); val != "" {
-			mode = val
-		}
-	}
-
-	if mode == "local" {
-		localOverride := filepath.Join(stackDir, "m3tal-compose.local.yml")
-		if _, err := os.Stat(localOverride); err == nil {
-			cmdArgs = append(cmdArgs, "-f", localOverride)
-		}
-	} else {
-		traefikOverride := filepath.Join(stackDir, "m3tal-compose.traefik.yml")
-		if _, err := os.Stat(traefikOverride); err == nil {
-			cmdArgs = append(cmdArgs, "-f", traefikOverride)
-		}
-	}
-
-	cmdArgs = append(cmdArgs, action)
-	cmdArgs = append(cmdArgs, args...)
-
-	cmd := exec.Command("docker", cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
-
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("❌ Dashboard command failed: %v", err)
 	}
 }

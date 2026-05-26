@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -11,9 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	apiMiddleware "github.com/jakej985-rgb/m3tal-core/internal/api/middleware"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 // StartServer starts the API server on the specified port.
@@ -66,7 +67,8 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 	r := chi.NewRouter()
 
 	// Global middleware
-	r.Use(middleware.Recoverer)
+	r.Use(apiMiddleware.Recoverer)
+	r.Use(apiMiddleware.RequestLogger)
 	r.Use(middleware.RealIP)
 
 	// Serve static files for the React GUI
@@ -286,51 +288,51 @@ func (s *Server) chiAuthMiddleware(next http.Handler) http.Handler {
 			token = r.URL.Query().Get("token")
 		}
 		if token != s.APIToken {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
+			sendError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
-// APIResponse represents the standardized JSON structure for all M3TAL API responses.
-type APIResponse struct {
-	Status string `json:"status"`
-	Data   any    `json:"data,omitempty"`
-	Meta   any    `json:"meta,omitempty"`
-	Error  any    `json:"error,omitempty"`
+// GetMetricsHistory returns the sliding window history of system metrics.
+// GET /api/v2/system/metrics
+func GetMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	history := system.GlobalMetricsHistory.Get()
+	typedHistory := make([]models.MetricsResponse, len(history))
+	for i, h := range history {
+		typedHistory[i] = models.MetricsResponse{
+			CPUUsage:    h.CPUUsage,
+			MemoryUsage: h.MemoryUsage,
+			DiskUsage:   h.DiskUsage,
+			Uptime:      h.Uptime,
+			Hostname:    h.Hostname,
+		}
+	}
+	sendSuccess(w, http.StatusOK, typedHistory, nil)
 }
 
+// GetSystemHealth returns a detailed system components health check report.
+// GET /api/v2/system/health
+func GetSystemHealth(db *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		report := system.CheckHealth(db)
+		status := http.StatusOK
+		if report.Status == system.StatusUnhealthy {
+			status = http.StatusServiceUnavailable
+		}
 
-// writeJSONResponse encodes a standardized APIResponse as JSON and writes it to the response.
-func writeJSONResponse(w http.ResponseWriter, status int, response APIResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(response)
-}
+		componentsMap := make(map[string]string)
+		for k, v := range report.Components {
+			componentsMap[k] = string(v)
+		}
 
-// sendSuccess writes a standard successful response.
-func sendSuccess(w http.ResponseWriter, status int, data any, meta any) {
-	writeJSONResponse(w, status, APIResponse{
-		Status: "success",
-		Data:   data,
-		Meta:   meta,
-	})
-}
-
-// sendError writes a standard error response.
-func sendError(w http.ResponseWriter, status int, errMsg string) {
-	writeJSONResponse(w, status, APIResponse{
-		Status: "error",
-		Error:  errMsg,
-	})
-}
-
-// writeError writes a JSON error response (legacy wrapper calling sendError).
-func writeError(w http.ResponseWriter, status int, message string) {
-	sendError(w, status, message)
+		sendSuccess(w, status, models.Status{
+			Status:     string(report.Status),
+			Components: componentsMap,
+			Details:    report.Details,
+		}, nil)
+	}
 }
 
 // fileServer conveniently sets up a http.FileServer for a chi router.
@@ -353,25 +355,3 @@ func fileServer(r chi.Router, path string, root http.FileSystem) {
 	})
 }
 
-// GetMetricsHistory returns the sliding window history of system metrics.
-// GET /api/v2/system/metrics
-func GetMetricsHistory(w http.ResponseWriter, r *http.Request) {
-	history := system.GlobalMetricsHistory.Get()
-	sendSuccess(w, http.StatusOK, history, nil)
-}
-
-// GetSystemHealth returns a detailed system components health check report.
-// GET /api/v2/system/health
-func GetSystemHealth(db *store.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		report := system.CheckHealth(db)
-		status := http.StatusOK
-		if report.Status == system.StatusUnhealthy {
-			status = http.StatusServiceUnavailable
-		}
-		writeJSONResponse(w, status, APIResponse{
-			Status: string(report.Status),
-			Data:   report,
-		})
-	}
-}

@@ -14,6 +14,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
 	"github.com/jakej985-rgb/m3tal-core/internal/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 // StackHandlers provides operations for stack management.
@@ -28,21 +29,14 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 	stackDir := system.GetStackDir()
 	matches, err := system.FindComposeFiles(stackDir)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "cannot scan stack directory")
+		sendError(w, http.StatusInternalServerError, "DIRECTORY_SCAN_FAILED", "cannot scan stack directory", nil)
 		return
 	}
 
 	dirs := system.GetPluginDirs()
 	reg, _ := plugin.LoadAll(dirs...)
 
-	type stackInfo struct {
-		Name        string   `json:"name"`
-		ComposePath string   `json:"compose_path"`
-		Services    []string `json:"services,omitempty"`
-		Status      string   `json:"status"`
-	}
-
-	var stacks []stackInfo
+	var stacks []models.Stack
 	for _, match := range matches {
 		base := filepath.Base(match)
 		name := strings.TrimSuffix(base, "-compose.yml")
@@ -53,7 +47,7 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		info := stackInfo{
+		info := models.Stack{
 			Name:        name,
 			ComposePath: match,
 			Status:      "discovered",
@@ -79,7 +73,7 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stacks == nil {
-		stacks = []stackInfo{}
+		stacks = []models.Stack{}
 	} else {
 		sort.Slice(stacks, func(i, j int) bool {
 			pI := 100
@@ -113,23 +107,23 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Path == "" {
-		writeError(w, http.StatusBadRequest, "path is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "path is required", nil)
 		return
 	}
 
 	if !isPathAllowed(req.Path) {
-		writeError(w, http.StatusForbidden, "path must be within the stack directory")
+		sendError(w, http.StatusForbidden, "FORBIDDEN_PATH", "path must be within the stack directory", nil)
 		return
 	}
 
 	cf, err := engine.ParseCompose(req.Path)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		sendError(w, http.StatusBadRequest, "COMPOSE_PARSE_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -181,23 +175,23 @@ func (h *StackHandlers) DeployStack(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Path == "" {
-		writeError(w, http.StatusBadRequest, "path is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "path is required", nil)
 		return
 	}
 
 	if !isPathAllowed(req.Path) {
-		writeError(w, http.StatusForbidden, "path must be within the stack directory")
+		sendError(w, http.StatusForbidden, "FORBIDDEN_PATH", "path must be within the stack directory", nil)
 		return
 	}
 
 	// Verify file exists
 	if _, err := os.Stat(req.Path); err != nil {
-		writeError(w, http.StatusNotFound, "compose file not found: "+req.Path)
+		sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", "compose file not found: "+req.Path, nil)
 		return
 	}
 
@@ -219,11 +213,7 @@ func (h *StackHandlers) DeployStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
-			Status: "error",
-			Error:  err.Error(),
-			Data:   result,
-		})
+		sendError(w, http.StatusInternalServerError, "DEPLOY_FAILED", err.Error(), result)
 		return
 	}
 
@@ -240,7 +230,7 @@ type MiddlewareHandlers struct {
 func (h *MiddlewareHandlers) ListMiddleware(w http.ResponseWriter, r *http.Request) {
 	mws, err := h.Store.ListMiddleware()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DATABASE_ERROR", err.Error(), nil)
 		return
 	}
 	if mws == nil {
@@ -254,16 +244,16 @@ func (h *MiddlewareHandlers) ListMiddleware(w http.ResponseWriter, r *http.Reque
 func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Request) {
 	var input engine.MiddlewareInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if input.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "name is required", nil)
 		return
 	}
 	if input.Type == "" {
-		writeError(w, http.StatusBadRequest, "type is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "type is required", nil)
 		return
 	}
 
@@ -273,7 +263,7 @@ func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Req
 	// Store
 	id, err := h.Store.CreateMiddleware(input.Name, input.Type, input.Config)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DATABASE_ERROR", err.Error(), nil)
 		return
 	}
 
@@ -322,21 +312,14 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 	stackDir := system.GetStackDir()
 	matches, err := system.FindComposeFiles(stackDir)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to scan stacks: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "DIRECTORY_SCAN_FAILED", "failed to scan stacks: "+err.Error(), nil)
 		return
 	}
 
 	dirs := system.GetPluginDirs()
 	reg, _ := plugin.LoadAll(dirs...)
 
-	type stackInfo struct {
-		Name        string   `json:"name"`
-		ComposePath string   `json:"compose_path"`
-		Services    []string `json:"services,omitempty"`
-		Status      string   `json:"status"`
-	}
-
-	var stacks []stackInfo
+	var stacks []models.Stack
 	for _, match := range matches {
 		base := filepath.Base(match)
 		name := strings.TrimSuffix(base, "-compose.yml")
@@ -347,7 +330,7 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		info := stackInfo{
+		info := models.Stack{
 			Name:        name,
 			ComposePath: match,
 			Status:      "discovered",
@@ -416,13 +399,13 @@ func (h *StackHandlers) findStackPathByName(name string) (string, error) {
 func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
-		writeError(w, http.StatusBadRequest, "stack name is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "stack name is required", nil)
 		return
 	}
 
 	composePath, err := h.findStackPathByName(name)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", err.Error(), nil)
 		return
 	}
 
@@ -445,11 +428,7 @@ func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request
 	})
 
 	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
-			Status: "error",
-			Error:  err.Error(),
-			Data:   result,
-		})
+		sendError(w, http.StatusInternalServerError, "DEPLOY_FAILED", err.Error(), result)
 		return
 	}
 
@@ -461,13 +440,13 @@ func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request
 func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
-		writeError(w, http.StatusBadRequest, "stack name is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "stack name is required", nil)
 		return
 	}
 
 	composePath, err := h.findStackPathByName(name)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", err.Error(), nil)
 		return
 	}
 
@@ -490,11 +469,7 @@ func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) 
 	})
 
 	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
-			Status: "error",
-			Error:  err.Error(),
-			Data:   result,
-		})
+		sendError(w, http.StatusInternalServerError, "STOP_FAILED", err.Error(), result)
 		return
 	}
 

@@ -30,7 +30,10 @@ func TestAIRun_NotActive(t *testing.T) {
 
 	var resp struct {
 		Status string `json:"status"`
-		Error  string `json:"error"`
+		Error  struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse json response: %v", err)
@@ -38,8 +41,11 @@ func TestAIRun_NotActive(t *testing.T) {
 	if resp.Status != "error" {
 		t.Errorf("expected status 'error', got %q", resp.Status)
 	}
-	if resp.Error != "AI addon is not active or enabled" {
-		t.Errorf("expected error message, got %q", resp.Error)
+	if resp.Error.Message != "AI addon is not active or enabled" {
+		t.Errorf("expected error message, got %q", resp.Error.Message)
+	}
+	if resp.Error.Code != "AI_UNAVAILABLE" {
+		t.Errorf("expected error code AI_UNAVAILABLE, got %q", resp.Error.Code)
 	}
 }
 

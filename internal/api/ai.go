@@ -238,17 +238,17 @@ var loadAIEnvFunc = loadAIEnv
 // AIRun handles request routing, model selection, and fallback execution
 func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 	if !isAIActiveCheck() {
-		writeError(w, http.StatusServiceUnavailable, "AI addon is not active or enabled")
+		sendError(w, http.StatusServiceUnavailable, "AI_UNAVAILABLE", "AI addon is not active or enabled", nil)
 		return
 	}
 
 	var req AIRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body", nil)
 		return
 	}
 	if req.Prompt == "" {
-		writeError(w, http.StatusBadRequest, "prompt is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "prompt is required", nil)
 		return
 	}
 
@@ -271,14 +271,14 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := GlobalQueue.Submit(job); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to submit job: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "JOB_SUBMIT_FAILED", "failed to submit job: "+err.Error(), nil)
 		return
 	}
 
 	select {
 	case result := <-resultChan:
 		if result.Error != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("AI execution failed: %v", result.Error))
+			sendError(w, http.StatusInternalServerError, "AI_EXECUTION_FAILED", fmt.Sprintf("AI execution failed: %v", result.Error), nil)
 			return
 		}
 		sendSuccess(w, http.StatusOK, AIResponse{
@@ -288,7 +288,7 @@ func (s *Server) AIRun(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 	case <-r.Context().Done():
 		GlobalQueue.Cancel(jobID)
-		writeError(w, http.StatusRequestTimeout, "request cancelled or timed out during execution")
+		sendError(w, http.StatusRequestTimeout, "AI_TIMEOUT", "request cancelled or timed out during execution", nil)
 	}
 }
 
@@ -338,6 +338,7 @@ func callOllamaGenerate(host string, model string, prompt string) (string, error
 }
 
 // GetAIQueue returns the list of queued/running AI jobs
+// GET /api/v2/ai/queue
 func (s *Server) GetAIQueue(w http.ResponseWriter, r *http.Request) {
 	records := GlobalQueue.List()
 	var list []AIJobStatus
@@ -364,6 +365,7 @@ func (s *Server) GetAIQueue(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetAIModels returns the list of active/fallback models from Ollama or env config
+// GET /api/v2/ai/models
 func (s *Server) GetAIModels(w http.ResponseWriter, r *http.Request) {
 	envVars := loadAIEnvFunc()
 	ollamaHost := "http://localhost:11434"
@@ -390,7 +392,6 @@ func (s *Server) GetAIModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fallback to configured models in env
 	var models []string
 	if m := envVars["AI_MODEL"]; m != "" {
 		models = append(models, m)

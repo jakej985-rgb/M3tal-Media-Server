@@ -26,7 +26,7 @@ func (h *ProxyHandlers) DiscoverServices(w http.ResponseWriter, r *http.Request)
 	mgr := proxy.NewManager(h.Store)
 	services, err := mgr.DiscoverServices()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DISCOVERY_FAILED", err.Error(), nil)
 		return
 	}
 	sendSuccess(w, http.StatusOK, services, nil)
@@ -44,7 +44,7 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
@@ -56,18 +56,14 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 	}
 	errs := engine.ValidateRoute(routeInput)
 	if len(errs) > 0 {
-		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
-			Status: "error",
-			Error:  "validation failed",
-			Data:   map[string]any{"violations": errs},
-		})
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return
 	}
 
 	mgr := proxy.NewManager(h.Store)
 	err := mgr.ExposeService(input.Service, input.Domain, input.Port, input.SSL, input.Middlewares)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "PROXY_EXPOSE_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -86,19 +82,19 @@ func (h *ProxyHandlers) UnexposeService(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if input.Domain == "" {
-		writeError(w, http.StatusBadRequest, "domain is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "domain is required", nil)
 		return
 	}
 
 	mgr := proxy.NewManager(h.Store)
 	err := mgr.UnexposeService(input.Domain)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "PROXY_UNEXPOSE_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -116,20 +112,20 @@ func (h *ProxyHandlers) ConfigureSSL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	email := strings.TrimSpace(input.Email)
 	if email == "" {
-		writeError(w, http.StatusBadRequest, "valid email is required for SSL configuration")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "valid email is required for SSL configuration", nil)
 		return
 	}
 
 	mgr := proxy.NewManager(h.Store)
 	err := mgr.ConfigureSSL(email)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "PROXY_SSL_FAILED", err.Error(), nil)
 		return
 	}
 

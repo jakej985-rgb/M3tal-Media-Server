@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/registry"
 	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/client"
+	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
+	"github.com/jakej985-rgb/m3tal-core/pkg/output"
 	"github.com/spf13/cobra"
 )
 
@@ -26,11 +26,11 @@ func initStackCmd() *cobra.Command {
 	var searchCmd = &cobra.Command{
 		Use:   "search [term]",
 		Short: "Search available stacks in the registry",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
 			regURL := registry.GetRegistryURL()
 			idx, err := registry.FetchIndex(regURL)
 			if err != nil {
-				log.Fatalf("❌ Failed to fetch stacks registry: %v", err)
+				output.FatalError(err)
 			}
 
 			term := ""
@@ -53,20 +53,15 @@ func initStackCmd() *cobra.Command {
 				return
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			fmt.Fprintln(w, "NAME\tCATEGORY\tVERSION\tDESCRIPTION")
-			for _, s := range filtered {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Name, s.Category, s.Version, s.Description)
-			}
-			w.Flush()
-		},
+			output.PrintRegistrySearchTable(filtered)
+		}),
 	}
 
 	var installCmd = &cobra.Command{
 		Use:   "install [name]",
 		Short: "Install a prebuilt stack into M3TAL",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			name := args[0]
 			regURL := registry.GetRegistryURL()
 			destDir := system.GetStackDir()
@@ -74,7 +69,7 @@ func initStackCmd() *cobra.Command {
 			// 1. Fetch index to locate stack & metadata
 			idx, err := registry.FetchIndex(regURL)
 			if err != nil {
-				log.Fatalf("❌ Failed to fetch registry: %v", err)
+				output.FatalError(err)
 			}
 
 			var target *registry.StackMetadata
@@ -86,7 +81,7 @@ func initStackCmd() *cobra.Command {
 			}
 
 			if target == nil {
-				log.Fatalf("❌ Stack %q not found in the registry.", name)
+				output.FatalErrorMsg("Stack %q not found in the registry.", name)
 			}
 
 			// 2. Validate pre-flight checks
@@ -108,36 +103,31 @@ func initStackCmd() *cobra.Command {
 			// 3. Download the stack compose and metadata files
 			fmt.Printf("📥 Downloading stack %q from registry...\n", target.Name)
 			if err := registry.DownloadStack(target.Name, regURL, destDir); err != nil {
-				log.Fatalf("❌ Download failed: %v", err)
+				output.FatalError(err)
 			}
 
-			// 4. Activate the stack by running docker compose up -d
-			composeFile := filepath.Join(destDir, fmt.Sprintf("%s-compose.yml", strings.ToLower(target.Name)))
-			fmt.Printf("🚀 Deploying stack %s...\n", target.Name)
-			
-			// We build stack environment runtime file if required
-			runCmd := exec.Command("docker", "compose", "-p", strings.ToLower(target.Name), "-f", composeFile, "up", "-d")
-			runCmd.Stdout = os.Stdout
-			runCmd.Stderr = os.Stderr
-			if err := runCmd.Run(); err != nil {
+			// 4. Activate the stack by calling API
+			fmt.Printf("🚀 Deploying stack %s via API...\n", target.Name)
+			_, err = c.StartStack(strings.ToLower(target.Name))
+			if err != nil {
 				fmt.Printf("⚠️  Failed to automatically deploy stack %s: %v\n", target.Name, err)
 				fmt.Printf("👉 You can deploy it manually using: m3tal up %s\n", target.Name)
 			} else {
 				fmt.Printf("✅ Stack %s successfully installed and started!\n", target.Name)
 			}
-		},
+		}),
 	}
 
 	var updateCmd = &cobra.Command{
 		Use:   "update [name]",
 		Short: "Update installed prebuilt stacks to the latest version",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			regURL := registry.GetRegistryURL()
 			destDir := system.GetStackDir()
 
 			idx, err := registry.FetchIndex(regURL)
 			if err != nil {
-				log.Fatalf("❌ Failed to fetch registry: %v", err)
+				output.FatalError(err)
 			}
 
 			type updateJob struct {
@@ -157,7 +147,7 @@ func initStackCmd() *cobra.Command {
 					}
 				}
 				if target == nil {
-					log.Fatalf("❌ Stack %q not found in registry.", name)
+					output.FatalErrorMsg("Stack %q not found in registry.", name)
 				}
 
 				oldVer, err := readLocalVersion(destDir, target.Name)
@@ -206,19 +196,15 @@ func initStackCmd() *cobra.Command {
 					continue
 				}
 
-				composeFile := filepath.Join(destDir, fmt.Sprintf("%s-compose.yml", strings.ToLower(job.meta.Name)))
-				fmt.Printf("🚀 Redeploying updated stack %s...\n", job.meta.Name)
-				
-				runCmd := exec.Command("docker", "compose", "-p", strings.ToLower(job.meta.Name), "-f", composeFile, "up", "-d")
-				runCmd.Stdout = os.Stdout
-				runCmd.Stderr = os.Stderr
-				if err := runCmd.Run(); err != nil {
+				fmt.Printf("🚀 Redeploying updated stack %s via API...\n", job.meta.Name)
+				_, err = c.StartStack(strings.ToLower(job.meta.Name))
+				if err != nil {
 					fmt.Printf("⚠️  Redeployment failed for stack %s: %v\n", job.meta.Name, err)
 				} else {
 					fmt.Printf("✅ Stack %s updated successfully!\n", job.meta.Name)
 				}
 			}
-		},
+		}),
 	}
 
 	stackCmd.AddCommand(searchCmd, installCmd, updateCmd)

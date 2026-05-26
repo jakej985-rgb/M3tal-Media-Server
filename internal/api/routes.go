@@ -20,7 +20,7 @@ type RouteHandlers struct {
 func (h *RouteHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 	routes, err := h.Store.ListRoutes()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DATABASE_ERROR", err.Error(), nil)
 		return
 	}
 	if routes == nil {
@@ -34,18 +34,14 @@ func (h *RouteHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	var input engine.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	// Validate route input
 	errs := engine.ValidateRoute(input)
 	if len(errs) > 0 {
-		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
-			Status: "error",
-			Error:  "validation failed",
-			Data:   map[string]any{"violations": errs},
-		})
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return
 	}
 
@@ -61,11 +57,7 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	uniqueErrs := engine.ValidateDomainUnique(input.Domain, existingInputs)
 	if len(uniqueErrs) > 0 {
-		writeJSONResponse(w, http.StatusConflict, APIResponse{
-			Status: "error",
-			Error:  "domain conflict",
-			Data:   map[string]any{"violations": uniqueErrs},
-		})
+		sendError(w, http.StatusConflict, "DOMAIN_CONFLICT", "domain conflict", map[string]any{"violations": uniqueErrs})
 		return
 	}
 
@@ -75,7 +67,7 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	// Store in DB
 	id, err := h.Store.CreateRoute(input.Service, input.Domain, input.Port, input.Entrypoints, "", false, "")
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		sendError(w, http.StatusInternalServerError, "DATABASE_ERROR", err.Error(), nil)
 		return
 	}
 
@@ -92,12 +84,12 @@ func (h *RouteHandlers) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid route ID")
+		sendError(w, http.StatusBadRequest, "INVALID_ID", "invalid route ID", nil)
 		return
 	}
 
 	if err := h.Store.DeleteRoute(id); err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		sendError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", err.Error(), nil)
 		return
 	}
 
@@ -109,17 +101,13 @@ func (h *RouteHandlers) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 func (h *RouteHandlers) GetRouteLabels(w http.ResponseWriter, r *http.Request) {
 	var input engine.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	errs := engine.ValidateRoute(input)
 	if len(errs) > 0 {
-		writeJSONResponse(w, http.StatusBadRequest, APIResponse{
-			Status: "error",
-			Error:  "validation failed",
-			Data:   map[string]any{"violations": errs},
-		})
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return
 	}
 

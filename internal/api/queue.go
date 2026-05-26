@@ -23,13 +23,13 @@ func ListQueue(w http.ResponseWriter, r *http.Request) {
 func GetQueueJob(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing job ID")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "missing job ID", nil)
 		return
 	}
 
 	record, found := GlobalQueue.Get(id)
 	if !found {
-		writeError(w, http.StatusNotFound, "job not found: "+id)
+		sendError(w, http.StatusNotFound, "JOB_NOT_FOUND", "job not found: "+id, nil)
 		return
 	}
 
@@ -50,13 +50,13 @@ func CancelQueueJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.ID == "" {
-		writeError(w, http.StatusBadRequest, "missing job ID")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "missing job ID", nil)
 		return
 	}
 
 	cancelled := GlobalQueue.Cancel(req.ID)
 	if !cancelled {
-		writeError(w, http.StatusConflict, "failed to cancel job (either not found, or already completed/failed)")
+		sendError(w, http.StatusConflict, "JOB_CANCEL_FAILED", "failed to cancel job (either not found, or already completed/failed)", nil)
 		return
 	}
 

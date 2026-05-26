@@ -26,7 +26,7 @@ func (h *ComposeHandlers) ValidateCompose(w http.ResponseWriter, r *http.Request
 		YAML string `json:"yaml"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
@@ -64,13 +64,13 @@ func (h *ComposeHandlers) FixCompose(w http.ResponseWriter, r *http.Request) {
 		YAML string `json:"yaml"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	fixed, fixes, err := compose.AutoFix([]byte(req.YAML))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		sendError(w, http.StatusBadRequest, "COMPOSE_FIX_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -94,13 +94,13 @@ func (h *ComposeHandlers) GenerateTemplate(w http.ResponseWriter, r *http.Reques
 		Parameters map[string]string `json:"parameters"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	yamlData, err := compose.Generate(req.Template, req.Parameters)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		sendError(w, http.StatusBadRequest, "TEMPLATE_GEN_FAILED", err.Error(), nil)
 		return
 	}
 
@@ -117,12 +117,12 @@ func (h *ComposeHandlers) SaveCompose(w http.ResponseWriter, r *http.Request) {
 		YAML  string `json:"yaml"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	if req.Stack == "" {
-		writeError(w, http.StatusBadRequest, "stack name is required")
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "stack name is required", nil)
 		return
 	}
 
@@ -137,7 +137,7 @@ func (h *ComposeHandlers) SaveCompose(w http.ResponseWriter, r *http.Request) {
 
 	// Write file
 	if err := os.WriteFile(filePath, []byte(req.YAML), 0644); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to save file: "+err.Error())
+		sendError(w, http.StatusInternalServerError, "FILE_WRITE_FAILED", "failed to save file: "+err.Error(), nil)
 		return
 	}
 
@@ -155,11 +155,7 @@ func (h *ComposeHandlers) SaveCompose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, APIResponse{
-			Status: "error",
-			Error:  err.Error(),
-			Data:   result,
-		})
+		sendError(w, http.StatusInternalServerError, "DEPLOY_FAILED", err.Error(), result)
 		return
 	}
 
