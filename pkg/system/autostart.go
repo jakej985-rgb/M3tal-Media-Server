@@ -13,7 +13,7 @@ import (
 // EnsureAPIRunning verifies that the API daemon is running at baseURL.
 // If it is offline, it spawns a detached background instance of the API server daemon.
 // It then polls the health endpoint (/api/v2/system/health) until healthy or maxWait is reached.
-func EnsureAPIRunning(baseURL string, maxWait time.Duration) error {
+func EnsureAPIRunning(baseURL, token string, maxWait time.Duration) error {
 	client := &http.Client{
 		Timeout: 500 * time.Millisecond,
 	}
@@ -23,10 +23,13 @@ func EnsureAPIRunning(baseURL string, maxWait time.Duration) error {
 	// Check if already running
 	req, err := http.NewRequest("GET", healthURL, nil)
 	if err == nil {
+		if token != "" {
+			req.Header.Set("X-API-Token", token)
+		}
 		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusUnauthorized {
 				return nil
 			}
 		}
@@ -63,10 +66,13 @@ func EnsureAPIRunning(baseURL string, maxWait time.Duration) error {
 		if err != nil {
 			continue
 		}
+		if token != "" {
+			req.Header.Set("X-API-Token", token)
+		}
 		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusUnauthorized {
 				return nil
 			}
 		}

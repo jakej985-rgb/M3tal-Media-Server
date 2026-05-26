@@ -23,7 +23,7 @@ func WithDaemon(f func(c *client.Client, cmd *cobra.Command, args []string)) fun
 	return func(cmd *cobra.Command, args []string) {
 		c := getClient(cmd)
 		// Ensure daemon is running
-		err := system.EnsureAPIRunning(c.BaseURL, 5*time.Second)
+		err := system.EnsureAPIRunning(c.BaseURL, c.Token, 5*time.Second)
 		if err != nil {
 			output.FatalError(err)
 		}
