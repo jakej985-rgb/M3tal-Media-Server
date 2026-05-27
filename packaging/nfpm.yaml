@@ -36,6 +36,10 @@ contents:
     dst: /lib/systemd/system/m3tal-api.service
     type: "config"
 
+  - src: ./packaging/m3tal.service
+    dst: /lib/systemd/system/m3tal.service
+    type: "config"
+
   # Branding Icons
   - src: ./docs/goback_logo.svg
     dst: /usr/share/icons/hicolor/scalable/apps/m3tal.svg

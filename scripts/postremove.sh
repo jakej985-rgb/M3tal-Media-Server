@@ -10,6 +10,11 @@ if command -v systemctl >/dev/null 2>&1; then
         systemctl stop m3tal-api.service >/dev/null 2>&1 || true
         systemctl disable m3tal-api.service >/dev/null 2>&1 || true
     fi
+    if [ -f /lib/systemd/system/m3tal.service ]; then
+        echo "[m3tal] Stopping M3TAL Agents service"
+        systemctl stop m3tal.service >/dev/null 2>&1 || true
+        systemctl disable m3tal.service >/dev/null 2>&1 || true
+    fi
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 

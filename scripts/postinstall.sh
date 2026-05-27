@@ -57,6 +57,10 @@ if command -v systemctl >/dev/null 2>&1; then
         systemctl enable m3tal-api.service >/dev/null 2>&1 || true
         echo "[m3tal] M3TAL API service enabled"
     fi
+    if [ -f /lib/systemd/system/m3tal.service ]; then
+        systemctl enable m3tal.service >/dev/null 2>&1 || true
+        echo "[m3tal] M3TAL Agents service enabled"
+    fi
 fi
 
 # 6. Desktop & Icon Cache Update
