@@ -1,4 +1,4 @@
-name: M3TAL Core CI
+name: M3TAL Core CI - DEB
 
 on:
   push:
@@ -13,9 +13,9 @@ jobs:
   build-and-test-go:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
       with:
         go-version: '1.23'
         cache: false
@@ -31,9 +31,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
       with:
         go-version: '1.23'
         cache: false
