@@ -1,4 +1,4 @@
-name: Build and Publish
+name: Build and Publish DEB
 
 on:
   push:
@@ -8,16 +8,15 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-deb:
     runs-on: ubuntu-latest
     env:
       VERSION: ""
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
@@ -51,7 +50,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version: '1.23'
           cache: true
@@ -67,13 +66,13 @@ jobs:
         run: ./scripts/build-deb.sh
 
       - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
+        uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Checkout m3tal-apt-key repo to retain existing packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: jakej985-rgb/m3tal-apt-key
           token: ${{ secrets.GH_PAT }}
@@ -89,7 +88,7 @@ jobs:
         run: ./scripts/update-repo.sh
 
       - name: Deploy APT repository to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@47f197a2200bb9de68ba5f48fad1c088eb1c4a32 # v4.0.0
         with:
           personal_token: ${{ secrets.GH_PAT }}
           external_repository: jakej985-rgb/m3tal-apt-key
@@ -98,7 +97,7 @@ jobs:
           force_orphan: false
 
       - name: Checkout m3tal-plugin-page repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: jakej985-rgb/m3tal-plugin-page
           token: ${{ secrets.GH_PAT }}
@@ -126,7 +125,7 @@ jobs:
           touch plugin-repo/.nojekyll
 
       - name: Deploy Plugins to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@47f197a2200bb9de68ba5f48fad1c088eb1c4a32 # v4.0.0
         with:
           personal_token: ${{ secrets.GH_PAT }}
           external_repository: jakej985-rgb/m3tal-plugin-page
@@ -135,46 +134,10 @@ jobs:
           force_orphan: false
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           files: "*.deb"
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GH_PAT }}
-
-      - name: Convert repo owner to lowercase
-        id: owner
-        run: |
-          OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "owner=$OWNER_LOWERCASE" >> $GITHUB_OUTPUT
-
-      - name: Extract metadata (tags, labels) for Dashboard
-        id: meta-dashboard
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ steps.owner.outputs.owner }}/m3tal-godash
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ env.VERSION }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Dashboard
-        uses: docker/build-push-action@v6
-        with:
-          context: ./deploy/dashboard
-          file: ./deploy/dashboard/Dockerfile
-          push: true
-          tags: ${{ steps.meta-dashboard.outputs.tags }}
-          labels: ${{ steps.meta-dashboard.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
