@@ -165,9 +165,6 @@ func main() {
 		},
 	}
 
-
-
-
 	var daemonStartCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the background M3TAL API server daemon",
