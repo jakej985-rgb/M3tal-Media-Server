@@ -49,21 +49,36 @@ jobs:
         run: |
           node .github/scripts/doccritic.js
 
+      - name: 📥 Checkout m3tal-docs repo
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+        with:
+          repository: jakej985-rgb/m3tal-docs
+          token: ${{ secrets.GH_PAT }}
+          path: m3tal-docs
+
       - name: 📝 Commit Documentation Changes
         if: github.event_name == 'push'
         run: |
-          git config user.name "m3tal-docs-bot"
-          git config user.email "actions@github.com"
+          # Create target folder inside m3tal-docs
+          mkdir -p m3tal-docs/projects/m3tal-core
 
-          # Always add the fixes report
+          # Copy files to m3tal-docs
+          cp README.md m3tal-docs/projects/m3tal-core/README.md
+          cp docs/GET_STARTED.md m3tal-docs/projects/m3tal-core/INSTALL.md
+          cp docs/ENVIRONMENT_VARIABLES.md m3tal-docs/projects/m3tal-core/CONFIG.md
+          cp docs/COMMAND_REFERENCE.md m3tal-docs/projects/m3tal-core/API.md
           if [[ -f FIXES.md ]]; then
-            git add FIXES.md
+            cp FIXES.md m3tal-docs/projects/m3tal-core/FIXES.md
           fi
 
-          # Add README and all active documentation files
-          git add README.md docs/
+          # Commit and Push to m3tal-docs repo
+          cd m3tal-docs
+          git config user.name "m3tal-docs-bot"
+          git config user.email "actions@github.com"
+          git add projects/m3tal-core/
 
-          if [[ ! -f .doc-failed ]]; then
+          if [[ ! -f ../.doc-failed ]]; then
             git commit -m "docs: auto-update from system state [skip ci]" || true
           else
             echo "[!] DocCritic BLOCKERS found. Pushing both README and FIXES per user instructions."
