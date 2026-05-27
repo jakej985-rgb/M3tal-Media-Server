@@ -52,14 +52,15 @@ chmod -R g+rwX /opt/m3tal /etc/m3tal /var/lib/m3tal 2>/dev/null || true
 # 5. Systemd Service Integration
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
-    # The master plan focuses on DEB CLI + API, usually API is the service
     if [ -f /lib/systemd/system/m3tal-api.service ]; then
         systemctl enable m3tal-api.service >/dev/null 2>&1 || true
-        echo "[m3tal] M3TAL API service enabled"
+        systemctl restart m3tal-api.service >/dev/null 2>&1 || true
+        echo "[m3tal] M3TAL API service enabled and started"
     fi
     if [ -f /lib/systemd/system/m3tal.service ]; then
         systemctl enable m3tal.service >/dev/null 2>&1 || true
-        echo "[m3tal] M3TAL Agents service enabled"
+        systemctl restart m3tal.service >/dev/null 2>&1 || true
+        echo "[m3tal] M3TAL Agents service enabled and started"
     fi
 fi
 
