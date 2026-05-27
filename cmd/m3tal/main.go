@@ -316,6 +316,10 @@ func main() {
 				if err != nil {
 					output.FatalError(err)
 				}
+				if len(stacks) == 0 {
+					fmt.Println("No Compose Found! Nothing To Start!")
+					return
+				}
 				for _, s := range stacks {
 					fmt.Printf("🚀 Deploying stack %s via API...\n", s.Name)
 					_, _ = c.StartStack(s.Name)
