@@ -9,9 +9,10 @@ import (
 
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"gopkg.in/yaml.v3"
 )
 
@@ -264,7 +265,7 @@ func (m *Manager) ConfigureSSL(email string) error {
 
 	// 3. Configure routing-compose.yml ports
 	composePath := filepath.Join(stackDir, "routing-compose.yml")
-	cf, err := engine.ParseCompose(composePath)
+	cf, err := routing.ParseCompose(composePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse routing-compose.yml: %w", err)
 	}

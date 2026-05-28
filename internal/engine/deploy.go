@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
 )
 
 // DeployResult captures the outcome of a stack deployment.
@@ -69,9 +71,9 @@ func DeployStack(composePath string, timeout time.Duration) (*DeployResult, erro
 
 // ValidateAndDeploy runs validation before deployment.
 // If validation fails, deployment is aborted.
-func ValidateAndDeploy(composePath string, routes []RouteInput, timeout time.Duration) (*DeployResult, error) {
+func ValidateAndDeploy(composePath string, routes []routing.RouteInput, timeout time.Duration) (*DeployResult, error) {
 	// 1. Parse the compose file
-	cf, err := ParseCompose(composePath)
+	cf, err := routing.ParseCompose(composePath)
 	if err != nil {
 		return &DeployResult{
 			Stack:  composePath,

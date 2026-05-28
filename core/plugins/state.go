@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 )
 
 // StateManager coordinates plugin configuration and enablement state.

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
 )
 
 func TestListPluginsByKindOrName(t *testing.T) {

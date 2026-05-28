@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
 )
 
 func TestUniqueSorted(t *testing.T) {

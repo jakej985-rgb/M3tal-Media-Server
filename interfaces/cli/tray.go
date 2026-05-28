@@ -16,7 +16,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/gogpu/systray"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"github.com/spf13/cobra"
 )
 

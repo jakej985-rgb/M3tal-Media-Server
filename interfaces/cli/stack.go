@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/registry"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/client"
 	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
 	"github.com/jakej985-rgb/m3tal-core/pkg/output"

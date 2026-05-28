@@ -6,8 +6,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
 )
 
 // RouteHandlers provides CRUD operations for Traefik routes.
@@ -32,7 +33,7 @@ func (h *RouteHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 // CreateRoute validates and creates a new route.
 // POST /api/v2/routes
 func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
-	var input engine.RouteInput
+	var input routing.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
@@ -47,9 +48,9 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 
 	// Check domain uniqueness
 	existing, _ := h.Store.ListRoutes()
-	var existingInputs []engine.RouteInput
+	var existingInputs []routing.RouteInput
 	for _, r := range existing {
-		existingInputs = append(existingInputs, engine.RouteInput{
+		existingInputs = append(existingInputs, routing.RouteInput{
 			Service: r.Service,
 			Domain:  r.Domain,
 			Port:    r.Port,
@@ -62,7 +63,7 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate labels
-	labels := engine.GenerateLabels(input)
+	labels := routing.GenerateLabels(input)
 
 	// Store in DB
 	id, err := h.Store.CreateRoute(input.Service, input.Domain, input.Port, input.Entrypoints, "", false, "")
@@ -99,7 +100,7 @@ func (h *RouteHandlers) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 // GetRouteLabels generates labels for a route without storing it.
 // POST /api/v2/routes/preview
 func (h *RouteHandlers) GetRouteLabels(w http.ResponseWriter, r *http.Request) {
-	var input engine.RouteInput
+	var input routing.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
@@ -111,6 +112,6 @@ func (h *RouteHandlers) GetRouteLabels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels := engine.GenerateLabels(input)
+	labels := routing.GenerateLabels(input)
 	sendSuccess(w, http.StatusOK, labels, nil)
 }

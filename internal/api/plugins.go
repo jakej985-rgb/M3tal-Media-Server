@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 )
 
 // PluginHandlers provides endpoints for viewing loaded plugins.

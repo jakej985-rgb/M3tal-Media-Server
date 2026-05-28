@@ -2,7 +2,7 @@ package system
 
 import (
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 	"github.com/shirou/gopsutil/v3/disk"
 )
 

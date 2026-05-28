@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 )
 
 func TestParsePlugin_Route(t *testing.T) {

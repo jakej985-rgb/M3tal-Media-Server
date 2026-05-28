@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/internal/api"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 )
 
 func main() {

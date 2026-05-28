@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 )
 
 // StackManager represents a collection of docker-compose files
