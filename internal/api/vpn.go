@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/vpn"
+	"github.com/jakej985-rgb/m3tal-core/core/networking/vpn"
 )
 
 // VPNHandlers provides HTTP handlers for Gluetun VPN Manager operations.

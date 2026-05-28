@@ -10,10 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
 	apiMiddleware "github.com/jakej985-rgb/m3tal-core/internal/api/middleware"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
@@ -55,7 +56,7 @@ func StartServerWithStore(port string, token string, db *store.Store) error {
 			}
 
 			if eventType != "" {
-				GlobalEventBus.Publish(eventType, map[string]string{
+				events.GlobalEventBus.Publish(eventType, map[string]string{
 					"container": ev.ContainerName,
 				})
 			}

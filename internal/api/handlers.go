@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 	"github.com/jakej985-rgb/m3tal-core/internal/health"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 

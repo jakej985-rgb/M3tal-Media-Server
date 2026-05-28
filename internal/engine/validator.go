@@ -5,6 +5,8 @@ import (
 	"net"
 	"regexp"
 	"strings"
+
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
 )
 
 // ValidationError describes a single validation failure.
@@ -30,7 +32,7 @@ var reservedPorts = map[int]string{
 var domainRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
 
 // ValidateRoute checks a RouteInput for correctness.
-func ValidateRoute(r RouteInput) []ValidationError {
+func ValidateRoute(r routing.RouteInput) []ValidationError {
 	var errs []ValidationError
 
 	// Service name
@@ -88,7 +90,7 @@ func ValidatePort(port int) []ValidationError {
 }
 
 // ValidateDomainUnique checks that a domain is not already in use.
-func ValidateDomainUnique(domain string, existing []RouteInput) []ValidationError {
+func ValidateDomainUnique(domain string, existing []routing.RouteInput) []ValidationError {
 	var errs []ValidationError
 	for _, r := range existing {
 		if strings.EqualFold(r.Domain, domain) {
@@ -103,7 +105,7 @@ func ValidateDomainUnique(domain string, existing []RouteInput) []ValidationErro
 }
 
 // ValidateCompose checks a parsed compose file for common issues.
-func ValidateCompose(cf *ComposeFile) []ValidationError {
+func ValidateCompose(cf *routing.ComposeFile) []ValidationError {
 	var errs []ValidationError
 
 	if len(cf.Services) == 0 {

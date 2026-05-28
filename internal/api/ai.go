@@ -12,8 +12,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 )
 
 // AIRequest represents the input to the AI endpoint
@@ -87,7 +88,7 @@ func generateJobID() string {
 
 // Execute runs the AI generation model selection and request fallback flow
 func (j *AIJob) Execute(ctx context.Context) (any, error) {
-	GlobalEventBus.Publish("ai.job.started", map[string]string{
+	events.GlobalEventBus.Publish("ai.job.started", map[string]string{
 		"id":     j.id,
 		"prompt": j.prompt,
 		"mode":   j.mode,
@@ -162,7 +163,7 @@ func (j *AIJob) Execute(ctx context.Context) (any, error) {
 	}
 
 	if lastErr != nil {
-		GlobalEventBus.Publish("ai.job.completed", map[string]any{
+		events.GlobalEventBus.Publish("ai.job.completed", map[string]any{
 			"id":     j.id,
 			"status": "failed",
 			"error":  lastErr.Error(),
@@ -170,7 +171,7 @@ func (j *AIJob) Execute(ctx context.Context) (any, error) {
 		return nil, lastErr
 	}
 
-	GlobalEventBus.Publish("ai.job.completed", map[string]any{
+	events.GlobalEventBus.Publish("ai.job.completed", map[string]any{
 		"id":     j.id,
 		"status": "completed",
 		"model":  chosenModel,

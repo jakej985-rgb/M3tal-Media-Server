@@ -10,10 +10,12 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
+	"github.com/jakej985-rgb/m3tal-core/core/plugins"
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
-	"github.com/jakej985-rgb/m3tal-core/internal/plugin"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
@@ -54,7 +56,7 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Try to parse for service names
-		if cf, err := engine.ParseCompose(match); err == nil {
+		if cf, err := routing.ParseCompose(match); err == nil {
 			info.Services = cf.ServiceNames()
 		}
 
@@ -121,7 +123,7 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cf, err := engine.ParseCompose(req.Path)
+	cf, err := routing.ParseCompose(req.Path)
 	if err != nil {
 		sendError(w, http.StatusBadRequest, "COMPOSE_PARSE_FAILED", err.Error(), nil)
 		return
@@ -242,7 +244,7 @@ func (h *MiddlewareHandlers) ListMiddleware(w http.ResponseWriter, r *http.Reque
 // CreateMiddleware creates a new middleware definition and generates its labels.
 // POST /api/v2/middleware
 func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Request) {
-	var input engine.MiddlewareInput
+	var input routing.MiddlewareInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
@@ -258,7 +260,7 @@ func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Req
 	}
 
 	// Generate labels
-	labels := engine.GenerateMiddlewareLabels(input)
+	labels := routing.GenerateMiddlewareLabels(input)
 
 	// Store
 	id, err := h.Store.CreateMiddleware(input.Name, input.Type, input.Config)
@@ -337,7 +339,7 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Try to parse for service names
-		if cf, err := engine.ParseCompose(match); err == nil {
+		if cf, err := routing.ParseCompose(match); err == nil {
 			info.Services = cf.ServiceNames()
 		}
 
@@ -421,7 +423,7 @@ func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request
 		_ = h.Store.UpsertStack(name, composePath)
 		_ = h.Store.UpdateStackStatus(name, status)
 	}
-	GlobalEventBus.Publish("stack.updated", map[string]string{
+	events.GlobalEventBus.Publish("stack.updated", map[string]string{
 		"name":   name,
 		"action": "up",
 		"status": status,
@@ -462,7 +464,7 @@ func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) 
 		_ = h.Store.UpsertStack(name, composePath)
 		_ = h.Store.UpdateStackStatus(name, status)
 	}
-	GlobalEventBus.Publish("stack.updated", map[string]string{
+	events.GlobalEventBus.Publish("stack.updated", map[string]string{
 		"name":   name,
 		"action": "down",
 		"status": status,

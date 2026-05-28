@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jakej985-rgb/m3tal-core/core/networking/proxy"
+	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
-	"github.com/jakej985-rgb/m3tal-core/internal/proxy"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
 )
 
 // ProxyHandlers wraps the SQLite store to manage reverse proxy endpoints.
@@ -49,7 +50,7 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route validation
-	routeInput := engine.RouteInput{
+	routeInput := routing.RouteInput{
 		Service: input.Service,
 		Domain:  input.Domain,
 		Port:    input.Port,

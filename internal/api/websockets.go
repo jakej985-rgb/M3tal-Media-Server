@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
 	"github.com/jakej985-rgb/m3tal-core/internal/containers"
 )
 
@@ -28,8 +29,8 @@ func (s *Server) GetWSEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	ch := GlobalEventBus.Subscribe()
-	defer GlobalEventBus.Unsubscribe(ch)
+	ch := events.GlobalEventBus.Subscribe()
+	defer events.GlobalEventBus.Unsubscribe(ch)
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()

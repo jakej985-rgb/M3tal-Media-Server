@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/compose"
+	"github.com/jakej985-rgb/m3tal-core/core/compose"
 	"github.com/jakej985-rgb/m3tal-core/internal/engine"
-	"github.com/jakej985-rgb/m3tal-core/internal/store"
-	"github.com/jakej985-rgb/m3tal-core/internal/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state/system"
 )
 
 // ComposeHandlers provides HTTP handlers for Smart Compose operations.

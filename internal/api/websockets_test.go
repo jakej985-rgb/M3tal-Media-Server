@@ -9,10 +9,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
 )
 
 func TestEventBus_PublishSubscribe(t *testing.T) {
-	eb := NewEventBus()
+	eb := events.NewChannelEventBus()
 	ch := eb.Subscribe()
 	defer eb.Unsubscribe(ch)
 
@@ -54,7 +55,7 @@ func TestGetWSEvents_Upgrade(t *testing.T) {
 	defer conn.Close()
 
 	// Publish test event
-	GlobalEventBus.Publish("ws.test", "ws-payload")
+	events.GlobalEventBus.Publish("ws.test", "ws-payload")
 
 	// Read event from socket
 	_, message, err := conn.ReadMessage()
@@ -62,7 +63,7 @@ func TestGetWSEvents_Upgrade(t *testing.T) {
 		t.Fatalf("failed to read message: %v", err)
 	}
 
-	var ev Event
+	var ev events.ChannelEvent
 	if err := json.Unmarshal(message, &ev); err != nil {
 		t.Fatalf("failed to unmarshal message: %v", err)
 	}
