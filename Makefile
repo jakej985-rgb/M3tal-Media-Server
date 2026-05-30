@@ -22,9 +22,9 @@ help:
 
 build:
 	@echo "🚀 Building M3TAL CLI..."
-	go build -o m3tal ./cmd/m3tal
+	go build -o m3tal ./cli
 	@echo "🚀 Building M3TAL API..."
-	go build -o m3tal-api ./cmd/api
+	go build -o m3tal-api ./api/cmd
 	@echo "✅ Build complete."
 
 deb: build
@@ -49,6 +49,6 @@ status:
 
 docker-dash:
 	@echo "🐳 Building M3TAL Dashboard Docker image..."
-	docker build -t m3tal-dashboard:latest ./deploy/dashboard
+	docker build -t m3tal-dashboard:latest ./webui
 	@echo "✅ Dashboard Docker image built."
 	@echo "   Run with: docker compose -f /docker/m3tal-compose.yml up dash"

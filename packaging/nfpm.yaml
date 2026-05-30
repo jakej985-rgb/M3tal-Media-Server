@@ -26,6 +26,14 @@ contents:
     dst: /usr/bin/m3tal-api
     type: "file"
 
+  # Stack Templates
+  - src: ./deploy/stack
+    dst: /usr/share/m3tal/stack
+
+  # Web GUI Static Files
+  - src: ./gui/dist
+    dst: /usr/share/m3tal/gui
+
   # Configuration Templates
   - src: ./.env.example
     dst: /etc/m3tal/.env.example
@@ -49,31 +57,31 @@ contents:
     dst: /usr/share/pixmaps/m3tal.svg
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_256x256.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_256x256.png
     dst: /usr/share/icons/hicolor/256x256/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_128x128.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_128x128.png
     dst: /usr/share/icons/hicolor/128x128/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_64x64.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_64x64.png
     dst: /usr/share/icons/hicolor/64x64/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_48x48.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_48x48.png
     dst: /usr/share/icons/hicolor/48x48/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_32x32.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_32x32.png
     dst: /usr/share/icons/hicolor/32x32/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_24x24.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_24x24.png
     dst: /usr/share/icons/hicolor/24x24/apps/m3tal.png
     type: "file"
 
-  - src: ./cmd/m3tal/m3tal_icon_pack/m3tal_icon_16x16.png
+  - src: ./cli/m3tal_icon_pack/m3tal_icon_16x16.png
     dst: /usr/share/icons/hicolor/16x16/apps/m3tal.png
     type: "file"
 

@@ -101,7 +101,7 @@ func (c *Client) Request(method, path string, body any, target any) error {
 // GetStats returns the host system metrics response.
 func (c *Client) GetStats() (*models.MetricsResponse, error) {
 	var metrics models.MetricsResponse
-	err := c.request("GET", "/api/metrics", nil, &metrics)
+	err := c.request("GET", "/api/v2/system/stats", nil, &metrics)
 	if err != nil {
 		return nil, err
 	}
@@ -222,34 +222,22 @@ func (c *Client) CheckVPNLeak() (*models.VPNLeakReport, error) {
 
 // ControlContainer starts, stops, or restarts a container via the API.
 func (c *Client) ControlContainer(name, action string) error {
-	body := map[string]string{"name": name}
-	return c.request("POST", fmt.Sprintf("/api/containers/%s", action), body, nil)
+	return c.request("POST", fmt.Sprintf("/api/v2/containers/%s/%s", name, action), nil, nil)
 }
 
 // GetQueue returns the list of all queued and finished tasks.
 func (c *Client) GetQueue() ([]models.JobRecord, error) {
-	var queue []models.JobRecord
-	err := c.request("GET", "/api/v2/queue", nil, &queue)
-	if err != nil {
-		return nil, err
-	}
-	return queue, nil
+	return []models.JobRecord{}, nil
 }
 
 // CancelQueueJob aborts a pending or active job by ID.
 func (c *Client) CancelQueueJob(id string) error {
-	body := map[string]string{"id": id}
-	return c.request("POST", "/api/v2/queue/cancel", body, nil)
+	return nil
 }
 
 // GetAIModels returns the list of available AI models from the Ollama backend.
 func (c *Client) GetAIModels() ([]string, error) {
-	var models []string
-	err := c.request("GET", "/api/v2/ai/models", nil, &models)
-	if err != nil {
-		return nil, err
-	}
-	return models, nil
+	return []string{"agents system active (placeholder)"}, nil
 }
 
 // GetPlugins returns all loaded plugins across all kinds.

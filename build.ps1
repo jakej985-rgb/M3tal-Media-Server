@@ -17,10 +17,10 @@ if (-not $GoPath) {
 }
 
 Write-Host "[>] Building M3TAL CLI..." -ForegroundColor Cyan
-go build -o m3tal.exe ./cmd/m3tal
+go build -o m3tal.exe ./cli
 
 Write-Host "[>] Building M3TAL API..." -ForegroundColor Cyan
-go build -o m3tal-api.exe ./cmd/api
+go build -o m3tal-api.exe ./api/cmd
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[+] Build complete." -ForegroundColor Green

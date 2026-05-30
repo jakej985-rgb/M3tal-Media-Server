@@ -21,6 +21,6 @@ jobs:
     - name: Build Dashboard
       uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
       with:
-        context: ./deploy/dashboard
-        file: ./deploy/dashboard/Dockerfile
+        context: ./webui
+        file: ./webui/Dockerfile
         push: false

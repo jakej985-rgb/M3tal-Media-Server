@@ -112,7 +112,7 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           mkdir -p plugin-repo
-          go build -o m3tal ./cmd/m3tal
+          go build -o m3tal ./cli
           ./m3tal plugin catalog --export plugin-repo/catalog.json
           
           # Sign the catalog

@@ -1,108 +1,158 @@
 [
   {
-    "name": "api",
+    "name": "m3tal (cli)",
     "type": "CLI binary",
-    "path": "cmd/api"
+    "path": "cli"
   },
   {
-    "name": "m3tal",
-    "type": "CLI binary",
-    "path": "cmd/m3tal"
+    "name": "m3tal-api",
+    "type": "API binary",
+    "path": "api/cmd"
   },
   {
-    "name": "api",
-    "type": "Go package",
-    "path": "internal/api"
+    "name": "agents",
+    "type": "Core package",
+    "path": "core/agents"
   },
   {
     "name": "auth",
-    "type": "Go package",
-    "path": "internal/auth"
+    "type": "Core package",
+    "path": "core/auth"
   },
   {
     "name": "compose",
-    "type": "Go package",
-    "path": "internal/compose"
+    "type": "Core package",
+    "path": "core/compose"
   },
   {
     "name": "config",
-    "type": "Go package",
-    "path": "internal/config"
+    "type": "Core package",
+    "path": "core/config"
   },
   {
     "name": "containers",
-    "type": "Go package",
-    "path": "internal/containers"
+    "type": "Core package",
+    "path": "core/containers"
   },
   {
     "name": "doctor",
-    "type": "Go package",
-    "path": "internal/doctor"
+    "type": "Core package",
+    "path": "core/doctor"
   },
   {
     "name": "engine",
-    "type": "Go package",
-    "path": "internal/engine"
+    "type": "Core package",
+    "path": "core/engine"
   },
   {
-    "name": "event",
-    "type": "Go package",
-    "path": "internal/event"
+    "name": "events",
+    "type": "Core package",
+    "path": "core/events"
   },
   {
     "name": "health",
-    "type": "Go package",
-    "path": "internal/health"
+    "type": "Core package",
+    "path": "core/health"
+  },
+  {
+    "name": "networking",
+    "type": "Core package",
+    "path": "core/networking"
   },
   {
     "name": "orchestrator",
-    "type": "Go package",
-    "path": "internal/orchestrator"
+    "type": "Core package",
+    "path": "core/orchestrator"
   },
   {
-    "name": "plugin",
-    "type": "Go package",
-    "path": "internal/plugin"
+    "name": "plugins",
+    "type": "Core package",
+    "path": "core/plugins"
   },
   {
     "name": "preflight",
-    "type": "Go package",
-    "path": "internal/preflight"
-  },
-  {
-    "name": "proxy",
-    "type": "Go package",
-    "path": "internal/proxy"
+    "type": "Core package",
+    "path": "core/preflight"
   },
   {
     "name": "queue",
-    "type": "Go package",
-    "path": "internal/queue"
+    "type": "Core package",
+    "path": "core/queue"
   },
   {
     "name": "registry",
-    "type": "Go package",
-    "path": "internal/registry"
+    "type": "Core package",
+    "path": "core/registry"
   },
   {
-    "name": "store",
-    "type": "Go package",
-    "path": "internal/store"
+    "name": "routing",
+    "type": "Core package",
+    "path": "core/routing"
+  },
+  {
+    "name": "services",
+    "type": "Core package",
+    "path": "core/services"
+  },
+  {
+    "name": "state",
+    "type": "Core package",
+    "path": "core/state"
   },
   {
     "name": "system",
-    "type": "Go package",
-    "path": "internal/system"
+    "type": "Core package",
+    "path": "core/system"
   },
   {
-    "name": "vpn",
-    "type": "Go package",
-    "path": "internal/vpn"
+    "name": "client",
+    "type": "Shared package",
+    "path": "pkg/client"
   },
   {
-    "name": "dashboard",
-    "type": "Deploy artifact",
-    "path": "deploy/dashboard"
+    "name": "cmdutil",
+    "type": "Shared package",
+    "path": "pkg/cmdutil"
+  },
+  {
+    "name": "config",
+    "type": "Shared package",
+    "path": "pkg/config"
+  },
+  {
+    "name": "models",
+    "type": "Shared package",
+    "path": "pkg/models"
+  },
+  {
+    "name": "output",
+    "type": "Shared package",
+    "path": "pkg/output"
+  },
+  {
+    "name": "system",
+    "type": "Shared package",
+    "path": "pkg/system"
+  },
+  {
+    "name": "middleware",
+    "type": "API package",
+    "path": "api/middleware"
+  },
+  {
+    "name": "tui",
+    "type": "Terminal UI",
+    "path": "tui"
+  },
+  {
+    "name": "webui",
+    "type": "Web UI",
+    "path": "webui"
+  },
+  {
+    "name": "gui",
+    "type": "Desktop UI",
+    "path": "gui"
   },
   {
     "name": "plugins",

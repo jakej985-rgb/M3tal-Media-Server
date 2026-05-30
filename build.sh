@@ -38,12 +38,12 @@ $GO_CMD mod tidy
 # 2. Build M3TAL CLI
 # Compiles the main orchestration binary.
 echo "🚀 Building M3TAL CLI..."
-$GO_CMD build -o m3tal ./cmd/m3tal
+$GO_CMD build -o m3tal ./cli
 
 # 3. Build M3TAL API
 # Compiles the backend API service.
 echo "🚀 Building M3TAL API..."
-$GO_CMD build -o m3tal-api ./cmd/api
+$GO_CMD build -o m3tal-api ./api/cmd
 
 if [ $? -eq 0 ]; then
     chmod +x m3tal m3tal-api

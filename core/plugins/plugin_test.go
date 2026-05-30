@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state"
 )
 
 func TestParsePlugin_Route(t *testing.T) {
@@ -436,7 +436,7 @@ func TestStateManager(t *testing.T) {
 	// Create mock SQLite store
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_state.db")
-	db, err := store.Open(dbPath)
+	db, err := state.Open(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}

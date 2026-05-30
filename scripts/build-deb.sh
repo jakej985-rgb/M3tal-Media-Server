@@ -4,8 +4,8 @@ set -e
 echo "🚀 Building M3TAL Core .deb with nfpm..."
 
 # 1. Compile binaries
-go build -o m3tal ./cmd/m3tal
-go build -o m3tal-api ./cmd/api
+go build -o m3tal ./cli
+go build -o m3tal-api ./api/cmd
 
 # 2. Get version
 VERSION=$(cat VERSION)

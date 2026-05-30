@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/state/store"
+	"github.com/jakej985-rgb/m3tal-core/core/state"
 )
 
 // StateManager coordinates plugin configuration and enablement state.
 // It bridges the gap between declarative filesystem (.disabled) status and persistent SQLite status.
 type StateManager struct {
-	db *store.Store
+	db *state.Store
 }
 
 // NewStateManager creates a new StateManager.
-func NewStateManager(db *store.Store) *StateManager {
+func NewStateManager(db *state.Store) *StateManager {
 	return &StateManager{db: db}
 }
 

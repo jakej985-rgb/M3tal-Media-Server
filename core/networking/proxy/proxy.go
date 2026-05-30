@@ -7,12 +7,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/internal/containers"
-	"github.com/jakej985-rgb/m3tal-core/internal/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
 	"github.com/jakej985-rgb/m3tal-core/core/routing"
-	"github.com/jakej985-rgb/m3tal-core/core/state/store"
-	"github.com/jakej985-rgb/m3tal-core/core/state/system"
+	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/core/system"
 	"gopkg.in/yaml.v3"
 )
 
@@ -31,11 +31,11 @@ type DiscoverableService struct {
 
 // Manager orchestrates proxy route configuration, container discovery, and SSL setup.
 type Manager struct {
-	Store *store.Store
+	Store *state.Store
 }
 
 // NewManager creates a new proxy Manager.
-func NewManager(db *store.Store) *Manager {
+func NewManager(db *state.Store) *Manager {
 	return &Manager{Store: db}
 }
 
@@ -51,7 +51,7 @@ func (m *Manager) DiscoverServices() ([]DiscoverableService, error) {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var dbRoutes []store.RouteRecord
+	var dbRoutes []state.RouteRecord
 	if m.Store != nil {
 		dbRoutes, err = m.Store.ListRoutes()
 		if err != nil {
@@ -59,7 +59,7 @@ func (m *Manager) DiscoverServices() ([]DiscoverableService, error) {
 		}
 	}
 
-	exposedMap := make(map[string]store.RouteRecord)
+	exposedMap := make(map[string]state.RouteRecord)
 	for _, r := range dbRoutes {
 		exposedMap[r.Service] = r
 	}
