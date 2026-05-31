@@ -15,7 +15,6 @@ import (
 
 type MountType = models.MountType
 type MountResult = models.MountResult
-type Severity = models.Severity
 
 const (
 	MountTypeBind   = models.MountTypeBind
@@ -207,17 +206,4 @@ func isWritable(path string, isDir bool) bool {
 	return mode&0200 != 0 || mode&0020 != 0 || mode&0002 != 0
 }
 
-// SummaryLine returns a one-line display string.
-func (r MountResult) SummaryLine() string {
-	icon := severityIcon(r.Severity)
-	ro := ""
-	if r.ReadOnly {
-		ro = " [ro]"
-	}
-	issue := ""
-	if r.Issue != "" {
-		issue = "  ⤷ " + r.Issue
-	}
-	return fmt.Sprintf("%s [%s] %-25s → %s (%-5s)%s%s",
-		icon, r.Container, r.Source, r.Target, string(r.Type), ro, issue)
-}
+

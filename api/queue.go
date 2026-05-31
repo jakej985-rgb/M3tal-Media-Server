@@ -183,13 +183,13 @@ func ListQueue(w http.ResponseWriter, r *http.Request) {
 		var jobStatus models.JobStatus
 		switch r.Status {
 		case queue.StatusPending:
-			jobStatus = models.StatusPending
+			jobStatus = models.JobStatusPending
 		case queue.StatusRunning:
-			jobStatus = models.StatusRunning
+			jobStatus = models.JobStatusRunning
 		case queue.StatusCompleted:
-			jobStatus = models.StatusCompleted
+			jobStatus = models.JobStatusCompleted
 		case queue.StatusFailed:
-			jobStatus = models.StatusFailed
+			jobStatus = models.JobStatusFailed
 		}
 
 		typedRecords[i] = models.JobRecord{

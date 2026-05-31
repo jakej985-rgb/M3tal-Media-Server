@@ -17,7 +17,6 @@ import (
 
 type ContainerStatus = models.ContainerStatus
 type ContainerResult = models.ContainerResult
-type Severity = models.Severity
 
 const (
 	StatusRunning    = models.StatusRunning
@@ -210,16 +209,4 @@ func buildContainerRecommendation(r ContainerResult) string {
 	return ""
 }
 
-// SummaryLine returns a one-line status string for display.
-func (r ContainerResult) SummaryLine() string {
-	icon := severityIcon(r.Severity)
-	health := ""
-	if r.Health != "none" && r.Health != "" {
-		health = fmt.Sprintf(" [health: %s]", r.Health)
-	}
-	restarts := ""
-	if r.Restarts > 0 {
-		restarts = fmt.Sprintf(" [restarts: %d]", r.Restarts)
-	}
-	return fmt.Sprintf("%s %-35s  state=%-12s%s%s", icon, r.Name, r.State, health, restarts)
-}
+

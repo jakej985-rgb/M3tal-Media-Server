@@ -399,3 +399,61 @@ func (c *Client) GetDoctorReport() (models.DoctorReport, error) {
 	return report, err
 }
 
+// PullStacks triggers image pull via the API.
+func (c *Client) PullStacks(name string) (any, error) {
+	var result any
+	body := map[string]string{"name": name}
+	err := c.request("POST", "/api/v2/stacks/pull", body, &result)
+	return result, err
+}
+
+// GetStackLogs returns logs (last tail lines) of a stack.
+func (c *Client) GetStackLogs(name string, tail int) (string, error) {
+	var result struct {
+		Logs string `json:"logs"`
+	}
+	err := c.request("GET", fmt.Sprintf("/api/v2/stacks/%s/logs?tail=%d", name, tail), nil, &result)
+	if err != nil {
+		return "", err
+	}
+	return result.Logs, nil
+}
+
+// ValidatePlugin validates a plugin manifest YAML.
+func (c *Client) ValidatePlugin(yamlContent string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]string{"yaml": yamlContent}
+	err := c.request("POST", "/api/v2/plugins/validate", body, &result)
+	return result, err
+}
+
+// MatchPlugin matches a service to a route plugin.
+func (c *Client) MatchPlugin(service, image string, labels map[string]string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]any{
+		"service": service,
+		"image":   image,
+		"labels":  labels,
+	}
+	err := c.request("POST", "/api/v2/plugins/match", body, &result)
+	return result, err
+}
+
+// InstallStackPlugin parameterizes and installs a stack plugin.
+func (c *Client) InstallStackPlugin(name string, env map[string]string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]any{
+		"name": name,
+		"env":  env,
+	}
+	err := c.request("POST", "/api/v2/plugins/install-stack", body, &result)
+	return result, err
+}
+
+// SyncPlugins synchronizes Traefik dynamic provider configuration.
+func (c *Client) SyncPlugins() (any, error) {
+	var result any
+	err := c.request("POST", "/api/v2/plugins/sync", nil, &result)
+	return result, err
+}
+

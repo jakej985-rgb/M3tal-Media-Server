@@ -16,16 +16,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/api"
-	"github.com/jakej985-rgb/m3tal-core/core/health"
-	"github.com/jakej985-rgb/m3tal-core/core/orchestrator"
-	"github.com/jakej985-rgb/m3tal-core/core/plugins"
-	"github.com/jakej985-rgb/m3tal-core/core/state"
-	coresys "github.com/jakej985-rgb/m3tal-core/core/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/client"
 	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
 	"github.com/jakej985-rgb/m3tal-core/pkg/compose"
@@ -276,22 +272,7 @@ func main() {
 			if token == "" {
 				token = "m3tal-secret-token"
 			}
-
-			dbPath := state.GetStatePath()
-			db, err := state.Open(dbPath)
-			if err != nil {
-				log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
-				log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
-				if err := api.StartServer(port, token); err != nil {
-					log.Fatalf("❌ API server failed: %v", err)
-				}
-				return
-			}
-			defer db.Close()
-
-			log.Printf("📦 State database: %s\n", dbPath)
-
-			if err := api.StartServerWithStore(port, token, db); err != nil {
+			if err := api.RunServer(port, token); err != nil {
 				log.Fatalf("❌ API server failed: %v", err)
 			}
 		},
@@ -412,14 +393,14 @@ func main() {
 	var pullCmd = &cobra.Command{
 		Use:   "pull",
 		Short: "Pull latest images",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("📥 Pulling latest service images...")
-			stack := orchestrator.NewStackManager()
-			if err := stack.Run("pull"); err != nil {
-				log.Fatal(err)
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			fmt.Println("📥 Pulling latest service images via API...")
+			_, err := c.PullStacks("")
+			if err != nil {
+				output.FatalError(err)
 			}
 			fmt.Println("✅ Images updated.")
-		},
+		}),
 	}
 
 	var dashpassCmd = &cobra.Command{
@@ -904,22 +885,27 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	var pluginListCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List all discovered plugins",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			categoryFilter, _ := cmd.Flags().GetString("category")
 			subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
 			providerFilter, _ := cmd.Flags().GetString("provider")
 
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
+			reg, err := c.GetPlugins()
 			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
+				log.Fatalf("❌ Failed to load plugins via API: %v", err)
 			}
 
-			fmt.Printf("\n🔌 %s\n\n", reg.Summary())
+			sumText := ""
+			if summaryVal, ok := reg.Summary.(string); ok {
+				sumText = summaryVal
+			} else {
+				sumText = fmt.Sprintf("%d routes | %d middlewares | %d stacks", len(reg.Routes), len(reg.Middleware), len(reg.Stacks))
+			}
+			fmt.Printf("\n🔌 %s\n\n", sumText)
 
-			if len(reg.ListStacks()) > 0 {
+			if len(reg.Stacks) > 0 {
 				printedHeader := false
-				for _, s := range reg.ListStacks() {
+				for _, s := range reg.Stacks {
 					if categoryFilter != "" && !strings.EqualFold(s.Category, categoryFilter) {
 						continue
 					}
@@ -941,16 +927,24 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if !s.Enabled {
 						status = " [disabled]"
 					}
-					fmt.Printf("   %-20s %s%s%s\n", s.Metadata.Name, s.Metadata.Description, pri, status)
+					name := s.Name
+					if name == "" {
+						name = s.Metadata.Name
+					}
+					desc := s.Description
+					if desc == "" {
+						desc = s.Metadata.Description
+					}
+					fmt.Printf("   %-20s %s%s%s\n", name, desc, pri, status)
 				}
 				if printedHeader {
 					fmt.Println()
 				}
 			}
 
-			if len(reg.ListRoutes()) > 0 {
+			if len(reg.Routes) > 0 {
 				printedHeader := false
-				for _, r := range reg.ListRoutes() {
+				for _, r := range reg.Routes {
 					if categoryFilter != "" && !strings.EqualFold(r.Category, categoryFilter) {
 						continue
 					}
@@ -968,16 +962,20 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if !r.Enabled {
 						status = " [disabled]"
 					}
-					fmt.Printf("   %-20s %s → %s:%d%s\n", r.Metadata.Name, r.Domain, r.Service, r.Port, status)
+					name := r.Name
+					if name == "" {
+						name = r.Metadata.Name
+					}
+					fmt.Printf("   %-20s %s → %s:%d%s\n", name, r.Domain, r.Service, r.Port, status)
 				}
 				if printedHeader {
 					fmt.Println()
 				}
 			}
 
-			if len(reg.ListMiddlewares()) > 0 {
+			if len(reg.Middleware) > 0 {
 				printedHeader := false
-				for _, m := range reg.ListMiddlewares() {
+				for _, m := range reg.Middleware {
 					if categoryFilter != "" && !strings.EqualFold(m.Category, categoryFilter) {
 						continue
 					}
@@ -995,13 +993,22 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 					if !m.Enabled {
 						status = " [disabled]"
 					}
-					fmt.Printf("   %-20s [%s] %s%s\n", m.Metadata.Name, m.Type, m.Metadata.Description, status)
+					name := m.Name
+					if name == "" {
+						name = m.Metadata.Name
+					}
+					desc := m.Description
+					if desc == "" {
+						desc = m.Metadata.Description
+					}
+					fmt.Printf("   %-20s [%s] %s%s\n", name, m.Type, desc, status)
 				}
 				if printedHeader {
 					fmt.Println()
 				}
 			}
 
+			dirs := system.GetPluginDirs()
 			fmt.Println("Scanned directories:")
 			for _, d := range dirs {
 				marker := "  ✗"
@@ -1010,7 +1017,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				}
 				fmt.Printf("%s %s\n", marker, d)
 			}
-		},
+		}),
 	}
 	pluginListCmd.Flags().String("category", "", "Filter plugins by category")
 	pluginListCmd.Flags().String("subcategory", "", "Filter plugins by subcategory")
@@ -1020,167 +1027,160 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "validate [path]",
 		Short: "Validate a plugin YAML file",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			path := args[0]
 			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Fatalf("❌ Cannot read file: %v", err)
 			}
 
-			p, err := plugin.ParsePlugin(data)
+			res, err := c.ValidatePlugin(string(data))
 			if err != nil {
-				log.Fatalf("❌ Parse error: %v", err)
-			}
-
-			if err := p.Validate(); err != nil {
 				log.Fatalf("❌ Validation failed: %v", err)
 			}
 
-			fmt.Printf("✅ Valid %s plugin: %s\n", p.Kind, p.Metadata.Name)
-			if p.Metadata.Description != "" {
-				fmt.Printf("   Description: %s\n", p.Metadata.Description)
+			fmt.Printf("✅ Valid %s plugin: %s\n", res["kind"], res["name"])
+			if desc, ok := res["description"].(string); ok && desc != "" {
+				fmt.Printf("   Description: %s\n", desc)
 			}
-			if p.Metadata.Version != "" {
-				fmt.Printf("   Version:     %s\n", p.Metadata.Version)
+			if ver, ok := res["version"].(string); ok && ver != "" {
+				fmt.Printf("   Version:     %s\n", ver)
 			}
-		},
+		}),
 	}
 
 	var pluginEnableCmd = &cobra.Command{
 		Use:   "enable [name]",
 		Short: "Enable a disabled plugin by name",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
-			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
-			}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			name := args[0]
-			var path string
-			if p := reg.GetRoute(name); p != nil {
-				path = p.SourcePath
-			} else if p := reg.GetStack(name); p != nil {
-				path = p.SourcePath
-			} else if p := reg.GetMiddleware(name); p != nil {
-				path = p.SourcePath
-			}
+			fmt.Printf("🔌 Enabling plugin %q via API...\n", name)
 
-			if path == "" {
-				log.Fatalf("❌ Plugin %q not found", name)
-			}
-
-			p, err := plugin.LoadPlugin(path)
+			pluginsResp, err := c.GetPlugins()
 			if err != nil {
-				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
+				log.Fatalf("❌ Failed to get plugins: %v", err)
 			}
-
-			var db *state.Store
-			dbPath := state.GetStatePath()
-			if dbPath != "" {
-				if d, err := state.Open(dbPath); err == nil {
-					db = d
-					defer db.Close()
+			kind := ""
+			for _, p := range pluginsResp.Routes {
+				if strings.EqualFold(p.Metadata.Name, name) {
+					kind = "Route"
+					name = p.Metadata.Name
+					break
+				}
+			}
+			if kind == "" {
+				for _, p := range pluginsResp.Stacks {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Stack"
+						name = p.Metadata.Name
+						break
+					}
+				}
+			}
+			if kind == "" {
+				for _, p := range pluginsResp.Middleware {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Middleware"
+						name = p.Metadata.Name
+						break
+					}
+				}
+			}
+			if kind == "" {
+				catalog, err := c.GetPluginCatalog()
+				if err == nil {
+					for _, item := range catalog {
+						if strings.EqualFold(item.Name, name) {
+							kind = item.Kind
+							name = item.Name
+							break
+						}
+					}
 				}
 			}
 
-			mgr := plugin.NewStateManager(db)
-			err = mgr.SetPluginEnabled(p, true)
-			if err != nil {
-				log.Fatalf("❌ Failed to enable: %v", err)
+			if kind == "" {
+				log.Fatalf("❌ Plugin %q not found", name)
 			}
-			fmt.Printf("✅ Enabled plugin %q (renamed to %s)\n", name, filepath.Base(p.SourcePath))
-		},
+
+			err = c.EnablePlugin(name, kind)
+			if err != nil {
+				log.Fatalf("❌ Failed to enable plugin: %v", err)
+			}
+			fmt.Printf("✅ Enabled plugin %q\n", name)
+		}),
 	}
 
 	var pluginDisableCmd = &cobra.Command{
 		Use:   "disable [name]",
 		Short: "Disable an active plugin by name",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
-			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
-			}
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			name := args[0]
-			var path string
-			if p := reg.GetRoute(name); p != nil {
-				path = p.SourcePath
-			} else if p := reg.GetStack(name); p != nil {
-				path = p.SourcePath
-			} else if p := reg.GetMiddleware(name); p != nil {
-				path = p.SourcePath
-			}
+			fmt.Printf("🔌 Disabling plugin %q via API...\n", name)
 
-			if path == "" {
-				log.Fatalf("❌ Plugin %q not found", name)
-			}
-
-			p, err := plugin.LoadPlugin(path)
+			pluginsResp, err := c.GetPlugins()
 			if err != nil {
-				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
+				log.Fatalf("❌ Failed to get plugins: %v", err)
 			}
-
-			var db *state.Store
-			dbPath := state.GetStatePath()
-			if dbPath != "" {
-				if d, err := state.Open(dbPath); err == nil {
-					db = d
-					defer db.Close()
+			kind := ""
+			for _, p := range pluginsResp.Routes {
+				if strings.EqualFold(p.Metadata.Name, name) {
+					kind = "Route"
+					name = p.Metadata.Name
+					break
+				}
+			}
+			if kind == "" {
+				for _, p := range pluginsResp.Stacks {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Stack"
+						name = p.Metadata.Name
+						break
+					}
+				}
+			}
+			if kind == "" {
+				for _, p := range pluginsResp.Middleware {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Middleware"
+						name = p.Metadata.Name
+						break
+					}
 				}
 			}
 
-			mgr := plugin.NewStateManager(db)
-			err = mgr.SetPluginEnabled(p, false)
-			if err != nil {
-				log.Fatalf("❌ Failed to disable: %v", err)
+			if kind == "" {
+				log.Fatalf("❌ Plugin %q not found", name)
 			}
-			fmt.Printf("✅ Disabled plugin %q (renamed to %s)\n", name, filepath.Base(p.SourcePath))
-		},
+
+			err = c.DisablePlugin(name, kind)
+			if err != nil {
+				log.Fatalf("❌ Failed to disable plugin: %v", err)
+			}
+			fmt.Printf("✅ Disabled plugin %q\n", name)
+		}),
 	}
 
 	var pluginSyncCmd = &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize and write Traefik dynamic provider configuration",
-		Run: func(cmd *cobra.Command, args []string) {
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			fmt.Println("🔄 Synchronizing plugins Traefik config via API...")
+			_, err := c.SyncPlugins()
 			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
+				log.Fatalf("❌ Failed to sync: %v", err)
 			}
-
-			configData, err := reg.GenerateTraefikConfig()
-			if err != nil {
-				log.Fatalf("❌ Failed to generate Traefik config: %v", err)
-			}
-
-			stackDir := system.GetStackDir()
-			dynamicDir := filepath.Join(stackDir, "dynamic")
-			if err := os.MkdirAll(dynamicDir, 0755); err != nil {
-				log.Fatalf("❌ Failed to create dynamic directory: %v", err)
-			}
-
-			outputPath := filepath.Join(dynamicDir, "m3tal-plugins.yml")
-			if err := os.WriteFile(outputPath, configData, 0644); err != nil {
-				log.Fatalf("❌ Failed to write config file: %v", err)
-			}
-
-			fmt.Printf("✅ Synced Traefik dynamic provider config to %s\n", outputPath)
-		},
+			fmt.Println("✅ Synced Traefik dynamic provider config successfully.")
+		}),
 	}
 
 	var pluginMatchCmd = &cobra.Command{
 		Use:   "match [service-name]",
 		Short: "Find a route plugin matching the given service information",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
-			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
-			}
-
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			image, _ := cmd.Flags().GetString("image")
 			labelSlice, _ := cmd.Flags().GetStringSlice("label")
 			labels := make(map[string]string)
@@ -1191,14 +1191,21 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				}
 			}
 
-			match := reg.MatchService(args[0], image, labels)
-			if match != nil {
-				fmt.Printf("🎯 Match found! Route Plugin: %s (service: %s, domain: %s, port: %d)\n",
-					match.Metadata.Name, match.Service, match.Domain, match.Port)
+			res, err := c.MatchPlugin(args[0], image, labels)
+			if err != nil {
+				log.Fatalf("❌ Failed to match plugin via API: %v", err)
+			}
+
+			matched, _ := res["matched"].(bool)
+			if matched {
+				pluginMap, _ := res["plugin"].(map[string]any)
+				metadata, _ := pluginMap["metadata"].(map[string]any)
+				fmt.Printf("🎯 Match found! Route Plugin: %s (service: %s, domain: %s, port: %.0f)\n",
+					metadata["name"], pluginMap["service"], pluginMap["domain"], pluginMap["port"])
 			} else {
 				fmt.Println("❌ No matching route plugin found.")
 			}
-		},
+		}),
 	}
 	pluginMatchCmd.Flags().String("image", "", "Docker image name to match against")
 	pluginMatchCmd.Flags().StringSlice("label", nil, "Docker labels to match against (format: key=value)")
@@ -1207,29 +1214,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "install-stack [name]",
 		Short: "Install and parameterize a Stack plugin compose template",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
-			if err != nil {
-				log.Fatalf("❌ Failed to load plugins: %v", err)
-			}
-
-			name := args[0]
-			stack := reg.GetStack(name)
-			if stack == nil {
-				log.Fatalf("❌ Stack plugin %q not found", name)
-			}
-
-			composeFile := stack.ComposePath
-			if !filepath.IsAbs(composeFile) {
-				composeFile = filepath.Join(filepath.Dir(stack.SourcePath), composeFile)
-			}
-
-			composeData, err := os.ReadFile(composeFile)
-			if err != nil {
-				log.Fatalf("❌ Failed to read compose template from %s: %v", composeFile, err)
-			}
-
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			envSlice, _ := cmd.Flags().GetStringSlice("env")
 			vars := make(map[string]string)
 			for _, item := range envSlice {
@@ -1239,36 +1224,27 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				}
 			}
 
-			for _, envLine := range os.Environ() {
-				parts := strings.SplitN(envLine, "=", 2)
-				if len(parts) == 2 {
-					if _, ok := vars[parts[0]]; !ok {
-						vars[parts[0]] = parts[1]
-					}
-				}
+			res, err := c.InstallStackPlugin(args[0], vars)
+			if err != nil {
+				log.Fatalf("❌ Failed to install stack plugin via API: %v", err)
 			}
 
-			finalCompose := plugin.Parameterize(string(composeData), vars)
-
-			stackDir := system.GetStackDir()
-			outputPath := filepath.Join(stackDir, fmt.Sprintf("%s-compose.yml", name))
-			if err := os.WriteFile(outputPath, []byte(finalCompose), 0644); err != nil {
-				log.Fatalf("❌ Failed to write compose file: %v", err)
-			}
-
-			fmt.Printf("✅ Stack compose file installed to %s\n", outputPath)
-		},
+			fmt.Printf("✅ Stack compose file installed to %s\n", res["path"])
+		}),
 	}
 	pluginInstallStackCmd.Flags().StringSlice("env", nil, "Environment variables to parameterize the template (format: key=value)")
 
 	var pluginCatalogCmd = &cobra.Command{
 		Use:   "catalog",
 		Short: "List all official plugins in the catalog and their status",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			exportPath, _ := cmd.Flags().GetString("export")
 			if exportPath != "" {
-				// Export static catalog to JSON file
-				data, err := json.MarshalIndent(plugin.Catalog, "", "  ")
+				catalog, err := c.GetPluginCatalog()
+				if err != nil {
+					log.Fatalf("❌ Failed to fetch catalog via API: %v", err)
+				}
+				data, err := json.MarshalIndent(catalog, "", "  ")
 				if err != nil {
 					log.Fatalf("❌ Failed to marshal catalog: %v", err)
 				}
@@ -1283,12 +1259,11 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
 			providerFilter, _ := cmd.Flags().GetString("provider")
 
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
+			items, err := c.GetPluginCatalog()
 			if err != nil {
-				log.Fatalf("❌ Failed to load registry: %v", err)
+				log.Fatalf("❌ Failed to fetch catalog via API: %v", err)
 			}
-			items := plugin.ListCatalog(reg)
+
 			fmt.Println("\n📋 M3TAL Plugin Catalog:")
 			fmt.Println("--------------------------------------------------")
 			for _, item := range items {
@@ -1315,7 +1290,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				fmt.Printf("%s %-16s [%-10s] %s\n", statusColor, item.Name, item.Kind, item.Description)
 				fmt.Printf("   Version: %s | Author: %s | Status: %s\n\n", item.Version, item.Author, statusStr)
 			}
-		},
+		}),
 	}
 	pluginCatalogCmd.Flags().String("export", "", "Export the static catalog to a JSON file path")
 	pluginCatalogCmd.Flags().String("category", "", "Filter catalog by category")
@@ -1326,12 +1301,15 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Use:   "install [name]",
 		Short: "Download and install a plugin from the catalog by name",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			name := args[0]
 
-			catalog := plugin.FetchCatalog()
-			// Find the item in the catalog
-			var targetItem *plugin.CatalogItem
+			catalog, err := c.GetPluginCatalog()
+			if err != nil {
+				log.Fatalf("❌ Failed to fetch catalog from API: %v", err)
+			}
+
+			var targetItem *models.CatalogItemStatus
 			for i := range catalog {
 				if strings.EqualFold(catalog[i].Name, name) {
 					targetItem = &catalog[i]
@@ -1343,165 +1321,90 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				log.Fatalf("❌ Plugin %q not found in catalog. Run 'm3tal plugin catalog' to see available plugins.", name)
 			}
 
-			userDir := system.UserPluginsDir
-			if _, err := os.Stat("deploy/plugins"); err == nil {
-				userDir = "deploy/plugins"
-			}
-
-			// Load currently installed plugins
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
-			installed := make(map[string]bool)
-			if err == nil && reg != nil {
-				for _, r := range reg.Routes {
-					installed[strings.ToLower(r.Metadata.Name)] = true
-				}
-				for _, s := range reg.Stacks {
-					installed[strings.ToLower(s.Metadata.Name)] = true
-				}
-				for _, m := range reg.Middlewares {
-					installed[strings.ToLower(m.Metadata.Name)] = true
-				}
-				for _, s := range reg.Services {
-					installed[strings.ToLower(s.Metadata.Name)] = true
-				}
-			}
-
-			// Resolve dependencies
-			plan, err := plugin.ResolveInstallOrder(*targetItem, catalog, installed)
-			if err != nil {
-				log.Fatalf("❌ Dependency resolution failed: %v", err)
-			}
-
-			// Prompt for required non-autoInstall dependencies
-			for _, item := range plan {
-				if strings.EqualFold(item.Name, name) {
-					continue
-				}
-				if installed[strings.ToLower(item.Name)] {
-					continue
-				}
-
-				// Check if dependency is marked as autoInstall in the plan
-				isAutoInstall := false
-				for _, planItem := range plan {
-					for _, dep := range planItem.Dependencies {
-						if strings.EqualFold(dep.Name, item.Name) && dep.AutoInstall {
-							isAutoInstall = true
-							break
-						}
+			for _, dep := range targetItem.Dependencies {
+				var depItem *models.CatalogItemStatus
+				for i := range catalog {
+					if strings.EqualFold(catalog[i].Name, dep.Name) {
+						depItem = &catalog[i]
+						break
 					}
 				}
 
-				if !isAutoInstall {
-					fmt.Printf("❓ Missing required dependency %s %q. Install now? [Y/n]: ", item.Kind, item.Name)
-					var response string
-					fmt.Scanln(&response)
-					response = strings.TrimSpace(strings.ToLower(response))
-					if response == "" || response == "y" || response == "yes" {
-						fmt.Printf("📥 Installing dependency %s %q...\n", item.Kind, item.Name)
-						err := plugin.InstallPlugin(item.Name, item.Kind, userDir)
-						if err != nil {
-							log.Fatalf("❌ Failed to install dependency %q: %v", item.Name, err)
+				if depItem != nil && !depItem.Installed {
+					if !dep.AutoInstall {
+						fmt.Printf("❓ Missing required dependency %s %q. Install now? [Y/n]: ", dep.Kind, dep.Name)
+						var response string
+						fmt.Scanln(&response)
+						response = strings.TrimSpace(strings.ToLower(response))
+						if response != "" && response != "y" && response != "yes" {
+							log.Fatalf("❌ Aborted installation because required dependency %q was not installed.", dep.Name)
 						}
-						installed[strings.ToLower(item.Name)] = true
-					} else {
-						log.Fatalf("❌ Aborted installation because required dependency %q was not installed.", item.Name)
+					}
+					fmt.Printf("📥 Installing dependency %s %q via API...\n", dep.Kind, dep.Name)
+					err := c.InstallPlugin(dep.Name, dep.Kind)
+					if err != nil {
+						log.Fatalf("❌ Failed to install dependency %q: %v", dep.Name, err)
 					}
 				}
 			}
 
-			fmt.Printf("📥 Installing %s plugin %q...\n", targetItem.Kind, name)
-			err = plugin.InstallPlugin(name, targetItem.Kind, userDir)
+			fmt.Printf("📥 Installing %s plugin %q via API...\n", targetItem.Kind, name)
+			err = c.InstallPlugin(name, targetItem.Kind)
 			if err != nil {
 				log.Fatalf("❌ Installation failed: %v", err)
 			}
 			fmt.Printf("✅ Plugin %q successfully installed.\n", name)
-		},
+		}),
 	}
 
 	var pluginUninstallCmd = &cobra.Command{
 		Use:   "uninstall [name]",
 		Short: "Uninstall a user-installed plugin by name",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			name := args[0]
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
+			fmt.Printf("🗑️  Uninstalling plugin %q via API...\n", name)
+			pluginsResp, err := c.GetPlugins()
 			if err != nil {
-				log.Fatalf("❌ Failed to load registry: %v", err)
+				log.Fatalf("❌ Failed to get plugins: %v", err)
 			}
-
-			// Find kind and source path
-			var targetKind string
-			var path string
-			for i := range reg.Routes {
-				if plugin.MatchesPluginName(reg.Routes[i].SourcePath, reg.Routes[i].Metadata.Name, name) {
-					targetKind = "Route"
-					if strings.Contains(reg.Routes[i].SourcePath, "/traefik/") {
-						targetKind = "Traefik"
-					}
-					name = plugin.GetPluginBaseName(reg.Routes[i].SourcePath)
-					path = reg.Routes[i].SourcePath
+			kind := ""
+			for _, p := range pluginsResp.Routes {
+				if strings.EqualFold(p.Metadata.Name, name) {
+					kind = "Route"
+					name = p.Metadata.Name
 					break
 				}
 			}
-			if targetKind == "" {
-				for i := range reg.Stacks {
-					if plugin.MatchesPluginName(reg.Stacks[i].SourcePath, reg.Stacks[i].Metadata.Name, name) {
-						targetKind = "Stack"
-						name = plugin.GetPluginBaseName(reg.Stacks[i].SourcePath)
-						path = reg.Stacks[i].SourcePath
+			if kind == "" {
+				for _, p := range pluginsResp.Stacks {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Stack"
+						name = p.Metadata.Name
 						break
 					}
 				}
 			}
-			if targetKind == "" {
-				for i := range reg.Middlewares {
-					if plugin.MatchesPluginName(reg.Middlewares[i].SourcePath, reg.Middlewares[i].Metadata.Name, name) {
-						targetKind = "Middleware"
-						if strings.Contains(reg.Middlewares[i].SourcePath, "/traefik/") {
-							targetKind = "Traefik"
-						}
-						name = plugin.GetPluginBaseName(reg.Middlewares[i].SourcePath)
-						path = reg.Middlewares[i].SourcePath
+			if kind == "" {
+				for _, p := range pluginsResp.Middleware {
+					if strings.EqualFold(p.Metadata.Name, name) {
+						kind = "Middleware"
+						name = p.Metadata.Name
 						break
 					}
 				}
 			}
 
-			if targetKind == "" || path == "" {
-				log.Fatalf("❌ Plugin %q not found in local registry", name)
+			if kind == "" {
+				log.Fatalf("❌ Plugin %q not found", name)
 			}
 
-			userDir := system.UserPluginsDir
-			if _, err := os.Stat("deploy/plugins"); err == nil {
-				userDir = "deploy/plugins"
-			}
-
-			p, err := plugin.LoadPlugin(path)
+			err = c.UninstallPlugin(name, kind)
 			if err != nil {
-				log.Fatalf("❌ Failed to load plugin manifest: %v", err)
-			}
-
-			fmt.Printf("🗑️  Uninstalling plugin %q...\n", name)
-
-			var db *state.Store
-			dbPath := state.GetStatePath()
-			if dbPath != "" {
-				if d, err := state.Open(dbPath); err == nil {
-					db = d
-					defer db.Close()
-				}
-			}
-
-			mgr := plugin.NewStateManager(db)
-			err = mgr.UninstallPlugin(p, userDir, reg)
-			if err != nil {
-				log.Fatalf("❌ Uninstallation failed: %v", err)
+				log.Fatalf("❌ Failed to uninstall plugin: %v", err)
 			}
 			fmt.Printf("✅ Plugin %q successfully uninstalled.\n", name)
-		},
+		}),
 	}
 
 	pluginCmd.AddCommand(pluginListCmd, pluginValidateCmd, pluginEnableCmd, pluginDisableCmd, pluginSyncCmd, pluginMatchCmd, pluginInstallStackCmd, pluginCatalogCmd, pluginInstallCmd, pluginUninstallCmd)
@@ -1735,24 +1638,11 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 					token = "m3tal-secret-token"
 				}
 
-				dbPath := state.GetStatePath()
-				db, err := state.Open(dbPath)
-				if err != nil {
-					log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
-					log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
-					go func() {
-						if err := api.StartServer(port, token); err != nil {
-							log.Fatalf("❌ API server failed: %v", err)
-						}
-					}()
-				} else {
-					log.Printf("📦 State database: %s\n", dbPath)
-					go func() {
-						if err := api.StartServerWithStore(port, token, db); err != nil {
-							log.Fatalf("❌ API server failed: %v", err)
-						}
-					}()
-				}
+				go func() {
+					if err := api.RunServer(port, token); err != nil {
+						log.Fatalf("❌ API server failed: %v", err)
+					}
+				}()
 				// Give the server a moment to start up and bind to the port
 				time.Sleep(1 * time.Second)
 			}
@@ -2003,6 +1893,26 @@ func replaceSecret(content, key, secret string) string {
 }
 
 
+func runRaw(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func getCLIClient() *client.Client {
+	url := globalAPIURL
+	if url == "" {
+		url = config.GetAPIURL()
+	}
+	token := globalAPIToken
+	if token == "" {
+		token = config.GetAPIToken()
+	}
+	return client.NewClient(url, token)
+}
+
 func runWithSudoFallback(name string, args ...string) {
 	if name == os.Args[0] {
 		if globalLocal {
@@ -2016,18 +1926,19 @@ func runWithSudoFallback(name string, args ...string) {
 		}
 	}
 	runAsSubcommand(func() {
-		err := orchestrator.RunRaw(name, args...)
+		err := runRaw(name, args...)
 		if err != nil {
 			fmt.Println("\n⚠️  Action failed. This might require elevated privileges.")
 			fmt.Println("👉 Retrying with sudo...")
 			sudoArgs := append([]string{name}, args...)
-			orchestrator.RunRaw("sudo", sudoArgs...)
+			_ = runRaw("sudo", sudoArgs...)
 		}
 	})
 }
 
 func printStatusHeader() {
-	reg := health.UpdateAndSaveHealthRegistry()
+	apiClient := getCLIClient()
+	status, err := apiClient.GetStatus()
 
 	fmt.Println("\033[1;36m  __  __    _____    _____     _       _     \033[0m")
 	fmt.Println("\033[1;36m |  \\/  |  |___ /   |_   _|   / \\     | |    \033[0m")
@@ -2036,46 +1947,47 @@ func printStatusHeader() {
 	fmt.Println("\033[1;36m |_|  |_|  |____/     |_|  /_/   \\_\\  |_____|\033[0m")
 	fmt.Println()
 
-	var systemStr string
-	switch reg.System.Status {
-	case "🟢":
-		systemStr = "🟢 Healthy"
-	case "🟡":
-		systemStr = "🟡 Degraded"
-	case "🔴":
+	if err != nil {
+		fmt.Println("═════════════════════════════════════════════════════")
+		fmt.Printf(" 🔴 SYSTEM STATUS: API Daemon offline (%v)\n", err)
+		fmt.Println("═════════════════════════════════════════════════════")
+		return
+	}
+
+	systemStr := "🟢 Healthy"
+	if status.Components["system"] == "🔴" || status.Status == "unhealthy" || status.Status == "🔴" {
 		systemStr = "🔴 Unhealthy"
-	default:
-		systemStr = "🟢 Healthy"
+	} else if status.Components["system"] == "🟡" || status.Status == "degraded" || status.Status == "🟡" {
+		systemStr = "🟡 Degraded"
 	}
 
-	var dockerStr string
-	switch reg.Docker.Status {
-	case "🔴":
-		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	case "🟡":
-		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	default:
-		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	dockerStr := "🟢 running"
+	if status.Components["docker"] == "🔴" {
+		dockerStr = "🔴 degraded"
+	} else if status.Components["docker"] == "🟡" {
+		dockerStr = "🟡 degraded"
+	}
+	if running, ok := status.Details["docker_running"]; ok {
+		if total, ok2 := status.Details["docker_total"]; ok2 {
+			dockerStr = fmt.Sprintf("%s %s/%s running", status.Components["docker"], running, total)
+		}
 	}
 
-	var agentsStr string
-	switch reg.Agents.Status {
-	case "🟢":
-		agentsStr = "🟢 active monitoring"
-	case "🟡":
+	agentsStr := "🟢 active monitoring"
+	if status.Components["agents"] == "🟡" {
 		agentsStr = "🟡 anomaly idle"
-	default:
+	} else if status.Components["agents"] == "🔴" {
 		agentsStr = "🔴 stuck/crashed"
 	}
 
-	var diskStr string
-	switch reg.Disk.Status {
-	case "🔴":
-		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
-	case "🟡":
-		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
-	default:
-		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
+	diskStr := "🟢 ok"
+	if status.Components["disk"] == "🔴" {
+		diskStr = "🔴 full"
+	} else if status.Components["disk"] == "🟡" {
+		diskStr = "🟡 near full"
+	}
+	if pct, ok := status.Details["disk_used_percent"]; ok {
+		diskStr = fmt.Sprintf("%s %s%% used", status.Components["disk"], pct)
 	}
 
 	fmt.Println("═════════════════════════════════════════════════════")
@@ -2292,11 +2204,14 @@ func runLiveLogsMenu(_ string) {
 			fmt.Println("📋 Streaming M3TAL Core API logs...")
 			runWithSudoFallback("journalctl", "-u", "m3tal-api.service", "-f", "-n", "100")
 		case 2:
-			fmt.Println("📋 Streaming Docker compose logs...")
-			stackMgr := orchestrator.NewStackManager()
-			runAsSubcommand(func() {
-				stackMgr.Run("logs", "--tail", "20", "-f")
-			})
+			fmt.Println("📋 Fetching Docker compose logs...")
+			apiClient := getCLIClient()
+			logs, err := apiClient.GetStackLogs("all", 20)
+			if err != nil {
+				fmt.Printf("❌ Failed to get logs: %v\n", err)
+			} else {
+				fmt.Println(logs)
+			}
 		case 3:
 			apiClient := client.NewClient(config.GetAPIURL(), config.GetAPIToken())
 			list, err := apiClient.GetContainers()
@@ -2347,10 +2262,13 @@ func runLogExplorerMenu(_ string) {
 		case 1:
 			runWithSudoFallback("journalctl", "-u", "m3tal-api.service", "-n", "100")
 		case 2:
-			stackMgr := orchestrator.NewStackManager()
-			runAsSubcommand(func() {
-				stackMgr.Run("logs", "--tail", "100")
-			})
+			apiClient := getCLIClient()
+			logs, err := apiClient.GetStackLogs("all", 100)
+			if err != nil {
+				fmt.Printf("❌ Failed to get logs: %v\n", err)
+			} else {
+				fmt.Println(logs)
+			}
 		case 3:
 			agentLogPath := "/var/log/m3tal/agents.log"
 			if _, err := os.Stat(agentLogPath); err == nil {
@@ -2373,7 +2291,8 @@ func runLogExplorerMenu(_ string) {
 }
 
 func showSystemMetricsVisual() {
-	stats, err := coresys.GetDetailedStats()
+	apiClient := getCLIClient()
+	stats, err := apiClient.GetTrayStats()
 	if err != nil {
 		fmt.Printf("❌ Failed to fetch metrics: %v\n", err)
 		return
@@ -2399,48 +2318,47 @@ func showSystemMetricsVisual() {
 
 func showAggregatedSignals(_ string) {
 	fmt.Println("\n══════════════ AGGREGATED VIEW ══════════════")
-	reg := health.UpdateAndSaveHealthRegistry()
+	apiClient := getCLIClient()
+	status, err := apiClient.GetStatus()
+	if err != nil {
+		fmt.Printf("❌ Failed to fetch health status: %v\n", err)
+		return
+	}
 
-	var systemStr string
-	switch reg.System.Status {
-	case "🟢":
-		systemStr = "🟢 Healthy"
-	case "🟡":
-		systemStr = "🟡 Degraded"
-	case "🔴":
+	systemStr := "🟢 Healthy"
+	if status.Components["system"] == "🔴" || status.Status == "unhealthy" || status.Status == "🔴" {
 		systemStr = "🔴 Unhealthy"
-	default:
-		systemStr = "🟢 Healthy"
+	} else if status.Components["system"] == "🟡" || status.Status == "degraded" || status.Status == "🟡" {
+		systemStr = "🟡 Degraded"
 	}
 
-	var dockerStr string
-	switch reg.Docker.Status {
-	case "🔴":
-		dockerStr = fmt.Sprintf("🔴 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	case "🟡":
-		dockerStr = fmt.Sprintf("🟡 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
-	default:
-		dockerStr = fmt.Sprintf("🟢 %d/%d running", reg.Docker.RunningContainers, reg.Docker.TotalContainers)
+	dockerStr := "🟢 running"
+	if status.Components["docker"] == "🔴" {
+		dockerStr = "🔴 degraded"
+	} else if status.Components["docker"] == "🟡" {
+		dockerStr = "🟡 degraded"
+	}
+	if running, ok := status.Details["docker_running"]; ok {
+		if total, ok2 := status.Details["docker_total"]; ok2 {
+			dockerStr = fmt.Sprintf("%s %s/%s running", status.Components["docker"], running, total)
+		}
 	}
 
-	var agentsStr string
-	switch reg.Agents.Status {
-	case "🟢":
-		agentsStr = "🟢 active monitoring"
-	case "🟡":
+	agentsStr := "🟢 active monitoring"
+	if status.Components["agents"] == "🟡" {
 		agentsStr = "🟡 anomaly idle"
-	default:
+	} else if status.Components["agents"] == "🔴" {
 		agentsStr = "🔴 stuck/crashed"
 	}
 
-	var diskStr string
-	switch reg.Disk.Status {
-	case "🔴":
-		diskStr = fmt.Sprintf("🔴 %.0f%% used", reg.Disk.UsedPercent)
-	case "🟡":
-		diskStr = fmt.Sprintf("🟡 %.0f%% used", reg.Disk.UsedPercent)
-	default:
-		diskStr = fmt.Sprintf("🟢 %.0f%% used", reg.Disk.UsedPercent)
+	diskStr := "🟢 ok"
+	if status.Components["disk"] == "🔴" {
+		diskStr = "🔴 full"
+	} else if status.Components["disk"] == "🟡" {
+		diskStr = "🟡 near full"
+	}
+	if pct, ok := status.Details["disk_used_percent"]; ok {
+		diskStr = fmt.Sprintf("%s %s%% used", status.Components["disk"], pct)
 	}
 
 	fmt.Printf("[SYSTEM]    %s\n", systemStr)
@@ -2448,14 +2366,14 @@ func showAggregatedSignals(_ string) {
 	fmt.Printf("[AGENTS]    %s\n", agentsStr)
 	fmt.Printf("[DISK]      %s\n", diskStr)
 
-	stats, err := coresys.GetStats()
+	stats, err := apiClient.GetStats()
 	if err == nil {
 		fmt.Printf("[METRICS]   CPU: %.1f%% | RAM: %.1f%%\n", stats.CPUUsage, stats.MemoryUsage)
 	}
 
-	dirs := system.GetPluginDirs()
-	if pluginReg, err := plugin.LoadAll(dirs...); err == nil {
-		fmt.Printf("[PLUGINS]   %d routes | %d middlewares | %d stacks\n", len(pluginReg.Routes), len(pluginReg.Middlewares), len(pluginReg.Stacks))
+	pluginReg, err := apiClient.GetPlugins()
+	if err == nil {
+		fmt.Printf("[PLUGINS]   %d routes | %d middlewares | %d stacks\n", len(pluginReg.Routes), len(pluginReg.Middleware), len(pluginReg.Stacks))
 	}
 	fmt.Println("════════════════════════════════════════════")
 	fmt.Println("\nPress Enter to return...")
@@ -2605,15 +2523,20 @@ func runAgentsAutomationMenu(exe string) {
 				fmt.Println("✅ Stopped m3tal.service via systemd.")
 			}
 		case 3:
-			reg := health.UpdateAndSaveHealthRegistry()
+			apiClient := getCLIClient()
+			status, err := apiClient.GetStatus()
 			var agentsStr string
-			switch reg.Agents.Status {
-			case "🟢":
-				agentsStr = "🟢 active monitoring"
-			case "🟡":
-				agentsStr = "🟡 anomaly idle"
-			default:
-				agentsStr = "🔴 stuck/crashed"
+			if err != nil {
+				agentsStr = "🔴 offline/disconnected"
+			} else {
+				switch status.Components["agents"] {
+				case "🟢":
+					agentsStr = "🟢 active monitoring"
+				case "🟡":
+					agentsStr = "🟡 anomaly idle"
+				default:
+					agentsStr = "🔴 stuck/crashed"
+				}
 			}
 			fmt.Printf("AGENTS STATUS: %s\n", agentsStr)
 		case 4:
@@ -2631,21 +2554,47 @@ func runAgentsAutomationMenu(exe string) {
 		case 6:
 			fmt.Println("🧠 Triggering Decision Engine manually...")
 			time.Sleep(1 * time.Second)
-			reg := health.UpdateAndSaveHealthRegistry()
-			if reg.Disk.UsedPercent > 90 {
+			apiClient := getCLIClient()
+			status, err := apiClient.GetStatus()
+			if err != nil {
+				fmt.Printf("❌ Failed to query status: %v\n", err)
+				break
+			}
+			diskUsed := 0.0
+			if pctStr, ok := status.Details["disk_used_percent"]; ok {
+				if f, err := strconv.ParseFloat(pctStr, 64); err == nil {
+					diskUsed = f
+				}
+			}
+			if diskUsed > 90 {
 				fmt.Println("⚠️  [RULE] Disk usage > 90%. Mitigation: Triggering cleanup.")
 				fmt.Println("[MITIGATION] Deleting temporary build archives...")
 				fmt.Println("[MITIGATION] Deleting old log files...")
 				fmt.Println("✅ Mitigation planned and queued.")
-			} else if reg.Disk.UsedPercent > 85 {
+			} else if diskUsed > 85 {
 				fmt.Println("⚠️  [RULE] Disk usage > 85%. Mitigation: Stop downloads.")
 				fmt.Println("[MITIGATION] Pausing downloader clients (qbittorrent)...")
 				fmt.Println("✅ Mitigation planned and queued.")
-			} else if reg.Docker.Status == "🔴" {
+			} else if status.Components["docker"] == "🔴" {
 				fmt.Println("⚠️  [RULE] Critical container down. Mitigation: Restart container.")
-				for _, c := range reg.Docker.Containers {
-					if c.Critical && c.State != "running" {
-						fmt.Printf("[MITIGATION] Restarting critical container: %s...\n", c.Name)
+				conts, err := apiClient.GetContainers()
+				if err == nil {
+					criticalServices := []string{"radarr", "sonarr", "qbittorrent"}
+					for _, c := range conts {
+						name := ""
+						if len(c.Names) > 0 {
+							name = strings.TrimPrefix(c.Names[0], "/")
+						}
+						isCritical := false
+						for _, cs := range criticalServices {
+							if strings.Contains(strings.ToLower(name), cs) {
+								isCritical = true
+								break
+							}
+						}
+						if isCritical && c.State != "running" {
+							fmt.Printf("[MITIGATION] Restarting critical container: %s...\n", name)
+						}
 					}
 				}
 				fmt.Println("✅ Mitigation planned and queued.")
@@ -2655,21 +2604,46 @@ func runAgentsAutomationMenu(exe string) {
 			}
 		case 7:
 			fmt.Println("⚙️  Running system reconciliation...")
-			reg := health.UpdateAndSaveHealthRegistry()
-			if reg.Disk.UsedPercent > 90 {
+			apiClient := getCLIClient()
+			status, err := apiClient.GetStatus()
+			if err != nil {
+				fmt.Printf("❌ Failed to query status: %v\n", err)
+				break
+			}
+			diskUsed := 0.0
+			if pctStr, ok := status.Details["disk_used_percent"]; ok {
+				if f, err := strconv.ParseFloat(pctStr, 64); err == nil {
+					diskUsed = f
+				}
+			}
+			if diskUsed > 90 {
 				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Disk usage > 90%. Cleanup.")
 				fmt.Println("[EXEC] Deleted 1.4 GB of temporary logs.")
-			} else if reg.Disk.UsedPercent > 85 {
+			} else if diskUsed > 85 {
 				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Disk usage > 85%. Pause downloader.")
 				fmt.Println("[EXEC] Paused qbittorrent container downloads.")
-			} else if reg.Docker.Status == "🔴" {
+			} else if status.Components["docker"] == "🔴" {
 				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Restarting critical container.")
-				apiClient := client.NewClient(config.GetAPIURL(), config.GetAPIToken())
-				for _, c := range reg.Docker.Containers {
-					if c.Critical && c.State != "running" {
-						fmt.Printf("[EXEC] Restarting container %s via API...\n", c.Name)
-						_ = apiClient.ControlContainer(c.Name, "stop")
-						_ = apiClient.ControlContainer(c.Name, "start")
+				conts, err := apiClient.GetContainers()
+				if err == nil {
+					criticalServices := []string{"radarr", "sonarr", "qbittorrent"}
+					for _, c := range conts {
+						name := ""
+						if len(c.Names) > 0 {
+							name = strings.TrimPrefix(c.Names[0], "/")
+						}
+						isCritical := false
+						for _, cs := range criticalServices {
+							if strings.Contains(strings.ToLower(name), cs) {
+								isCritical = true
+								break
+							}
+						}
+						if isCritical && c.State != "running" {
+							fmt.Printf("[EXEC] Restarting container %s via API...\n", name)
+							_ = apiClient.ControlContainer(name, "stop")
+							_ = apiClient.ControlContainer(name, "start")
+						}
 					}
 				}
 			} else {
@@ -2795,14 +2769,14 @@ func runExtensionsMenu(exe string) {
 				runWithSudoFallback(exe, "plugin", "uninstall", name)
 			}
 		case 5:
-			dirs := system.GetPluginDirs()
-			reg, err := plugin.LoadAll(dirs...)
+			apiClient := getCLIClient()
+			reg, err := apiClient.GetPlugins()
 			if err != nil {
 				fmt.Printf("❌ Failed to load plugin registry: %v\n", err)
 			} else {
 				fmt.Println("\n🔌 Plugin Registry Status:")
 				fmt.Printf("   Routes:      %d loaded\n", len(reg.Routes))
-				fmt.Printf("   Middlewares: %d loaded\n", len(reg.Middlewares))
+				fmt.Printf("   Middlewares: %d loaded\n", len(reg.Middleware))
 				fmt.Printf("   Stacks:      %d loaded\n", len(reg.Stacks))
 			}
 		case 0:

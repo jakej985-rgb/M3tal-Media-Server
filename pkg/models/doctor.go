@@ -1,5 +1,7 @@
 package models
 
+import "fmt"
+
 // Severity represents the outcome severity of a check.
 type Severity string
 
@@ -116,3 +118,57 @@ type FixResult struct {
 	Fix
 	Output string `json:"output,omitempty"`
 }
+
+// Icon returns an emoji for a given severity level.
+func (s Severity) Icon() string {
+	switch s {
+	case SeverityPass:
+		return "✅"
+	case SeverityWarn:
+		return "⚠️ "
+	case SeverityFail:
+		return "❌"
+	default:
+		return "❓"
+	}
+}
+
+// SummaryLine returns a one-line status string for display.
+func (r ContainerResult) SummaryLine() string {
+	icon := r.Severity.Icon()
+	health := ""
+	if r.Health != "none" && r.Health != "" {
+		health = fmt.Sprintf(" [health: %s]", r.Health)
+	}
+	restarts := ""
+	if r.Restarts > 0 {
+		restarts = fmt.Sprintf(" [restarts: %d]", r.Restarts)
+	}
+	return fmt.Sprintf("%s %-35s  state=%-12s%s%s", icon, r.Name, r.State, health, restarts)
+}
+
+// SummaryLine returns a one-line display string.
+func (r MountResult) SummaryLine() string {
+	icon := r.Severity.Icon()
+	ro := ""
+	if r.ReadOnly {
+		ro = " [ro]"
+	}
+	issue := ""
+	if r.Issue != "" {
+		issue = "  ⤷ " + r.Issue
+	}
+	return fmt.Sprintf("%s [%s] %-25s → %s (%-5s)%s%s",
+		icon, r.Container, r.Source, r.Target, string(r.Type), ro, issue)
+}
+
+// SummaryLine returns a one-line display string.
+func (r PortResult) SummaryLine() string {
+	icon := r.Severity.Icon()
+	if r.InUse {
+		return fmt.Sprintf("%s Port %-5d  IN USE by %-20s  → suggest port %d",
+			icon, r.Port, fmt.Sprintf("%s (pid=%d)", r.OwnedBy, r.PID), r.Suggestion)
+	}
+	return fmt.Sprintf("%s Port %-5d  free", icon, r.Port)
+}
+

@@ -9,7 +9,6 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-type Severity = models.Severity
 type Section = models.Section
 type Report = models.DoctorReport
 

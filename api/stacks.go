@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/core/events"
+	"github.com/jakej985-rgb/m3tal-core/core/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
 	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
@@ -476,4 +478,81 @@ func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) 
 	}
 
 	sendSuccess(w, http.StatusOK, result, nil)
+}
+
+// PullStacks pulls latest images for all stacks or a specific stack.
+// POST /api/v2/stacks/pull
+func (h *StackHandlers) PullStacks(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
+		return
+	}
+
+	stackMgr := orchestrator.NewStackManager()
+	if req.Name != "" {
+		found := false
+		for _, f := range stackMgr.Files {
+			base := filepath.Base(f)
+			if strings.TrimSuffix(base, "-compose.yml") == req.Name {
+				stackMgr.Files = []string{f}
+				found = true
+				break
+			}
+		}
+		if !found {
+			sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", "stack not found: "+req.Name, nil)
+			return
+		}
+	}
+
+	err := stackMgr.Run("pull")
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "PULL_FAILED", err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]any{"pulled": true}, nil)
+}
+
+// GetStackLogs returns compose logs of a stack.
+// GET /api/v2/stacks/{name}/logs
+func (h *StackHandlers) GetStackLogs(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tail := r.URL.Query().Get("tail")
+	if tail == "" {
+		tail = "100"
+	}
+
+	stackMgr := orchestrator.NewStackManager()
+	if name != "all" && name != "" {
+		found := false
+		for _, f := range stackMgr.Files {
+			base := filepath.Base(f)
+			if strings.TrimSuffix(base, "-compose.yml") == name {
+				stackMgr.Files = []string{f}
+				found = true
+				break
+			}
+		}
+		if !found {
+			sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", "stack not found: "+name, nil)
+			return
+		}
+	}
+
+	var logsBuilder strings.Builder
+	for _, file := range stackMgr.Files {
+		stackBase := filepath.Base(file)
+		stackName := stackBase[:len(stackBase)-len("-compose.yml")]
+		cmdArgs := []string{"compose", "-p", stackName, "-f", file, "logs", "--tail", tail}
+		cmd := exec.Command("docker", cmdArgs...)
+		if out, err := cmd.CombinedOutput(); err == nil {
+			logsBuilder.WriteString(string(out))
+		}
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]string{"logs": logsBuilder.String()}, nil)
 }

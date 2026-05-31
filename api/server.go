@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -13,6 +15,7 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 	apiMiddleware "github.com/jakej985-rgb/m3tal-core/api/middleware"
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/health"
 	"github.com/jakej985-rgb/m3tal-core/core/queue"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/jakej985-rgb/m3tal-core/core/system"
@@ -158,6 +161,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/stacks/scan", stackH.ScanStacks)
 			r.Post("/stacks/{name}/up", stackH.DeployStackByName)
 			r.Post("/stacks/{name}/down", stackH.StopStackByName)
+			r.Post("/stacks/pull", stackH.PullStacks)
+			r.Get("/stacks/{name}/logs", stackH.GetStackLogs)
 
 			// Services (pass-through to Docker provider)
 			r.Get("/services", srv.GetServices)
@@ -177,6 +182,9 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+			r.Post("/plugins/validate", pluginH.Validate)
+			r.Post("/plugins/match", pluginH.Match)
+			r.Post("/plugins/install-stack", pluginH.InstallStackPlugin)
 
 			// Compose
 			r.Post("/compose/validate", composeH.ValidateCompose)
@@ -242,6 +250,9 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+			r.Post("/plugins/validate", pluginH.Validate)
+			r.Post("/plugins/match", pluginH.Match)
+			r.Post("/plugins/install-stack", pluginH.InstallStackPlugin)
 
 			// Proxy
 			r.Get("/proxy/discover", proxyH.DiscoverServices)
@@ -332,25 +343,40 @@ func GetMetricsHistory(w http.ResponseWriter, r *http.Request) {
 	sendSuccess(w, http.StatusOK, typedHistory, nil)
 }
 
-// GetSystemHealth returns a detailed system components health check report.
-// GET /api/v2/system/health
 func GetSystemHealth(db *state.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		report := system.CheckHealth(db)
+		reg := health.UpdateAndSaveHealthRegistry()
 		status := http.StatusOK
-		if report.Status == system.StatusUnhealthy {
+		if reg.System.Status == "🔴" {
 			status = http.StatusServiceUnavailable
 		}
 
-		componentsMap := make(map[string]string)
-		for k, v := range report.Components {
-			componentsMap[k] = string(v)
+		componentsMap := map[string]string{
+			"system": reg.System.Status,
+			"docker": reg.Docker.Status,
+			"agents": reg.Agents.Status,
+			"disk":   reg.Disk.Status,
+		}
+		if db != nil {
+			if err := db.Ping(); err != nil {
+				componentsMap["database"] = "🔴"
+			} else {
+				componentsMap["database"] = "🟢"
+			}
+		}
+
+		details := map[string]string{
+			"last_seen_healthy": reg.System.LastSeenHealthy,
+			"last_failure":      reg.System.LastFailure,
+			"docker_running":    strconv.Itoa(reg.Docker.RunningContainers),
+			"docker_total":      strconv.Itoa(reg.Docker.TotalContainers),
+			"disk_used_percent": fmt.Sprintf("%.1f", reg.Disk.UsedPercent),
 		}
 
 		sendSuccess(w, status, models.Status{
-			Status:     string(report.Status),
+			Status:     reg.System.Status,
 			Components: componentsMap,
-			Details:    report.Details,
+			Details:    details,
 		}, nil)
 	}
 }

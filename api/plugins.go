@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -382,5 +383,120 @@ func (h *PluginHandlers) Uninstall(w http.ResponseWriter, r *http.Request) {
 	sendSuccess(w, http.StatusOK, map[string]any{
 		"uninstalled": true,
 		"summary":     newReg.Summary(),
+	}, nil)
+}
+
+// Validate validates a plugin manifest YAML.
+// POST /api/v2/plugins/validate
+func (h *PluginHandlers) Validate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		YAML string `json:"yaml"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
+		return
+	}
+
+	p, err := plugin.ParsePlugin([]byte(req.YAML))
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "PARSE_FAILED", err.Error(), nil)
+		return
+	}
+
+	if err := p.Validate(); err != nil {
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]any{
+		"valid":       true,
+		"kind":        p.Kind,
+		"name":        p.Metadata.Name,
+		"description": p.Metadata.Description,
+		"version":     p.Metadata.Version,
+	}, nil)
+}
+
+// Match matches a service name/image/labels against Route plugins.
+// POST /api/v2/plugins/match
+func (h *PluginHandlers) Match(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Service string            `json:"service"`
+		Image   string            `json:"image"`
+		Labels  map[string]string `json:"labels"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
+		return
+	}
+
+	reg := h.ensureLoaded()
+	match := reg.MatchService(req.Service, req.Image, req.Labels)
+	if match == nil {
+		sendSuccess(w, http.StatusOK, map[string]any{"matched": false}, nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]any{
+		"matched": true,
+		"plugin":  match,
+	}, nil)
+}
+
+// InstallStackPlugin parameterizes and installs a stack plugin template.
+// POST /api/v2/plugins/install-stack
+func (h *PluginHandlers) InstallStackPlugin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string            `json:"name"`
+		Env  map[string]string `json:"env"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
+		return
+	}
+
+	reg := h.ensureLoaded()
+	stack := reg.GetStack(req.Name)
+	if stack == nil {
+		sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", "stack plugin not found: "+req.Name, nil)
+		return
+	}
+
+	composeFile := stack.ComposePath
+	if !filepath.IsAbs(composeFile) {
+		composeFile = filepath.Join(filepath.Dir(stack.SourcePath), composeFile)
+	}
+
+	composeData, err := os.ReadFile(composeFile)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "READ_FAILED", "failed to read compose template: "+err.Error(), nil)
+		return
+	}
+
+	vars := make(map[string]string)
+	for k, v := range req.Env {
+		vars[k] = v
+	}
+	for _, envLine := range os.Environ() {
+		parts := strings.SplitN(envLine, "=", 2)
+		if len(parts) == 2 {
+			if _, ok := vars[parts[0]]; !ok {
+				vars[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	finalCompose := plugin.Parameterize(string(composeData), vars)
+
+	stackDir := system.GetStackDir()
+	outputPath := filepath.Join(stackDir, fmt.Sprintf("%s-compose.yml", req.Name))
+	if err := os.WriteFile(outputPath, []byte(finalCompose), 0644); err != nil {
+		sendError(w, http.StatusInternalServerError, "WRITE_FAILED", "failed to write compose file: "+err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]any{
+		"installed": true,
+		"path":      outputPath,
 	}, nil)
 }

@@ -267,12 +267,4 @@ func nextFreePort(start int, listening map[int]procEntry) int {
 	return 0
 }
 
-// SummaryLine returns a one-line display string.
-func (r PortResult) SummaryLine() string {
-	icon := severityIcon(r.Severity)
-	if r.InUse {
-		return fmt.Sprintf("%s Port %-5d  IN USE by %-20s  → suggest port %d",
-			icon, r.Port, fmt.Sprintf("%s (pid=%d)", r.OwnedBy, r.PID), r.Suggestion)
-	}
-	return fmt.Sprintf("%s Port %-5d  free", icon, r.Port)
-}
+
