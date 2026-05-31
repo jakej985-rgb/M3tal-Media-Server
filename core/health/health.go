@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/shirou/gopsutil/v3/disk"
 )
 

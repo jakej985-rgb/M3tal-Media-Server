@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/registry"
+	"github.com/jakej985-rgb/m3tal-core/pkg/registry"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 

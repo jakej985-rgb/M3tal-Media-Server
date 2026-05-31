@@ -11,19 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-// PortResult captures the scan result for a single port.
-type PortResult struct {
-	Port       int      `json:"port"`
-	InUse      bool     `json:"in_use"`
-	OwnedBy    string   `json:"owned_by,omitempty"` // process name if detectable
-	PID        int      `json:"pid,omitempty"`
-	Conflict   bool     `json:"conflict"` // true when a service expects this port free
-	Severity   Severity `json:"severity"`
-	Suggestion int      `json:"suggestion,omitempty"` // next free port
-	Note       string   `json:"note,omitempty"`
-}
+type PortResult = models.PortResult
+type Severity = models.Severity
 
 // DefaultDeclaredPorts is the set of ports M3TAL reserves by default.
 var DefaultDeclaredPorts = []int{80, 443, 8080, 8443, 3000, 9000}

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 // CheckResult stores the outcome of a single pre-flight check.

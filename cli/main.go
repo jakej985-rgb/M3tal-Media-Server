@@ -21,19 +21,18 @@ import (
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/api"
-	"github.com/jakej985-rgb/m3tal-core/core/auth"
-	"github.com/jakej985-rgb/m3tal-core/core/compose"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
-	"github.com/jakej985-rgb/m3tal-core/core/doctor"
 	"github.com/jakej985-rgb/m3tal-core/core/health"
 	"github.com/jakej985-rgb/m3tal-core/core/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
-	"github.com/jakej985-rgb/m3tal-core/core/preflight"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	coresys "github.com/jakej985-rgb/m3tal-core/core/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/client"
 	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
+	"github.com/jakej985-rgb/m3tal-core/pkg/compose"
+	"github.com/jakej985-rgb/m3tal-core/pkg/config"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"github.com/jakej985-rgb/m3tal-core/pkg/output"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/jakej985-rgb/m3tal-core/tui"
 	"github.com/spf13/cobra"
 )
@@ -42,6 +41,7 @@ import (
 var envExample string
 
 func main() {
+	log.Println("[cli] M3TAL CLI invoked (Command:", os.Args, ")")
 	// First-run check for Linux system installations
 	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
 		configPath := system.GetConfigPath()
@@ -56,48 +56,40 @@ func main() {
 		Use:   "m3tal",
 		Short: "M3TAL Core Orchestrator",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				legacyMenu, _ := cmd.Flags().GetBool("legacy-menu")
-				if legacyMenu {
-					persist, _ := cmd.Flags().GetBool("persist")
-					newWindow, _ := cmd.Flags().GetBool("new-window")
-					windowAlias, _ := cmd.Flags().GetBool("window")
+			legacyMenu, _ := cmd.Flags().GetBool("legacy-menu")
+			if legacyMenu {
+				persist, _ := cmd.Flags().GetBool("persist")
+				newWindow, _ := cmd.Flags().GetBool("new-window")
+				windowAlias, _ := cmd.Flags().GetBool("window")
 
-					globalLocal, _ = cmd.Flags().GetBool("local")
-					globalAPIURL, _ = cmd.Flags().GetString("api-url")
-					globalAPIToken, _ = cmd.Flags().GetString("api-token")
+				globalLocal, _ = cmd.Flags().GetBool("local")
+				globalAPIURL, _ = cmd.Flags().GetString("api-url")
+				globalAPIToken, _ = cmd.Flags().GetString("api-token")
 
-					if newWindow || windowAlias {
-						fmt.Println("🖥️  Launching M3TAL interactive menu in a new terminal window...")
-						if err := launchInNewWindow(); err != nil {
-							fmt.Printf("❌ Failed to launch in new window: %v\n", err)
-							fmt.Println("👉 Falling back to current terminal window...")
-						} else {
-							return
-						}
-					}
-
-					if persist || newWindow || windowAlias {
-						setupPersistentSignalHandler()
-						for {
-							if !runMainMenu() {
-								break
-							}
-						}
+				if newWindow || windowAlias {
+					fmt.Println("🖥️  Launching M3TAL interactive menu in a new terminal window...")
+					if err := launchInNewWindow(); err != nil {
+						fmt.Printf("❌ Failed to launch in new window: %v\n", err)
+						fmt.Println("👉 Falling back to current terminal window...")
 					} else {
-						runMainMenu()
+						return
 					}
-					return
 				}
 
-				// Default behavior: launch Bubble Tea TUI dashboard
-				cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
-					if err := tui.Run(c); err != nil {
-						output.FatalError(err)
+				if persist || newWindow || windowAlias {
+					setupPersistentSignalHandler()
+					for {
+						if !runMainMenu() {
+							break
+						}
 					}
-				})(cmd, args)
+				} else {
+					runMainMenu()
+				}
 				return
 			}
+
+			// If no arguments or subcommands, print help to resolve CLI/TUI ambiguity
 			cmd.Help()
 		},
 	}
@@ -169,7 +161,7 @@ func main() {
 		Use:   "daemon",
 		Short: "Manage M3TAL background API daemon and agents",
 		Run: func(cmd *cobra.Command, args []string) {
-			runAgentsDaemonLoop()
+			api.RunAgentsDaemon()
 		},
 	}
 
@@ -433,7 +425,7 @@ func main() {
 	var dashpassCmd = &cobra.Command{
 		Use:   "dashpass [username] [password]",
 		Short: "Manage dashboard users",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
 			username := ""
 			if len(args) > 0 {
 				username = args[0]
@@ -455,14 +447,12 @@ func main() {
 				fmt.Scanln(&password)
 			}
 
-			fmt.Printf("✅ Updating user %s...\n", username)
-			usersFile := filepath.Join(system.GetStackDir(), "users.json")
-			if err := auth.UpdateUser(usersFile, username, password); err != nil {
+			fmt.Printf("✅ Updating user %s via API...\n", username)
+			if err := c.UpdateDashpass(username, password); err != nil {
 				log.Fatal(err)
 			}
-			// Restart dashboard container to apply new credentials and remount users.json immediately
-			_ = exec.Command("docker", "restart", "m3tal-dashboard").Run()
-		},
+			fmt.Printf("✅ User %s updated successfully.\n", username)
+		}),
 	}
 
 	var docCmd = &cobra.Command{
@@ -471,15 +461,13 @@ func main() {
 		Long: `Checks Docker daemon connectivity, .env file validity,
 storage path accessibility, port availability, and system configuration.
 Run this before 'm3tal up' to diagnose potential issues.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			envPath := system.GetConfigPath()
-			baseStoragePath := ""
-			if data, err := os.ReadFile(envPath); err == nil {
-				baseStoragePath = getEnvValue(string(data), "BASE_STORAGE_PATH")
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			results, err := c.GetDoctor()
+			if err != nil {
+				output.FatalError(err)
 			}
-			results := preflight.RunAll(envPath, baseStoragePath)
-			preflight.PrintResults(results)
-		},
+			output.PrintPreflightResults(results)
+		}),
 	}
 
 	var initCmd = &cobra.Command{
@@ -497,7 +485,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			if err == nil {
 				basePath := getEnvValue(string(envData), "BASE_STORAGE_PATH")
 				if basePath != "" {
-					if err := preflight.ValidateStoragePath(basePath); err != nil {
+					if err := localValidateStoragePath(basePath); err != nil {
 						fmt.Printf("\n⚠️  Storage path validation:\n    %v\n", err)
 						fmt.Println("\n👉 Set a valid BASE_STORAGE_PATH in .env, then run:")
 						fmt.Println("   mkdir -p /path/to/your/m3tal-data")
@@ -1524,33 +1512,31 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 	var doctorScanContainersCmd = &cobra.Command{
 		Use:   "containers",
 		Short: "Scan container health states",
-		Run: func(cmd *cobra.Command, args []string) {
-			results, err := doctor.ScanContainers()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			results, err := c.GetDoctorContainers()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
-				os.Exit(1)
+				output.FatalError(err)
 			}
 			fmt.Printf("\n📦 Container Health Scan (%d containers)\n", len(results))
 			fmt.Println(strings.Repeat("─", 60))
 			for _, r := range results {
-				fmt.Printf("  %s\n", r.SummaryLine())
+				fmt.Printf("  %s\n", output.ContainerSummaryLine(r))
 				if r.Recommendation != "" {
 					fmt.Printf("     💡 %s\n", r.Recommendation)
 				}
 			}
 			fmt.Println()
-		},
+		}),
 	}
 
 	// m3tal doctor scan mounts
 	var doctorScanMountsCmd = &cobra.Command{
 		Use:   "mounts",
 		Short: "Validate container volume and bind-mount paths",
-		Run: func(cmd *cobra.Command, args []string) {
-			results, err := doctor.ValidateMounts()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			results, err := c.GetDoctorMounts()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
-				os.Exit(1)
+				output.FatalError(err)
 			}
 			if len(results) == 0 {
 				fmt.Println("✅ No mounts found.")
@@ -1559,8 +1545,8 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			fmt.Printf("\n📂 Mount Validation (%d mount(s))\n", len(results))
 			fmt.Println(strings.Repeat("─", 60))
 			for _, r := range results {
-				if r.Severity != doctor.SeverityPass {
-					fmt.Printf("  %s\n", r.SummaryLine())
+				if r.Severity != models.SeverityPass {
+					fmt.Printf("  %s\n", output.MountSummaryLine(r))
 					if r.Fix != "" {
 						fmt.Printf("     💡 %s\n", r.Fix)
 					}
@@ -1568,7 +1554,7 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			}
 			ok := 0
 			for _, r := range results {
-				if r.Severity == doctor.SeverityPass {
+				if r.Severity == models.SeverityPass {
 					ok++
 				}
 			}
@@ -1576,26 +1562,25 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 				fmt.Printf("  ✅ %d mount(s) OK\n", ok)
 			}
 			fmt.Println()
-		},
+		}),
 	}
 
 	// m3tal doctor scan ports
 	var doctorScanPortsCmd = &cobra.Command{
 		Use:   "ports",
 		Short: "Detect port conflicts on declared M3TAL ports",
-		Run: func(cmd *cobra.Command, args []string) {
-			results, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			results, err := c.GetDoctorPorts()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
-				os.Exit(1)
+				output.FatalError(err)
 			}
 			fmt.Printf("\n🔌 Port Conflict Scan (%d ports checked)\n", len(results))
 			fmt.Println(strings.Repeat("─", 60))
 			for _, r := range results {
-				fmt.Printf("  %s\n", r.SummaryLine())
+				fmt.Printf("  %s\n", output.PortSummaryLine(r))
 			}
 			fmt.Println()
-		},
+		}),
 	}
 
 	// m3tal doctor scan  (runs all scanners)
@@ -1618,39 +1603,25 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 		Short: "Preview (or apply) automated fixes for detected issues",
 		Long: `Scans containers, mounts, and ports for issues, then proposes
 fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			conts, err := doctor.ScanContainers()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			res, err := c.HandleDoctorFix(doctorFixApply, doctorFixName)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Container scan error: %v\n", err)
-			}
-			// Filter to specific container if --name given
-			if doctorFixName != "" {
-				var filtered []doctor.ContainerResult
-				for _, c := range conts {
-					if c.Name == doctorFixName {
-						filtered = append(filtered, c)
-					}
-				}
-				conts = filtered
-			}
-			mounts, err := doctor.ValidateMounts()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Mount scan error: %v\n", err)
-			}
-			ports, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Port scan error: %v\n", err)
+				output.FatalError(err)
 			}
 
-			fixes := doctor.BuildFixes(conts, mounts, ports)
-			if !doctorFixApply {
-				doctor.PrintFixes(fixes)
-				return
+			appliedVal, _ := res["applied"].(bool)
+			if !appliedVal {
+				fixesData, _ := json.Marshal(res["fixes"])
+				var fixes []models.Fix
+				_ = json.Unmarshal(fixesData, &fixes)
+				output.PrintFixes(fixes)
+			} else {
+				resultsData, _ := json.Marshal(res["results"])
+				var results []models.FixResult
+				_ = json.Unmarshal(resultsData, &results)
+				output.PrintFixResults(results)
 			}
-
-			results := doctor.ApplyFixes(fixes)
-			doctor.PrintFixResults(results)
-		},
+		}),
 	}
 	doctorFixCmd.Flags().BoolVar(&doctorFixApply, "apply", false, "Apply fixes instead of previewing")
 	doctorFixCmd.Flags().StringVar(&doctorFixName, "name", "", "Restrict container fixes to this container name")
@@ -1661,36 +1632,36 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	var doctorReportCmd = &cobra.Command{
 		Use:   "report",
 		Short: "Generate a full system health report",
-		Run: func(cmd *cobra.Command, args []string) {
-			conts, err := doctor.ScanContainers()
+		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+			report, err := c.GetDoctorReport()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Container scan error: %v\n", err)
+				output.FatalError(err)
 			}
-			mounts, err := doctor.ValidateMounts()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Mount scan error: %v\n", err)
-			}
-			ports, err := doctor.ScanPortConflicts(doctor.DefaultDeclaredPorts)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Port scan error: %v\n", err)
-			}
-
-			report := doctor.GenerateReport(conts, mounts, ports)
 
 			if doctorReportJSON {
-				doctor.PrintReportJSON(report)
+				data, err := json.MarshalIndent(report, "", "  ")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error marshalling report: %v\n", err)
+					return
+				}
+				fmt.Println(string(data))
 				return
 			}
 			if doctorReportOut != "" {
-				if err := doctor.WriteReportJSON(report, doctorReportOut); err != nil {
+				data, err := json.MarshalIndent(report, "", "  ")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error marshalling report: %v\n", err)
+					return
+				}
+				if err := os.WriteFile(doctorReportOut, data, 0644); err != nil {
 					fmt.Fprintf(os.Stderr, "❌ Failed to write report: %v\n", err)
 					os.Exit(1)
 				}
 				fmt.Printf("✅ Report written to %s\n", doctorReportOut)
 				return
 			}
-			doctor.PrintReport(report)
-		},
+			output.PrintReport(report)
+		}),
 	}
 	doctorReportCmd.Flags().BoolVar(&doctorReportJSON, "json", false, "Output report as JSON")
 	doctorReportCmd.Flags().StringVar(&doctorReportOut, "out", "", "Write JSON report to file path")
@@ -1807,52 +1778,7 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	}
 }
 
-func runAgentsDaemonLoop() {
-	fmt.Println("Starting M3TAL Agents Daemon loop...")
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
 
-	// Initial execution
-	executeAgentsStep()
-
-	for range ticker.C {
-		executeAgentsStep()
-	}
-}
-
-func executeAgentsStep() {
-	health.EnsureControlPlaneDirs()
-	now := time.Now().Format("2006-01-02 15:04:05")
-	base := health.GetControlPlaneDir()
-
-	// Write to monitor.log
-	monitorLogPath := filepath.Join(base, "logs", "monitor.log")
-	monitorContent := fmt.Sprintf("[%s] [INFO] [monitor] System load within normal parameters.\n[%s] [INFO] [monitor] Checked container states.\n", now, now)
-	_ = os.WriteFile(monitorLogPath, []byte(monitorContent), 0644)
-
-	// Write to anomaly.log
-	anomalyLogPath := filepath.Join(base, "logs", "anomaly.log")
-	anomalyContent := fmt.Sprintf("[%s] [INFO] [anomaly] Scanning for anomalies... 0 detected.\n", now)
-	_ = os.WriteFile(anomalyLogPath, []byte(anomalyContent), 0644)
-
-	// Write to/append to agents.log
-	agentsLogPath := "/var/log/m3tal/agents.log"
-	f, err := os.OpenFile(agentsLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		// Fallback to local logs directory if /var/log/m3tal is not writable
-		fallbackPath := filepath.Join(base, "logs", "agents.log")
-		f, err = os.OpenFile(fallbackPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	}
-	if err == nil {
-		defer f.Close()
-		logLines := fmt.Sprintf("[%s] [INFO] [monitor] System load within normal parameters.\n"+
-			"[%s] [INFO] [metrics] Aggregated metrics refreshed.\n"+
-			"[%s] [INFO] [anomaly] Scanning for anomalies... 0 detected.\n"+
-			"[%s] [INFO] [decision] System state is stable. No action required.\n"+
-			"[%s] [INFO] [reconcile] System state matches target configuration.\n", now, now, now, now, now)
-		_, _ = f.WriteString(logLines)
-	}
-}
 
 func parseComposeVariables(composeFile string) map[string]string {
 	data, err := os.ReadFile(composeFile)
@@ -2030,9 +1956,9 @@ func runWizard(targetFile string, composeFile string, update bool, isGlobal bool
 			}
 		}
 		if adminPass != "" {
-			usersFile := filepath.Join(system.GetStackDir(), "users.json")
-			_ = auth.UpdateUser(usersFile, "admin", adminPass)
-			_ = exec.Command("docker", "restart", "m3tal-dashboard").Run()
+			// Best-effort: try to update via API if daemon is running
+			c := client.NewClient(config.GetAPIURL(), config.GetAPIToken())
+			_ = c.UpdateDashpass("admin", adminPass)
 		}
 	}
 
@@ -2372,14 +2298,10 @@ func runLiveLogsMenu(_ string) {
 				stackMgr.Run("logs", "--tail", "20", "-f")
 			})
 		case 3:
-			mgr, err := containers.GetProvider()
+			apiClient := client.NewClient(config.GetAPIURL(), config.GetAPIToken())
+			list, err := apiClient.GetContainers()
 			if err != nil {
-				fmt.Printf("❌ Failed to connect to Docker: %v\n", err)
-				break
-			}
-			list, err := mgr.ListContainers()
-			if err != nil {
-				fmt.Printf("❌ Failed to list containers: %v\n", err)
+				fmt.Printf("❌ Failed to list containers from API: %v\n", err)
 				break
 			}
 			if len(list) == 0 {
@@ -2451,7 +2373,7 @@ func runLogExplorerMenu(_ string) {
 }
 
 func showSystemMetricsVisual() {
-	stats, err := system.GetDetailedStats()
+	stats, err := coresys.GetDetailedStats()
 	if err != nil {
 		fmt.Printf("❌ Failed to fetch metrics: %v\n", err)
 		return
@@ -2526,7 +2448,7 @@ func showAggregatedSignals(_ string) {
 	fmt.Printf("[AGENTS]    %s\n", agentsStr)
 	fmt.Printf("[DISK]      %s\n", diskStr)
 
-	stats, err := system.GetStats()
+	stats, err := coresys.GetStats()
 	if err == nil {
 		fmt.Printf("[METRICS]   CPU: %.1f%% | RAM: %.1f%%\n", stats.CPUUsage, stats.MemoryUsage)
 	}
@@ -2614,7 +2536,7 @@ func runConfigurationMenu(exe string) {
 			if pathInput == "" {
 				pathInput = system.DataPath
 			}
-			err := preflight.ValidateStoragePath(pathInput)
+			err := localValidateStoragePath(pathInput)
 			if err != nil {
 				fmt.Printf("❌ Path Validation Failed: %v\n", err)
 			} else {
@@ -2742,14 +2664,12 @@ func runAgentsAutomationMenu(exe string) {
 				fmt.Println("[EXEC] Paused qbittorrent container downloads.")
 			} else if reg.Docker.Status == "🔴" {
 				fmt.Println("⚠️  [RECONCILE] Executing mitigation: Restarting critical container.")
+				apiClient := client.NewClient(config.GetAPIURL(), config.GetAPIToken())
 				for _, c := range reg.Docker.Containers {
 					if c.Critical && c.State != "running" {
-						fmt.Printf("[EXEC] Restarting container %s via Docker API...\n", c.Name)
-						mgr, _ := containers.GetProvider()
-						if mgr != nil {
-							_ = mgr.StopContainer(c.Name)
-							_ = mgr.StartContainer(c.Name)
-						}
+						fmt.Printf("[EXEC] Restarting container %s via API...\n", c.Name)
+						_ = apiClient.ControlContainer(c.Name, "stop")
+						_ = apiClient.ControlContainer(c.Name, "start")
 					}
 				}
 			} else {
@@ -3117,4 +3037,37 @@ func runAsSubcommand(f func()) {
 	isRunningSubcommand = true
 	defer func() { isRunningSubcommand = false }()
 	f()
+}
+
+func localValidateStoragePath(basePath string) error {
+	if basePath == "" {
+		return fmt.Errorf("BASE_STORAGE_PATH is empty. Set it in your .env file")
+	}
+
+	absPath, err := filepath.Abs(basePath)
+	if err != nil {
+		return fmt.Errorf("cannot resolve path '%s': %w", basePath, err)
+	}
+
+	info, err := os.Stat(absPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("directory does not exist: %s\nCreate it with: mkdir -p %s", absPath, absPath)
+	}
+	if err != nil {
+		return fmt.Errorf("cannot access '%s': %w", absPath, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path exists but is not a directory: %s", absPath)
+	}
+
+	// Test writability
+	testFile := filepath.Join(absPath, ".m3tal-write-test")
+	f, err := os.Create(testFile)
+	if err != nil {
+		return fmt.Errorf("path '%s' is NOT writable: %w", absPath, err)
+	}
+	f.Close()
+	os.Remove(testFile)
+
+	return nil
 }

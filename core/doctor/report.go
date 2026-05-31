@@ -6,36 +6,18 @@ import (
 	"os"
 	"strings"
 	"time"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-// Severity represents the outcome severity of a check.
-type Severity string
+type Severity = models.Severity
+type Section = models.Section
+type Report = models.DoctorReport
 
 const (
-	SeverityPass Severity = "pass"
-	SeverityWarn Severity = "warn"
-	SeverityFail Severity = "fail"
+	SeverityPass = models.SeverityPass
+	SeverityWarn = models.SeverityWarn
+	SeverityFail = models.SeverityFail
 )
-
-// Section groups checks of the same category.
-type Section struct {
-	Name      string   `json:"name"`
-	Severity  Severity `json:"severity"`
-	PassCount int      `json:"pass_count"`
-	WarnCount int      `json:"warn_count"`
-	FailCount int      `json:"fail_count"`
-}
-
-// Report is the aggregated output of all doctor scans.
-type Report struct {
-	GeneratedAt     string            `json:"generated_at"`
-	OverallSeverity Severity          `json:"overall_severity"`
-	Containers      []ContainerResult `json:"containers"`
-	Mounts          []MountResult     `json:"mounts"`
-	Ports           []PortResult      `json:"ports"`
-	Sections        []Section         `json:"sections"`
-	Recommendations []string          `json:"recommendations"`
-}
 
 // severityIcon returns an emoji for a given severity level.
 func severityIcon(s Severity) string {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 // CatalogItem represents a plugin available in the remote official catalog.

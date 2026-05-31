@@ -12,36 +12,22 @@ import (
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-// ContainerStatus classifies the overall health of a container.
-type ContainerStatus string
+type ContainerStatus = models.ContainerStatus
+type ContainerResult = models.ContainerResult
+type Severity = models.Severity
 
 const (
-	StatusRunning    ContainerStatus = "running"
-	StatusStopped    ContainerStatus = "stopped"
-	StatusUnhealthy  ContainerStatus = "unhealthy"
-	StatusRestarting ContainerStatus = "restarting"
-	StatusCreated    ContainerStatus = "created"
-	StatusPaused     ContainerStatus = "paused"
-	StatusDead       ContainerStatus = "dead"
+	StatusRunning    = models.StatusRunning
+	StatusStopped    = models.StatusStopped
+	StatusUnhealthy  = models.StatusUnhealthy
+	StatusRestarting = models.StatusRestarting
+	StatusCreated    = models.StatusCreated
+	StatusPaused     = models.StatusPaused
+	StatusDead       = models.StatusDead
 )
-
-// ContainerResult holds the health scan result for a single container.
-type ContainerResult struct {
-	Name           string          `json:"name"`
-	ID             string          `json:"id"`
-	Image          string          `json:"image"`
-	State          string          `json:"state"`
-	Health         string          `json:"health"` // healthy / unhealthy / starting / none
-	Restarts       int             `json:"restarts"`
-	StartedAt      string          `json:"started_at"`
-	FinishedAt     string          `json:"finished_at"`
-	ExitCode       int             `json:"exit_code"`
-	Status         ContainerStatus `json:"status"`
-	Severity       Severity        `json:"severity"`
-	Recommendation string          `json:"recommendation,omitempty"`
-}
 
 // dockerInspectState mirrors the subset of Docker's inspect output we need.
 type dockerInspectState struct {
