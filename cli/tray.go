@@ -2,21 +2,17 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gogpu/systray"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/client"
+	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
 	"github.com/spf13/cobra"
 )
 
@@ -259,83 +255,18 @@ var trayCmd = &cobra.Command{
 	Use:   "tray",
 	Short: "Run the M3TAL system tray monitor",
 	Long:  "Starts a system tray icon that launches a browser-based stats monitor popup showing real-time CPU, GPU, storage, and container metrics.",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: cmdutil.WithClient(func(c *client.Client, cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetString("port")
-		runTray(port)
-	},
+		runTray(c, port)
+	}),
 }
 
 func init() {
 	trayCmd.Flags().StringP("port", "p", "18088", "Port to run the tray web server on")
 }
 
-func runTray(port string) {
-	// Try the requested port, then scan for the next available one.
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", port))
-	if err != nil {
-		var startPort int
-		fmt.Sscanf(port, "%d", &startPort)
-		if startPort == 0 {
-			startPort = 18088
-		}
-		for i := 1; i <= 100; i++ {
-			nextPort := fmt.Sprintf("%d", startPort+i)
-			l, err2 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", nextPort))
-			if err2 == nil {
-				listener = l
-				port = nextPort
-				break
-			}
-		}
-	}
-	if listener == nil {
-		log.Fatalf("Tray web server failed to bind to any port near %s", port)
-	}
-
-	fmt.Printf("🚀 Starting M3TAL System Tray monitor on port %s...\n", port)
-	fmt.Printf("👉 Access stats directly at http://localhost:%s/tray\n", port)
-
-	if runtime.GOOS == "linux" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-		fmt.Println("\nℹ️  Note: DBUS_SESSION_BUS_ADDRESS is not set (common when running under sudo).")
-		fmt.Println("   The system tray icon may not appear in your desktop bar, but the")
-		fmt.Printf("   stats web interface remains fully accessible at http://localhost:%s/tray\n", port)
-	}
-
-	// Start HTTP server serving the tray interface and API endpoints
-	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/tray", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/html")
-			htmlContent := strings.Replace(TrayHTML, `<div class="logo-icon">🖥️</div>`, fmt.Sprintf(`<img src="data:image/png;base64,%s" width="28" height="28" style="object-fit:contain" />`, IconBase64), 1)
-			w.Write([]byte(htmlContent))
-		})
-		mux.HandleFunc("/tray/api/stats", func(w http.ResponseWriter, r *http.Request) {
-			stats, err := system.GetDetailedStats()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(stats)
-		})
-		mux.HandleFunc("/tray/api/containers", func(w http.ResponseWriter, r *http.Request) {
-			provider, err := containers.GetProvider()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			list, err := provider.ListContainers()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(list)
-		})
-		if err := http.Serve(listener, mux); err != nil {
-			log.Fatalf("Tray web server failed: %v", err)
-		}
-	}()
+func runTray(c *client.Client, port string) {
+	log.Printf("[tray] runTray invoked - targeting API daemon at %s\n", c.BaseURL)
 
 	// Run systray (pure Go, zero CGO, blocks on Run)
 	mode := os.Getenv("M3TAL_TRAY")
@@ -348,13 +279,16 @@ func runTray(port string) {
 		return
 	}
 
+	targetURL := fmt.Sprintf("%s/tray", c.BaseURL)
+	log.Printf("[tray] Tray UI target URL: %s\n", targetURL)
+
 	tray := systray.New()
 	tray.SetIcon(IconData)
 	tray.SetTooltip("M3TAL Core System Tray")
 
 	menu := systray.NewMenu()
 	menu.Add("Open Monitor", func() {
-		openBrowser(fmt.Sprintf("http://localhost:%s/tray", port))
+		openBrowser(targetURL)
 	})
 	menu.Add("Open Dashboard", func() {
 		openBrowser("http://localhost:8082")
@@ -368,7 +302,7 @@ func runTray(port string) {
 	tray.SetMenu(menu)
 	tray.OnClick(func() {
 		// Left-click: open a small popup window (like calendar) at fixed size
-		openPopup(fmt.Sprintf("http://localhost:%s/tray", port))
+		openPopup(targetURL)
 	})
 	tray.Show()
 	tray.Run()

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 func TestExtractDomain(t *testing.T) {

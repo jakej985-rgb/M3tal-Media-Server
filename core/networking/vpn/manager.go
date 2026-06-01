@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/jakej985-rgb/m3tal-core/core/engine"
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 // Manager handles VPN container operations and status reporting.

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/client"
 	"github.com/jakej985-rgb/m3tal-core/pkg/cmdutil"
 	"github.com/jakej985-rgb/m3tal-core/pkg/output"

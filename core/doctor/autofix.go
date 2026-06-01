@@ -7,33 +7,19 @@ import (
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-// FixAction describes the type of remediation to apply.
-type FixAction string
+type FixAction = models.FixAction
+type Fix = models.Fix
+type FixResult = models.FixResult
 
 const (
-	FixRestartContainer FixAction = "restart_container"
-	FixChmodPath        FixAction = "chmod_path"
-	FixMkdirPath        FixAction = "mkdir_path"
-	FixSuggestPort      FixAction = "suggest_port"
+	FixRestartContainer = models.FixRestartContainer
+	FixChmodPath        = models.FixChmodPath
+	FixMkdirPath        = models.FixMkdirPath
+	FixSuggestPort      = models.FixSuggestPort
 )
-
-// Fix represents a proposed (or applied) remediation action.
-type Fix struct {
-	Action      FixAction `json:"action"`
-	Target      string    `json:"target"` // container name or path or port string
-	Description string    `json:"description"`
-	Command     string    `json:"command"` // human-readable command equivalent
-	Applied     bool      `json:"applied"`
-	Error       string    `json:"error,omitempty"`
-}
-
-// FixResult wraps a Fix with its execution outcome.
-type FixResult struct {
-	Fix
-	Output string `json:"output,omitempty"`
-}
 
 // BuildFixes derives a list of proposed fixes from scan results.
 func BuildFixes(containers []ContainerResult, mounts []MountResult, ports []PortResult) []Fix {

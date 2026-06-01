@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -13,10 +15,30 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 	apiMiddleware "github.com/jakej985-rgb/m3tal-core/api/middleware"
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/health"
+	"github.com/jakej985-rgb/m3tal-core/core/queue"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/jakej985-rgb/m3tal-core/core/system"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
+
+// GlobalQueueManager manages the background execution queue for the API.
+var GlobalQueueManager *queue.Manager
+
+// RunServer automatically initializes the state store and starts the API daemon.
+func RunServer(port string, token string) error {
+	dbPath := state.GetStatePath()
+	db, err := state.Open(dbPath)
+	if err != nil {
+		log.Printf("⚠️  Could not open state database at %s: %v", dbPath, err)
+		log.Println("⚠️  v2 engine endpoints will be disabled. Starting with v1 only.")
+		return StartServer(port, token)
+	}
+	defer db.Close()
+
+	log.Printf("📦 State database: %s\n", dbPath)
+	return StartServerWithStore(port, token, db)
+}
 
 // StartServer starts the API server on the specified port.
 // This is the legacy entrypoint that creates an in-memory server without a state.
@@ -27,8 +49,13 @@ func StartServer(port string, token string) error {
 // StartServerWithStore starts the API server with an optional SQLite store
 // for the v2 engine endpoints.
 func StartServerWithStore(port string, token string, db *state.Store) error {
+	log.Printf("[api-daemon] StartServerWithStore starting on port %s (SQLite store active: %v)\n", port, db != nil)
 	system.StartMetricsAggregator()
 	srv := NewServer(token)
+
+	// Initialize global queue manager
+	GlobalQueueManager = queue.NewManager(2, 100)
+	defer GlobalQueueManager.Close()
 
 	// Start background Docker events forwarder
 	go func() {
@@ -82,6 +109,9 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 		})
 	}
 
+	// Serve the system tray popup UI
+	r.Get("/tray", srv.GetTrayPage)
+
 	// ─── v1 Legacy Endpoints (backward compatible) ───
 	r.Group(func(r chi.Router) {
 		r.Use(srv.chiAuthMiddleware)
@@ -131,6 +161,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/stacks/scan", stackH.ScanStacks)
 			r.Post("/stacks/{name}/up", stackH.DeployStackByName)
 			r.Post("/stacks/{name}/down", stackH.StopStackByName)
+			r.Post("/stacks/pull", stackH.PullStacks)
+			r.Get("/stacks/{name}/logs", stackH.GetStackLogs)
 
 			// Services (pass-through to Docker provider)
 			r.Get("/services", srv.GetServices)
@@ -150,6 +182,9 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+			r.Post("/plugins/validate", pluginH.Validate)
+			r.Post("/plugins/match", pluginH.Match)
+			r.Post("/plugins/install-stack", pluginH.InstallStackPlugin)
 
 			// Compose
 			r.Post("/compose/validate", composeH.ValidateCompose)
@@ -172,10 +207,28 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Get("/system/metrics", GetMetricsHistory)
 			r.Get("/system/health", GetSystemHealth(db))
 			r.Get("/system/stats", srv.GetStats)
+			r.Get("/tray/stats", srv.GetTrayStats)
+			r.Get("/tray/containers", srv.GetTrayContainers)
+			r.Get("/system/doctor", srv.GetDoctor)
+			r.Get("/doctor/containers", srv.GetDoctorContainers)
+			r.Get("/doctor/mounts", srv.GetDoctorMounts)
+			r.Get("/doctor/ports", srv.GetDoctorPorts)
+			r.Post("/doctor/fix", srv.HandleDoctorFix)
+			r.Get("/doctor/report", srv.GetDoctorReport)
+			r.Post("/auth/dashpass", srv.HandleDashpass)
+			r.Post("/stacks/init", srv.HandleInit)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
 			r.Get("/ws/logs/{name}", srv.GetWSLogs)
+
+			// Queue/AI
+			r.Get("/queue", ListQueue)
+			r.Get("/ai/queue", ListQueue)
+			r.Post("/queue/cancel", CancelQueueJob)
+			r.Post("/queue/{id}/cancel", CancelQueueJob)
+			r.Get("/ai/models", ListAIModels)
+			r.Post("/ai/run", RunAIInference)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -197,6 +250,9 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/plugins/sync", pluginH.Sync)
 			r.Post("/plugins/install", pluginH.Install)
 			r.Post("/plugins/uninstall", pluginH.Uninstall)
+			r.Post("/plugins/validate", pluginH.Validate)
+			r.Post("/plugins/match", pluginH.Match)
+			r.Post("/plugins/install-stack", pluginH.InstallStackPlugin)
 
 			// Proxy
 			r.Get("/proxy/discover", proxyH.DiscoverServices)
@@ -225,10 +281,28 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Get("/system/metrics", GetMetricsHistory)
 			r.Get("/system/health", GetSystemHealth(nil))
 			r.Get("/system/stats", srv.GetStats)
+			r.Get("/tray/stats", srv.GetTrayStats)
+			r.Get("/tray/containers", srv.GetTrayContainers)
+			r.Get("/system/doctor", srv.GetDoctor)
+			r.Get("/doctor/containers", srv.GetDoctorContainers)
+			r.Get("/doctor/mounts", srv.GetDoctorMounts)
+			r.Get("/doctor/ports", srv.GetDoctorPorts)
+			r.Post("/doctor/fix", srv.HandleDoctorFix)
+			r.Get("/doctor/report", srv.GetDoctorReport)
+			r.Post("/auth/dashpass", srv.HandleDashpass)
+			r.Post("/stacks/init", srv.HandleInit)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
 			r.Get("/ws/logs/{name}", srv.GetWSLogs)
+
+			// Queue/AI
+			r.Get("/queue", ListQueue)
+			r.Get("/ai/queue", ListQueue)
+			r.Post("/queue/cancel", CancelQueueJob)
+			r.Post("/queue/{id}/cancel", CancelQueueJob)
+			r.Get("/ai/models", ListAIModels)
+			r.Post("/ai/run", RunAIInference)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")
@@ -269,25 +343,40 @@ func GetMetricsHistory(w http.ResponseWriter, r *http.Request) {
 	sendSuccess(w, http.StatusOK, typedHistory, nil)
 }
 
-// GetSystemHealth returns a detailed system components health check report.
-// GET /api/v2/system/health
 func GetSystemHealth(db *state.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		report := system.CheckHealth(db)
+		reg := health.UpdateAndSaveHealthRegistry()
 		status := http.StatusOK
-		if report.Status == system.StatusUnhealthy {
+		if reg.System.Status == "🔴" {
 			status = http.StatusServiceUnavailable
 		}
 
-		componentsMap := make(map[string]string)
-		for k, v := range report.Components {
-			componentsMap[k] = string(v)
+		componentsMap := map[string]string{
+			"system": reg.System.Status,
+			"docker": reg.Docker.Status,
+			"agents": reg.Agents.Status,
+			"disk":   reg.Disk.Status,
+		}
+		if db != nil {
+			if err := db.Ping(); err != nil {
+				componentsMap["database"] = "🔴"
+			} else {
+				componentsMap["database"] = "🟢"
+			}
+		}
+
+		details := map[string]string{
+			"last_seen_healthy": reg.System.LastSeenHealthy,
+			"last_failure":      reg.System.LastFailure,
+			"docker_running":    strconv.Itoa(reg.Docker.RunningContainers),
+			"docker_total":      strconv.Itoa(reg.Docker.TotalContainers),
+			"disk_used_percent": fmt.Sprintf("%.1f", reg.Disk.UsedPercent),
 		}
 
 		sendSuccess(w, status, models.Status{
-			Status:     string(report.Status),
+			Status:     reg.System.Status,
 			Components: componentsMap,
-			Details:    report.Details,
+			Details:    details,
 		}, nil)
 	}
 }

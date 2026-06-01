@@ -37,14 +37,22 @@ type Plugin struct {
 	Metadata     PluginMetadata `json:"metadata"`
 	Enabled      bool           `json:"enabled"`
 	Warnings     []string       `json:"warnings,omitempty"`
+
+	// Spec fields returned by the API
+	Service  string            `json:"service,omitempty"`
+	Domain   string            `json:"domain,omitempty"`
+	Port     int               `json:"port,omitempty"`
+	Priority int               `json:"priority,omitempty"`
+	Type     string            `json:"type,omitempty"`
+	Config   map[string]string `json:"config,omitempty"`
 }
 
 // PluginsResponse represents the response body of GET /api/v2/plugins.
 type PluginsResponse struct {
-	Summary    map[string]any `json:"summary"`
-	Routes     []Plugin       `json:"routes"`
-	Stacks     []Plugin       `json:"stacks"`
-	Middleware []Plugin       `json:"middleware"`
+	Summary    any      `json:"summary"`
+	Routes     []Plugin `json:"routes"`
+	Stacks     []Plugin `json:"stacks"`
+	Middleware []Plugin `json:"middleware"`
 }
 
 // CatalogItem represents a plugin available in the remote official catalog.

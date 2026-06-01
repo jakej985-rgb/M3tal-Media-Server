@@ -10,28 +10,17 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
-// MountType classifies a Docker mount.
-type MountType string
+type MountType = models.MountType
+type MountResult = models.MountResult
 
 const (
-	MountTypeBind   MountType = "bind"
-	MountTypeVolume MountType = "volume"
-	MountTypeTmpfs  MountType = "tmpfs"
+	MountTypeBind   = models.MountTypeBind
+	MountTypeVolume = models.MountTypeVolume
+	MountTypeTmpfs  = models.MountTypeTmpfs
 )
-
-// MountResult captures the validation outcome for a single mount.
-type MountResult struct {
-	Container string    `json:"container"`
-	Source    string    `json:"source"`
-	Target    string    `json:"target"`
-	Type      MountType `json:"type"`
-	ReadOnly  bool      `json:"read_only"`
-	Severity  Severity  `json:"severity"`
-	Issue     string    `json:"issue,omitempty"`
-	Fix       string    `json:"fix,omitempty"`
-}
 
 // dockerMount is the minimal shape of a Docker inspect mount entry.
 type dockerMount struct {
@@ -217,17 +206,4 @@ func isWritable(path string, isDir bool) bool {
 	return mode&0200 != 0 || mode&0020 != 0 || mode&0002 != 0
 }
 
-// SummaryLine returns a one-line display string.
-func (r MountResult) SummaryLine() string {
-	icon := severityIcon(r.Severity)
-	ro := ""
-	if r.ReadOnly {
-		ro = " [ro]"
-	}
-	issue := ""
-	if r.Issue != "" {
-		issue = "  ⤷ " + r.Issue
-	}
-	return fmt.Sprintf("%s [%s] %-25s → %s (%-5s)%s%s",
-		icon, r.Container, r.Source, r.Target, string(r.Type), ro, issue)
-}
+

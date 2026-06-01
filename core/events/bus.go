@@ -66,5 +66,5 @@ func (eb *ChannelEventBus) Publish(eventType string, payload any) {
 }
 
 // GlobalEventBus is the shared channel-based bus for the entire application.
-// Used by internal/api for WebSocket event streaming.
+// Used by api for WebSocket event streaming.
 var GlobalEventBus = NewChannelEventBus()

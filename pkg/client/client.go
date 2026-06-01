@@ -227,17 +227,47 @@ func (c *Client) ControlContainer(name, action string) error {
 
 // GetQueue returns the list of all queued and finished tasks.
 func (c *Client) GetQueue() ([]models.JobRecord, error) {
-	return []models.JobRecord{}, nil
+	var queueList []models.JobRecord
+	err := c.request("GET", "/api/v2/queue", nil, &queueList)
+	if err != nil {
+		return nil, err
+	}
+	return queueList, nil
 }
 
 // CancelQueueJob aborts a pending or active job by ID.
 func (c *Client) CancelQueueJob(id string) error {
-	return nil
+	body := map[string]string{"id": id}
+	return c.request("POST", "/api/v2/queue/cancel", body, nil)
 }
 
 // GetAIModels returns the list of available AI models from the Ollama backend.
 func (c *Client) GetAIModels() ([]string, error) {
-	return []string{"agents system active (placeholder)"}, nil
+	var modelsList []string
+	err := c.request("GET", "/api/v2/ai/models", nil, &modelsList)
+	if err != nil {
+		return nil, err
+	}
+	return modelsList, nil
+}
+
+// RunAI executes an AI prompt inference request synchronously.
+func (c *Client) RunAI(prompt, mode, priority, model string) (string, error) {
+	var result struct {
+		Response string `json:"response"`
+		Model    string `json:"model"`
+	}
+	body := map[string]string{
+		"prompt":   prompt,
+		"mode":     mode,
+		"priority": priority,
+		"model":    model,
+	}
+	err := c.request("POST", "/api/v2/ai/run", body, &result)
+	if err != nil {
+		return "", err
+	}
+	return result.Response, nil
 }
 
 // GetPlugins returns all loaded plugins across all kinds.
@@ -283,3 +313,147 @@ func (c *Client) UninstallPlugin(name, kind string) error {
 	body := map[string]string{"name": name, "kind": kind}
 	return c.request("POST", "/api/v2/plugins/uninstall", body, nil)
 }
+
+// GetTrayStats returns the host system metrics response for the tray.
+func (c *Client) GetTrayStats() (*models.DetailedStats, error) {
+	var metrics models.DetailedStats
+	err := c.request("GET", "/api/v2/tray/stats", nil, &metrics)
+	if err != nil {
+		return nil, err
+	}
+	return &metrics, nil
+}
+
+// GetTrayContainers returns all active containers for the tray.
+func (c *Client) GetTrayContainers() ([]models.Container, error) {
+	var containersList []models.Container
+	err := c.request("GET", "/api/v2/tray/containers", nil, &containersList)
+	if err != nil {
+		return nil, err
+	}
+	return containersList, nil
+}
+
+// GetDoctor runs pre-flight diagnostics on the backend.
+func (c *Client) GetDoctor() ([]models.CheckResult, error) {
+	var results []models.CheckResult
+	err := c.request("GET", "/api/v2/system/doctor", nil, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// UpdateDashpass updates dashboard credentials on the daemon.
+func (c *Client) UpdateDashpass(username, password string) error {
+	body := map[string]string{
+		"username": username,
+		"password": password,
+	}
+	return c.request("POST", "/api/v2/auth/dashpass", body, nil)
+}
+
+// InitializeStacks setups plugin directories and validates storage path.
+func (c *Client) InitializeStacks() (map[string]any, error) {
+	var result map[string]any
+	err := c.request("POST", "/api/v2/stacks/init", nil, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetDoctorContainers scans container health states via API.
+func (c *Client) GetDoctorContainers() ([]models.ContainerResult, error) {
+	var results []models.ContainerResult
+	err := c.request("GET", "/api/v2/doctor/containers", nil, &results)
+	return results, err
+}
+
+// GetDoctorMounts validates container volume and bind-mount paths via API.
+func (c *Client) GetDoctorMounts() ([]models.MountResult, error) {
+	var results []models.MountResult
+	err := c.request("GET", "/api/v2/doctor/mounts", nil, &results)
+	return results, err
+}
+
+// GetDoctorPorts detects port conflicts via API.
+func (c *Client) GetDoctorPorts() ([]models.PortResult, error) {
+	var results []models.PortResult
+	err := c.request("GET", "/api/v2/doctor/ports", nil, &results)
+	return results, err
+}
+
+// HandleDoctorFix previews or applies automated fixes via API.
+func (c *Client) HandleDoctorFix(apply bool, name string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]any{"apply": apply, "name": name}
+	err := c.request("POST", "/api/v2/doctor/fix", body, &result)
+	return result, err
+}
+
+// GetDoctorReport generates a full system health report via API.
+func (c *Client) GetDoctorReport() (models.DoctorReport, error) {
+	var report models.DoctorReport
+	err := c.request("GET", "/api/v2/doctor/report", nil, &report)
+	return report, err
+}
+
+// PullStacks triggers image pull via the API.
+func (c *Client) PullStacks(name string) (any, error) {
+	var result any
+	body := map[string]string{"name": name}
+	err := c.request("POST", "/api/v2/stacks/pull", body, &result)
+	return result, err
+}
+
+// GetStackLogs returns logs (last tail lines) of a stack.
+func (c *Client) GetStackLogs(name string, tail int) (string, error) {
+	var result struct {
+		Logs string `json:"logs"`
+	}
+	err := c.request("GET", fmt.Sprintf("/api/v2/stacks/%s/logs?tail=%d", name, tail), nil, &result)
+	if err != nil {
+		return "", err
+	}
+	return result.Logs, nil
+}
+
+// ValidatePlugin validates a plugin manifest YAML.
+func (c *Client) ValidatePlugin(yamlContent string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]string{"yaml": yamlContent}
+	err := c.request("POST", "/api/v2/plugins/validate", body, &result)
+	return result, err
+}
+
+// MatchPlugin matches a service to a route plugin.
+func (c *Client) MatchPlugin(service, image string, labels map[string]string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]any{
+		"service": service,
+		"image":   image,
+		"labels":  labels,
+	}
+	err := c.request("POST", "/api/v2/plugins/match", body, &result)
+	return result, err
+}
+
+// InstallStackPlugin parameterizes and installs a stack plugin.
+func (c *Client) InstallStackPlugin(name string, env map[string]string) (map[string]any, error) {
+	var result map[string]any
+	body := map[string]any{
+		"name": name,
+		"env":  env,
+	}
+	err := c.request("POST", "/api/v2/plugins/install-stack", body, &result)
+	return result, err
+}
+
+// SyncPlugins synchronizes Traefik dynamic provider configuration.
+func (c *Client) SyncPlugins() (any, error) {
+	var result any
+	err := c.request("POST", "/api/v2/plugins/sync", nil, &result)
+	return result, err
+}
+
