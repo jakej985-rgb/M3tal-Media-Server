@@ -49,24 +49,4 @@ func sendError(w http.ResponseWriter, status int, code string, message string, d
 	})
 }
 
-// writeError writes a JSON error response (legacy wrapper calling sendError).
-func writeError(w http.ResponseWriter, status int, message string) {
-	code := "INTERNAL_ERROR"
-	switch status {
-	case http.StatusBadRequest:
-		code = "BAD_REQUEST"
-	case http.StatusNotFound:
-		code = "NOT_FOUND"
-	case http.StatusUnauthorized:
-		code = "UNAUTHORIZED"
-	case http.StatusForbidden:
-		code = "FORBIDDEN"
-	case http.StatusMethodNotAllowed:
-		code = "METHOD_NOT_ALLOWED"
-	case http.StatusConflict:
-		code = "CONFLICT"
-	case http.StatusServiceUnavailable:
-		code = "SERVICE_UNAVAILABLE"
-	}
-	sendError(w, status, code, message, nil)
-}
+

@@ -362,14 +362,15 @@ func RunAIInference(w http.ResponseWriter, r *http.Request) {
 					events.GlobalEventBus.Publish("queue.started", map[string]any{"id": jobID})
 					startedPublished = true
 				}
-				if rec.Status == queue.StatusCompleted {
+				switch rec.Status {
+				case queue.StatusCompleted:
 					events.GlobalEventBus.Publish("queue.completed", map[string]any{"id": jobID})
 					sendSuccess(w, http.StatusOK, map[string]any{
 						"response": rec.Result,
 						"model":    job.ModelName,
 					}, nil)
 					return
-				} else if rec.Status == queue.StatusFailed {
+				case queue.StatusFailed:
 					events.GlobalEventBus.Publish("queue.failed", map[string]any{"id": jobID, "error": rec.Error})
 					sendError(w, http.StatusInternalServerError, "AI_EXECUTION_FAILED", rec.Error, nil)
 					return

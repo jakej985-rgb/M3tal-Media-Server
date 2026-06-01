@@ -137,7 +137,7 @@ func validateBindMount(r *MountResult) {
 	}
 
 	// Check write access for RW mounts
-	if !r.ReadOnly && !isWritable(r.Source, info.IsDir()) {
+	if !r.ReadOnly && !isWritable(r.Source) {
 		r.Severity = SeverityWarn
 		r.Issue = fmt.Sprintf("Host path not writable (mount is RW): %s", r.Source)
 		r.Fix = fmt.Sprintf("sudo chmod a+w %s", r.Source)
@@ -196,7 +196,7 @@ func isReadable(path string, isDir bool) bool {
 }
 
 // isWritable returns true if the current process can write to the path.
-func isWritable(path string, isDir bool) bool {
+func isWritable(path string) bool {
 	var st syscall.Stat_t
 	if err := syscall.Stat(path, &st); err != nil {
 		return false
