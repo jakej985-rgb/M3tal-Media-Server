@@ -208,5 +208,3 @@ func buildContainerRecommendation(r ContainerResult) string {
 	}
 	return ""
 }
-
-

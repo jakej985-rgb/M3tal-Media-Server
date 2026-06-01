@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/core/networking/proxy"
 	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
 )
 
 // ProxyHandlers wraps the SQLite store to manage reverse proxy endpoints.

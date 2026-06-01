@@ -48,5 +48,3 @@ func sendError(w http.ResponseWriter, status int, code string, message string, d
 		},
 	})
 }
-
-

@@ -11,14 +11,14 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 	"github.com/jakej985-rgb/m3tal-core/core/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
 	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
-	"github.com/jakej985-rgb/m3tal-core/pkg/system"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 // StackHandlers provides operations for stack management.

@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
 )
 
 // RouteHandlers provides CRUD operations for Traefik routes.

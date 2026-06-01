@@ -237,4 +237,3 @@ func PrintPreflightResults(results []models.CheckResult) {
 	}
 	fmt.Println()
 }
-

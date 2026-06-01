@@ -62,6 +62,19 @@ jobs:
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'gui/package-lock.json'
+
+      - name: Build Web GUI
+        run: |
+          cd gui
+          npm ci
+          npm run build
+
       - name: Build .deb package
         run: ./scripts/build-deb.sh
 

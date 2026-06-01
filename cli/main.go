@@ -1668,8 +1668,6 @@ fixes. By default runs in dry-run mode — pass --apply to execute the fixes.`,
 	}
 }
 
-
-
 func parseComposeVariables(composeFile string) map[string]string {
 	data, err := os.ReadFile(composeFile)
 	if err != nil {
@@ -1891,7 +1889,6 @@ func replaceSecret(content, key, secret string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
 
 func runRaw(name string, args ...string) error {
 	cmd := exec.Command(name, args...)

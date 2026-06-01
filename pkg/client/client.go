@@ -456,4 +456,3 @@ func (c *Client) SyncPlugins() (any, error) {
 	err := c.request("POST", "/api/v2/plugins/sync", nil, &result)
 	return result, err
 }
-

@@ -171,4 +171,3 @@ func (r PortResult) SummaryLine() string {
 	}
 	return fmt.Sprintf("%s Port %-5d  free", icon, r.Port)
 }
-

@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
-	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 type MountType = models.MountType
@@ -205,5 +205,3 @@ func isWritable(path string) bool {
 	mode := st.Mode
 	return mode&0200 != 0 || mode&0020 != 0 || mode&0002 != 0
 }
-
-

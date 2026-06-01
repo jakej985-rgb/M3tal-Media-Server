@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 type PortResult = models.PortResult
@@ -266,5 +266,3 @@ func nextFreePort(start int, listening map[int]procEntry) int {
 	}
 	return 0
 }
-
-

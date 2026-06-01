@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/pkg/compose"
 	"github.com/jakej985-rgb/m3tal-core/core/engine"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/pkg/compose"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 

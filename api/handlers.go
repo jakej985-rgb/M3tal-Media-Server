@@ -717,4 +717,3 @@ func (s *Server) GetDoctorReport(w http.ResponseWriter, r *http.Request) {
 	report := doctor.GenerateReport(conts, mounts, ports)
 	sendSuccess(w, http.StatusOK, report, nil)
 }
-

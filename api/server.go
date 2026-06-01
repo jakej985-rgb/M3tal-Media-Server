@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jakej985-rgb/m3tal-core/core/events"
 	apiMiddleware "github.com/jakej985-rgb/m3tal-core/api/middleware"
 	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/events"
 	"github.com/jakej985-rgb/m3tal-core/core/health"
 	"github.com/jakej985-rgb/m3tal-core/core/queue"
 	"github.com/jakej985-rgb/m3tal-core/core/state"

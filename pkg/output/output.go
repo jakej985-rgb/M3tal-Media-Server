@@ -9,8 +9,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/pkg/registry"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
+	"github.com/jakej985-rgb/m3tal-core/pkg/registry"
 )
 
 // PrintContainersTable formats a list of containers as a table to standard output.

@@ -3,10 +3,10 @@ package doctor
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"os"
 	"strings"
 	"time"
-	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
 type Section = models.Section
