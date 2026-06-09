@@ -31,6 +31,8 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"github.com/jakej985-rgb/m3tal-core/tui"
 	"github.com/spf13/cobra"
+
+	plugin "github.com/jakej985-rgb/m3tal-core/core/plugins"
 )
 
 //go:embed .env.example
@@ -1290,14 +1292,12 @@ ingress:
 	var pluginCatalogCmd = &cobra.Command{
 		Use:   "catalog",
 		Short: "List all official plugins in the catalog and their status",
-		Run: cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, args []string) {
 			exportPath, _ := cmd.Flags().GetString("export")
 			if exportPath != "" {
-				catalog, err := c.GetPluginCatalog()
-				if err != nil {
-					log.Fatalf("❌ Failed to fetch catalog via API: %v", err)
-				}
-				data, err := json.MarshalIndent(catalog, "", "  ")
+				// --export serializes the static catalog embedded in the binary.
+				// Does NOT require a running daemon — safe for use in CI pipelines.
+				data, err := json.MarshalIndent(plugin.Catalog, "", "  ")
 				if err != nil {
 					log.Fatalf("❌ Failed to marshal catalog: %v", err)
 				}
@@ -1308,44 +1308,47 @@ ingress:
 				return
 			}
 
-			categoryFilter, _ := cmd.Flags().GetString("category")
-			subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
-			providerFilter, _ := cmd.Flags().GetString("provider")
+			// Listing with live install status requires the daemon.
+			cmdutil.WithDaemon(func(c *client.Client, cmd *cobra.Command, args []string) {
+				categoryFilter, _ := cmd.Flags().GetString("category")
+				subcategoryFilter, _ := cmd.Flags().GetString("subcategory")
+				providerFilter, _ := cmd.Flags().GetString("provider")
 
-			items, err := c.GetPluginCatalog()
-			if err != nil {
-				log.Fatalf("❌ Failed to fetch catalog via API: %v", err)
-			}
+				items, err := c.GetPluginCatalog()
+				if err != nil {
+					log.Fatalf("❌ Failed to fetch catalog via API: %v", err)
+				}
 
-			fmt.Println("\n📋 M3TAL Plugin Catalog:")
-			fmt.Println("--------------------------------------------------")
-			for _, item := range items {
-				if categoryFilter != "" && !strings.EqualFold(item.Category, categoryFilter) {
-					continue
-				}
-				if subcategoryFilter != "" && !strings.EqualFold(item.Subcategory, subcategoryFilter) {
-					continue
-				}
-				if providerFilter != "" && !strings.EqualFold(item.Provider, providerFilter) {
-					continue
-				}
-				statusColor := "⚪" // not installed
-				statusStr := "not installed"
-				if item.Installed {
-					if item.Status == "enabled" {
-						statusColor = "🟢"
-						statusStr = "installed & enabled"
-					} else {
-						statusColor = "🟡"
-						statusStr = "installed & disabled"
+				fmt.Println("\n📋 M3TAL Plugin Catalog:")
+				fmt.Println("--------------------------------------------------")
+				for _, item := range items {
+					if categoryFilter != "" && !strings.EqualFold(item.Category, categoryFilter) {
+						continue
 					}
+					if subcategoryFilter != "" && !strings.EqualFold(item.Subcategory, subcategoryFilter) {
+						continue
+					}
+					if providerFilter != "" && !strings.EqualFold(item.Provider, providerFilter) {
+						continue
+					}
+					statusColor := "⚪" // not installed
+					statusStr := "not installed"
+					if item.Installed {
+						if item.Status == "enabled" {
+							statusColor = "🟢"
+							statusStr = "installed & enabled"
+						} else {
+							statusColor = "🟡"
+							statusStr = "installed & disabled"
+						}
+					}
+					fmt.Printf("%s %-16s [%-10s] %s\n", statusColor, item.Name, item.Kind, item.Description)
+					fmt.Printf("   Version: %s | Author: %s | Status: %s\n\n", item.Version, item.Author, statusStr)
 				}
-				fmt.Printf("%s %-16s [%-10s] %s\n", statusColor, item.Name, item.Kind, item.Description)
-				fmt.Printf("   Version: %s | Author: %s | Status: %s\n\n", item.Version, item.Author, statusStr)
-			}
-		}),
+			})(cmd, args)
+		},
 	}
-	pluginCatalogCmd.Flags().String("export", "", "Export the static catalog to a JSON file path")
+	pluginCatalogCmd.Flags().String("export", "", "Export the static catalog to a JSON file path (no daemon required)")
 	pluginCatalogCmd.Flags().String("category", "", "Filter catalog by category")
 	pluginCatalogCmd.Flags().String("subcategory", "", "Filter catalog by subcategory")
 	pluginCatalogCmd.Flags().String("provider", "", "Filter catalog by provider")
