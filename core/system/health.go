@@ -1,7 +1,7 @@
 package system
 
 import (
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/shirou/gopsutil/v3/disk"
 )
@@ -45,7 +45,7 @@ func CheckHealth(db *state.Store) HealthReport {
 	}
 
 	// 2. Check Docker provider
-	prov, err := containers.GetProvider()
+	prov, err := docker.GetProvider()
 	if err != nil {
 		report.Components["docker"] = StatusUnhealthy
 		report.Details["docker"] = err.Error()

@@ -1,9 +1,9 @@
-package engine
+package docker
 
 import (
 	"testing"
 
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 )
 
 var testCompose = `
@@ -37,7 +37,7 @@ networks:
 `
 
 func TestParseComposeBytes(t *testing.T) {
-	cf, err := routing.ParseComposeBytes([]byte(testCompose))
+	cf, err := traefik.ParseComposeBytes([]byte(testCompose))
 	if err != nil {
 		t.Fatalf("ParseComposeBytes failed: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestParseComposeBytes(t *testing.T) {
 }
 
 func TestGetTraefikLabels(t *testing.T) {
-	cf, _ := routing.ParseComposeBytes([]byte(testCompose))
+	cf, _ := traefik.ParseComposeBytes([]byte(testCompose))
 	labels := cf.GetTraefikLabels("app")
 
 	if labels["traefik.enable"] != "true" {
@@ -76,7 +76,7 @@ func TestGetTraefikLabels(t *testing.T) {
 }
 
 func TestGetExposedPorts(t *testing.T) {
-	cf, _ := routing.ParseComposeBytes([]byte(testCompose))
+	cf, _ := traefik.ParseComposeBytes([]byte(testCompose))
 
 	appPorts := cf.GetExposedPorts("app")
 	if len(appPorts) != 2 {
@@ -96,7 +96,7 @@ func TestGetExposedPorts(t *testing.T) {
 }
 
 func TestGetContainerPort(t *testing.T) {
-	cf, _ := routing.ParseComposeBytes([]byte(testCompose))
+	cf, _ := traefik.ParseComposeBytes([]byte(testCompose))
 
 	if p := cf.GetContainerPort("app"); p != 80 {
 		t.Errorf("expected container port 80, got %d", p)
@@ -110,7 +110,7 @@ func TestGetContainerPort(t *testing.T) {
 }
 
 func TestGenerateLabels(t *testing.T) {
-	labels := routing.GenerateLabels(routing.RouteInput{
+	labels := traefik.GenerateRouteLabels(traefik.RouteInput{
 		Service: "app",
 		Domain:  "app.local",
 		Port:    8080,
@@ -134,7 +134,7 @@ func TestGenerateLabels(t *testing.T) {
 }
 
 func TestGenerateMiddlewareLabels(t *testing.T) {
-	labels := routing.GenerateMiddlewareLabels(routing.MiddlewareInput{
+	labels := traefik.GenerateMiddlewareLabels(traefik.MiddlewareInput{
 		Name: "auth",
 		Type: "basicauth",
 		Config: map[string]string{
@@ -149,38 +149,38 @@ func TestGenerateMiddlewareLabels(t *testing.T) {
 
 func TestValidateRoute(t *testing.T) {
 	// Valid route
-	errs := ValidateRoute(routing.RouteInput{Service: "app", Domain: "app.local", Port: 8080})
+	errs := ValidateRoute(traefik.RouteInput{Service: "app", Domain: "app.local", Port: 8080})
 	if len(errs) != 0 {
 		t.Errorf("expected no errors, got %v", errs)
 	}
 
 	// Missing service
-	errs = ValidateRoute(routing.RouteInput{Service: "", Domain: "app.local", Port: 8080})
+	errs = ValidateRoute(traefik.RouteInput{Service: "", Domain: "app.local", Port: 8080})
 	if len(errs) == 0 {
 		t.Error("expected error for empty service")
 	}
 
 	// Invalid domain
-	errs = ValidateRoute(routing.RouteInput{Service: "app", Domain: "not a domain!", Port: 8080})
+	errs = ValidateRoute(traefik.RouteInput{Service: "app", Domain: "not a domain!", Port: 8080})
 	if len(errs) == 0 {
 		t.Error("expected error for invalid domain")
 	}
 
 	// Invalid port
-	errs = ValidateRoute(routing.RouteInput{Service: "app", Domain: "app.local", Port: 0})
+	errs = ValidateRoute(traefik.RouteInput{Service: "app", Domain: "app.local", Port: 0})
 	if len(errs) == 0 {
 		t.Error("expected error for port 0")
 	}
 
 	// Reserved port
-	errs = ValidateRoute(routing.RouteInput{Service: "app", Domain: "app.local", Port: 22})
+	errs = ValidateRoute(traefik.RouteInput{Service: "app", Domain: "app.local", Port: 22})
 	if len(errs) == 0 {
 		t.Error("expected error for reserved port 22")
 	}
 }
 
 func TestValidateDomainUnique(t *testing.T) {
-	existing := []routing.RouteInput{
+	existing := []traefik.RouteInput{
 		{Service: "app", Domain: "app.local", Port: 8080},
 	}
 
@@ -196,14 +196,14 @@ func TestValidateDomainUnique(t *testing.T) {
 }
 
 func TestValidateCompose(t *testing.T) {
-	cf, _ := routing.ParseComposeBytes([]byte(testCompose))
+	cf, _ := traefik.ParseComposeBytes([]byte(testCompose))
 	errs := ValidateCompose(cf)
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for valid compose, got %v", errs)
 	}
 
 	// Empty compose
-	emptyCf := &routing.ComposeFile{Services: map[string]routing.Service{}}
+	emptyCf := &traefik.ComposeFile{Services: map[string]traefik.Service{}}
 	errs = ValidateCompose(emptyCf)
 	if len(errs) == 0 {
 		t.Error("expected error for empty compose")
@@ -219,7 +219,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.web.rule: "Host(` + "`" + `web.local` + "`" + `)"
 `
-	cf, err := routing.ParseComposeBytes([]byte(mapCompose))
+	cf, err := traefik.ParseComposeBytes([]byte(mapCompose))
 	if err != nil {
 		t.Fatalf("failed to parse map-style labels: %v", err)
 	}

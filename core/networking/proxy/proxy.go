@@ -7,10 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"gopkg.in/yaml.v3"
@@ -41,7 +40,7 @@ func NewManager(db *state.Store) *Manager {
 
 // DiscoverServices queries Docker containers and returns reverse proxy candidates.
 func (m *Manager) DiscoverServices() ([]DiscoverableService, error) {
-	provider, err := containers.GetProvider()
+	provider, err := docker.GetProvider()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container provider: %w", err)
 	}
@@ -265,7 +264,7 @@ func (m *Manager) ConfigureSSL(email string) error {
 
 	// 3. Configure routing-compose.yml ports
 	composePath := filepath.Join(stackDir, "routing-compose.yml")
-	cf, err := routing.ParseCompose(composePath)
+	cf, err := traefik.ParseCompose(composePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse routing-compose.yml: %w", err)
 	}
@@ -303,7 +302,7 @@ func (m *Manager) ConfigureSSL(email string) error {
 	}
 
 	// 4. Redeploy routing stack
-	_, err = engine.DeployStack(composePath, 0)
+	_, err = docker.DeployStack(composePath, 0)
 	if err != nil {
 		return fmt.Errorf("failed to redeploy routing stack: %w", err)
 	}

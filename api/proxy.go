@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/networking/proxy"
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 )
 
 // ProxyHandlers wraps the SQLite store to manage reverse proxy endpoints.
@@ -50,12 +50,12 @@ func (h *ProxyHandlers) ExposeService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route validation
-	routeInput := routing.RouteInput{
+	routeInput := traefik.RouteInput{
 		Service: input.Service,
 		Domain:  input.Domain,
 		Port:    input.Port,
 	}
-	errs := engine.ValidateRoute(routeInput)
+	errs := docker.ValidateRoute(routeInput)
 	if len(errs) > 0 {
 		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return

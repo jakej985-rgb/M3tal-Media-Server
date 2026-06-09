@@ -11,12 +11,12 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 	"github.com/jakej985-rgb/m3tal-core/core/orchestrator"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
@@ -58,7 +58,7 @@ func (h *StackHandlers) ListStacks(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Try to parse for service names
-		if cf, err := routing.ParseCompose(match); err == nil {
+		if cf, err := traefik.ParseCompose(match); err == nil {
 			info.Services = cf.ServiceNames()
 		}
 
@@ -125,7 +125,7 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cf, err := routing.ParseCompose(req.Path)
+	cf, err := traefik.ParseCompose(req.Path)
 	if err != nil {
 		sendError(w, http.StatusBadRequest, "COMPOSE_PARSE_FAILED", err.Error(), nil)
 		return
@@ -162,7 +162,7 @@ func (h *StackHandlers) LoadStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate
-	validationErrors := engine.ValidateCompose(cf)
+	validationErrors := docker.ValidateCompose(cf)
 
 	sendSuccess(w, http.StatusOK, map[string]any{
 		"path":              req.Path,
@@ -204,7 +204,7 @@ func (h *StackHandlers) DeployStack(w http.ResponseWriter, r *http.Request) {
 	stackName := strings.TrimSuffix(base, "-compose.yml")
 
 	// Deploy
-	result, err := engine.DeployStack(req.Path, 0)
+	result, err := docker.DeployStack(req.Path, 0)
 
 	// Update DB status regardless of outcome
 	if h.Store != nil {
@@ -246,7 +246,7 @@ func (h *MiddlewareHandlers) ListMiddleware(w http.ResponseWriter, r *http.Reque
 // CreateMiddleware creates a new middleware definition and generates its labels.
 // POST /api/v2/middleware
 func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Request) {
-	var input routing.MiddlewareInput
+	var input traefik.MiddlewareInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
@@ -262,7 +262,7 @@ func (h *MiddlewareHandlers) CreateMiddleware(w http.ResponseWriter, r *http.Req
 	}
 
 	// Generate labels
-	labels := routing.GenerateMiddlewareLabels(input)
+	labels := traefik.GenerateMiddlewareLabels(input)
 
 	// Store
 	id, err := h.Store.CreateMiddleware(input.Name, input.Type, input.Config)
@@ -341,7 +341,7 @@ func (h *StackHandlers) ScanStacks(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Try to parse for service names
-		if cf, err := routing.ParseCompose(match); err == nil {
+		if cf, err := traefik.ParseCompose(match); err == nil {
 			info.Services = cf.ServiceNames()
 		}
 
@@ -398,6 +398,43 @@ func (h *StackHandlers) findStackPathByName(name string) (string, error) {
 	return "", fmt.Errorf("stack not found: %s", name)
 }
 
+// GetStackByName returns the details and status of a specific stack.
+// GET /api/v2/stacks/{name}
+func (h *StackHandlers) GetStackByName(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "stack name is required", nil)
+		return
+	}
+
+	composePath, err := h.findStackPathByName(name)
+	if err != nil {
+		sendError(w, http.StatusNotFound, "STACK_NOT_FOUND", err.Error(), nil)
+		return
+	}
+
+	info := models.Stack{
+		Name:        name,
+		ComposePath: composePath,
+		Status:      "discovered",
+	}
+
+	if cf, err := traefik.ParseCompose(composePath); err == nil {
+		info.Services = cf.ServiceNames()
+	}
+
+	if h.Store != nil {
+		dbStacks, _ := h.Store.ListStacks()
+		for _, ds := range dbStacks {
+			if ds.Name == name && ds.Status != "" {
+				info.Status = ds.Status
+			}
+		}
+	}
+
+	sendSuccess(w, http.StatusOK, info, nil)
+}
+
 // DeployStackByName handles validating and deploying a stack by its name.
 // POST /api/v2/stacks/{name}/up
 func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request) {
@@ -414,7 +451,7 @@ func (h *StackHandlers) DeployStackByName(w http.ResponseWriter, r *http.Request
 	}
 
 	// Deploy stack
-	result, err := engine.DeployStack(composePath, 0)
+	result, err := docker.DeployStack(composePath, 0)
 
 	// Update DB status
 	status := "running"
@@ -455,7 +492,7 @@ func (h *StackHandlers) StopStackByName(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Stop stack
-	result, err := engine.StopStack(composePath, 0)
+	result, err := docker.StopStack(composePath, 0)
 
 	// Update DB status
 	status := "stopped"

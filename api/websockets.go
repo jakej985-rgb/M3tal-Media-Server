@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 )
 
@@ -82,7 +82,7 @@ func (s *Server) GetWSLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	mgr, err := containers.GetProvider()
+	mgr, err := docker.GetProvider()
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("Container provider unavailable: "+err.Error()))
 		return

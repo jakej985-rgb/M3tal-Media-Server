@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/jakej985-rgb/m3tal-core/pkg/compose"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
@@ -142,7 +142,7 @@ func (h *ComposeHandlers) SaveCompose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deploy stack
-	result, err := engine.DeployStack(filePath, 0)
+	result, err := docker.DeployStack(filePath, 0)
 
 	// Update DB status
 	if h.Store != nil {

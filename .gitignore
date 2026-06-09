@@ -53,3 +53,15 @@ packaging/deb/build/
 repo/
 deploy/stack/users.json
 cmd/m3tal/m3tal_icon_pack.zip
+
+# IDE / Agent metadata
+.vscode/
+.agents/
+.idea/
+.DS_Store
+
+# Test binaries, coverage reports, and lint caches
+*.test
+*.out
+coverage/
+.eslintcache

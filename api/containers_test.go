@@ -8,17 +8,17 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 )
 
 func TestGetContainerLogs_Success(t *testing.T) {
 	// Set mock provider
-	mock := &containers.MockProvider{
-		Containers: []containers.ContainerInfo{
+	mock := &docker.MockProvider{
+		Containers: []docker.ContainerInfo{
 			{ID: "12345", Names: []string{"/mock-container"}},
 		},
 	}
-	containers.SetProvider(mock)
+	docker.SetProvider(mock)
 
 	srv := NewServer("test-token")
 	req := httptest.NewRequest("GET", "/api/containers/mock-container/logs", nil)

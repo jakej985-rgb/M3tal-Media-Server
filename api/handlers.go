@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jakej985-rgb/m3tal-core/core/auth"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/doctor"
 	"github.com/jakej985-rgb/m3tal-core/core/health"
 	"github.com/jakej985-rgb/m3tal-core/core/preflight"
@@ -70,7 +70,7 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 // GetServices returns the list of managed containers
 func (s *Server) GetServices(w http.ResponseWriter, r *http.Request) {
-	mgr, err := containers.GetProvider()
+	mgr, err := docker.GetProvider()
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return
@@ -189,7 +189,7 @@ func (s *Server) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
 		tail = "all"
 	}
 
-	mgr, err := containers.GetProvider()
+	mgr, err := docker.GetProvider()
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return
@@ -214,7 +214,7 @@ func (s *Server) HandleContainerActionV2(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	mgr, err := containers.GetProvider()
+	mgr, err := docker.GetProvider()
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return
@@ -255,7 +255,7 @@ func (s *Server) GetTrayStats(w http.ResponseWriter, r *http.Request) {
 // GetTrayContainers returns all containers for system tray
 // GET /api/v2/tray/containers
 func (s *Server) GetTrayContainers(w http.ResponseWriter, r *http.Request) {
-	provider, err := containers.GetProvider()
+	provider, err := docker.GetProvider()
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
 		return

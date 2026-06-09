@@ -339,7 +339,7 @@ func RunAIInference(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Submit job to queue manager
-	if err := GlobalQueueManager.Submit(job); err != nil {
+	if err := queue.Submit(job); err != nil {
 		sendError(w, http.StatusInternalServerError, "QUEUE_SUBMIT_FAILED", err.Error(), nil)
 		return
 	}
