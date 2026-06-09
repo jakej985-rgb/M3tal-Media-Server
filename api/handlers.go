@@ -756,3 +756,44 @@ func (s *Server) UpdateCloudflaredConfig(w http.ResponseWriter, r *http.Request)
 
 	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
 }
+
+// GetEnvConfig returns the raw contents of the active .env file.
+// GET /api/v2/config/env
+func (s *Server) GetEnvConfig(w http.ResponseWriter, r *http.Request) {
+	envPath := syspaths.GetConfigPath()
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			sendSuccess(w, http.StatusOK, map[string]string{"content": "", "path": envPath}, nil)
+			return
+		}
+		sendError(w, http.StatusInternalServerError, "READ_FAILED", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]string{"content": string(content), "path": envPath}, nil)
+}
+
+// UpdateEnvConfig writes updated content back to the active .env file.
+// POST /api/v2/config/env
+func (s *Server) UpdateEnvConfig(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", err.Error(), nil)
+		return
+	}
+
+	envPath := syspaths.GetConfigPath()
+	if err := os.MkdirAll(filepath.Dir(envPath), 0755); err != nil {
+		sendError(w, http.StatusInternalServerError, "DIR_CREATE_FAILED", err.Error(), nil)
+		return
+	}
+
+	if err := os.WriteFile(envPath, []byte(input.Content), 0600); err != nil {
+		sendError(w, http.StatusInternalServerError, "WRITE_FAILED", err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
+}

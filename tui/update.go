@@ -148,6 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.configData = msg.config
 			m.cloudflaredContent = msg.cloudflared
+			m.envRawContent = msg.envRaw
 			m.err = nil
 			var keys []string
 			for k := range m.configData {
@@ -155,9 +156,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			sort.Strings(keys)
 			m.configKeys = keys
-			if m.selectedConfigIdx >= len(m.configKeys) {
-				m.selectedConfigIdx = 0
-			}
 		} else {
 			m.err = msg.err
 		}
@@ -165,6 +163,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case editFinishedMsg:
 		if msg.err != nil {
 			m.SetNotification(fmt.Sprintf("❌ Edit failed: %v", msg.err), 4*time.Second)
+		} else if msg.isEnvEdit {
+			m.envRawContent = msg.content
+			m.SetNotification("✅ .env configuration updated!", 3*time.Second)
 		} else {
 			m.cloudflaredContent = msg.content
 			m.SetNotification("✅ Cloudflared configuration updated!", 3*time.Second)
@@ -302,6 +303,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case TabConfig:
 				m.showCloudflared = !m.showCloudflared
 				m.cloudflaredScrollOffset = 0
+				m.envScrollOffset = 0
 				m.SetNotification("Toggled configuration view", 1*time.Second)
 			}
 		case "e":
@@ -311,6 +313,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case TabConfig:
 				if m.showCloudflared {
 					cmds = append(cmds, m.editCloudflaredCmd())
+				} else {
+					cmds = append(cmds, m.editEnvCmd())
 				}
 			}
 		case "i":
@@ -363,8 +367,8 @@ func (m *Model) handleNavigationUp() {
 				m.cloudflaredScrollOffset--
 			}
 		} else {
-			if m.selectedConfigIdx > 0 {
-				m.selectedConfigIdx--
+			if m.envScrollOffset > 0 {
+				m.envScrollOffset--
 			}
 		}
 	}
@@ -414,8 +418,9 @@ func (m *Model) handleNavigationDown() {
 				m.cloudflaredScrollOffset++
 			}
 		} else {
-			if m.selectedConfigIdx < len(m.configKeys)-1 {
-				m.selectedConfigIdx++
+			lines := strings.Split(m.envRawContent, "\n")
+			if m.envScrollOffset < len(lines)-1 {
+				m.envScrollOffset++
 			}
 		}
 	}
@@ -498,13 +503,16 @@ func (m Model) fetchActiveTabCmd() tea.Cmd {
 		return func() tea.Msg {
 			cfg, err := m.client.GetConfig()
 			cloudflared, err2 := m.client.GetCloudflaredConfig()
+			envRaw, err3 := m.client.GetEnvConfigRaw()
 			var finalErr error
 			if err != nil {
 				finalErr = err
 			} else if err2 != nil {
 				finalErr = err2
+			} else if err3 != nil {
+				finalErr = err3
 			}
-			return configMsg{config: cfg, cloudflared: cloudflared, err: finalErr}
+			return configMsg{config: cfg, cloudflared: cloudflared, envRaw: envRaw, err: finalErr}
 		}
 	}
 	return nil
@@ -654,5 +662,50 @@ func (m Model) editCloudflaredCmd() tea.Cmd {
 		}
 
 		return editFinishedMsg{content: string(updatedBytes)}
+	})
+}
+
+func (m Model) editEnvCmd() tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano"
+	}
+
+	tempFile, err := os.CreateTemp("", "m3tal-env-*.env")
+	if err != nil {
+		return func() tea.Msg {
+			return editFinishedMsg{err: fmt.Errorf("failed to create temp file: %w", err), isEnvEdit: true}
+		}
+	}
+	tempPath := tempFile.Name()
+
+	if _, err := tempFile.WriteString(m.envRawContent); err != nil {
+		tempFile.Close()
+		os.Remove(tempPath)
+		return func() tea.Msg {
+			return editFinishedMsg{err: fmt.Errorf("failed to write temp file: %w", err), isEnvEdit: true}
+		}
+	}
+	tempFile.Close()
+
+	c := exec.Command(editor, tempPath)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		if err != nil {
+			os.Remove(tempPath)
+			return editFinishedMsg{err: fmt.Errorf("editor failed: %w", err), isEnvEdit: true}
+		}
+
+		updatedBytes, err := os.ReadFile(tempPath)
+		os.Remove(tempPath)
+		if err != nil {
+			return editFinishedMsg{err: fmt.Errorf("failed to read updated file: %w", err), isEnvEdit: true}
+		}
+
+		err = m.client.UpdateEnvConfig(string(updatedBytes))
+		if err != nil {
+			return editFinishedMsg{err: fmt.Errorf("failed to save .env to API: %w", err), isEnvEdit: true}
+		}
+
+		return editFinishedMsg{content: string(updatedBytes), isEnvEdit: true}
 	})
 }

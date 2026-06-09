@@ -222,6 +222,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/stacks/init", srv.HandleInit)
 			r.Get("/config/cloudflared", srv.GetCloudflaredConfig)
 			r.Post("/config/cloudflared", srv.UpdateCloudflaredConfig)
+			r.Get("/config/env", srv.GetEnvConfig)
+			r.Post("/config/env", srv.UpdateEnvConfig)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
@@ -299,6 +301,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/stacks/init", srv.HandleInit)
 			r.Get("/config/cloudflared", srv.GetCloudflaredConfig)
 			r.Post("/config/cloudflared", srv.UpdateCloudflaredConfig)
+			r.Get("/config/env", srv.GetEnvConfig)
+			r.Post("/config/env", srv.UpdateEnvConfig)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)

@@ -67,12 +67,14 @@ type actionResultMsg struct {
 type configMsg struct {
 	config      map[string]string
 	cloudflared string
+	envRaw      string
 	err         error
 }
 
 type editFinishedMsg struct {
-	content string
-	err     error
+	content   string
+	isEnvEdit bool
+	err       error
 }
 
 // Model defines the state model for M3TAL Go TUI dashboard.
@@ -124,10 +126,11 @@ type Model struct {
 	// Config Tab State
 	configData              map[string]string
 	configKeys              []string
-	selectedConfigIdx       int
 	showCloudflared         bool // true = cloudflared-config.yml, false = system env config
 	cloudflaredContent      string
 	cloudflaredScrollOffset int
+	envRawContent           string // raw .env file content for editor
+	envScrollOffset         int
 }
 
 // NewModel initializes the TUI state model.

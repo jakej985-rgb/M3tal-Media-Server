@@ -136,6 +136,24 @@ func (c *Client) UpdateCloudflaredConfig(content string) error {
 	return c.request("POST", "/api/v2/config/cloudflared", body, nil)
 }
 
+// GetEnvConfigRaw fetches the raw .env file contents via API.
+func (c *Client) GetEnvConfigRaw() (string, error) {
+	var result struct {
+		Content string `json:"content"`
+	}
+	err := c.request("GET", "/api/v2/config/env", nil, &result)
+	if err != nil {
+		return "", err
+	}
+	return result.Content, nil
+}
+
+// UpdateEnvConfig writes updated .env content via API.
+func (c *Client) UpdateEnvConfig(content string) error {
+	body := map[string]string{"content": content}
+	return c.request("POST", "/api/v2/config/env", body, nil)
+}
+
 // GetStatus checks the detailed system components health check report.
 func (c *Client) GetStatus() (*models.Status, error) {
 	var status models.Status

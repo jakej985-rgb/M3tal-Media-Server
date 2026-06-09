@@ -731,10 +731,10 @@ func (m Model) viewConfig(height int) string {
 		return panelStyle.Width(width).Height(height).Render(builder.String())
 	}
 
-	builder.WriteString(styleHeaderLabel.Render("⚙️ SYSTEM CONFIGURATION (Active Environment Variables - Press 'c' to view Cloudflared)") + "\n")
+	builder.WriteString(styleHeaderLabel.Render("⚙️ SYSTEM CONFIGURATION (.env configuration - Press 'c' to view Cloudflared)") + "\n")
 	builder.WriteString(strings.Repeat("─", width-4) + "\n")
 
-	if len(m.configKeys) == 0 {
+	if m.envRawContent == "" {
 		if m.err != nil {
 			builder.WriteString(fmt.Sprintf("\n  Error loading config: %v\n", m.err))
 		} else {
@@ -743,45 +743,37 @@ func (m Model) viewConfig(height int) string {
 		return panelStyle.Width(width).Height(height).Render(builder.String())
 	}
 
-	// Columns headers
-	builder.WriteString(fmt.Sprintf("  %-35s %-50s\n", "PARAMETER", "VALUE"))
-	builder.WriteString(strings.Repeat("─", width-4) + "\n")
-
-	visibleRows := height - 4
+	lines := strings.Split(m.envRawContent, "\n")
+	totalLines := len(lines)
+	visibleRows := height - 3
 	if visibleRows < 1 {
 		visibleRows = 1
 	}
 
-	startIdx := 0
-	if m.selectedConfigIdx >= visibleRows {
-		startIdx = m.selectedConfigIdx - visibleRows + 1
+	// Clamp scroll offset
+	if m.envScrollOffset < 0 {
+		m.envScrollOffset = 0
 	}
-	endIdx := startIdx + visibleRows
-	if endIdx > len(m.configKeys) {
-		endIdx = len(m.configKeys)
+	maxOffset := totalLines - visibleRows
+	if maxOffset < 0 {
+		maxOffset = 0
 	}
-
-	for idx := startIdx; idx < endIdx; idx++ {
-		key := m.configKeys[idx]
-		val := m.configData[key]
-
-		cursor := " "
-		if idx == m.selectedConfigIdx {
-			cursor = ">"
-		}
-
-		keyT := truncateString(key, 33)
-		valT := truncateString(val, width-44)
-
-		row := fmt.Sprintf("%s %-35s %-50s\n", cursor, keyT, valT)
-		builder.WriteString(row)
+	if m.envScrollOffset > maxOffset {
+		m.envScrollOffset = maxOffset
 	}
 
-	// Print scrolling help if there are offscreen parameters
-	if len(m.configKeys) > visibleRows {
-		scrollHelp := fmt.Sprintf("─ [Line %d-%d of %d] (Arrow Up/Down to scroll) ─", startIdx+1, endIdx, len(m.configKeys))
-		builder.WriteString("\n" + lipgloss.NewStyle().Foreground(colorGray).Render(scrollHelp))
+	endIdx := m.envScrollOffset + visibleRows
+	if endIdx > totalLines {
+		endIdx = totalLines
 	}
+
+	for idx := m.envScrollOffset; idx < endIdx; idx++ {
+		builder.WriteString(truncateString(lines[idx], width-4) + "\n")
+	}
+
+	// Print scrolling/edit help
+	scrollHelp := fmt.Sprintf("─ [Line %d-%d of %d] (Arrow Up/Down to scroll, 'e' to edit) ─", m.envScrollOffset+1, endIdx, totalLines)
+	builder.WriteString("\n" + lipgloss.NewStyle().Foreground(colorGray).Render(scrollHelp))
 
 	return panelStyle.Width(width).Height(height).Render(builder.String())
 }
@@ -825,7 +817,7 @@ func (m Model) renderFooter() string {
 		if m.showCloudflared {
 			keys = []string{"1-5: Switch Tabs", "Arrows: Scroll", "c: Toggle View", "e: Edit Config", "r: Force Refresh", "q: Quit"}
 		} else {
-			keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "c: Toggle View", "r: Force Refresh", "q: Quit"}
+			keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "c: Toggle View", "e: Edit .env", "r: Force Refresh", "q: Quit"}
 		}
 	}
 	return styleFooter.Width(m.width).Render("🔑 Keys: " + strings.Join(keys, " | "))
