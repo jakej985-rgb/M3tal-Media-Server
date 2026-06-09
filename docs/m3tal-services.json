@@ -30,20 +30,16 @@
     "path": "core/config"
   },
   {
-    "name": "containers",
+    "name": "docker",
     "type": "Core package",
-    "path": "core/containers"
+    "path": "core/docker"
   },
   {
     "name": "doctor",
     "type": "Core package",
     "path": "core/doctor"
   },
-  {
-    "name": "engine",
-    "type": "Core package",
-    "path": "core/engine"
-  },
+
   {
     "name": "events",
     "type": "Core package",
@@ -85,9 +81,14 @@
     "path": "core/registry"
   },
   {
-    "name": "routing",
+    "name": "traefik",
     "type": "Core package",
-    "path": "core/routing"
+    "path": "core/traefik"
+  },
+  {
+    "name": "stack",
+    "type": "Core package",
+    "path": "core/stack"
   },
   {
     "name": "services",

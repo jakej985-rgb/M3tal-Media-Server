@@ -1,4 +1,4 @@
-package engine
+package docker
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 )
 
 // DeployResult captures the outcome of a stack deployment.
@@ -71,9 +71,9 @@ func DeployStack(composePath string, timeout time.Duration) (*DeployResult, erro
 
 // ValidateAndDeploy runs validation before deployment.
 // If validation fails, deployment is aborted.
-func ValidateAndDeploy(composePath string, routes []routing.RouteInput, timeout time.Duration) (*DeployResult, error) {
+func ValidateAndDeploy(composePath string, routes []traefik.RouteInput, timeout time.Duration) (*DeployResult, error) {
 	// 1. Parse the compose file
-	cf, err := routing.ParseCompose(composePath)
+	cf, err := traefik.ParseCompose(composePath)
 	if err != nil {
 		return &DeployResult{
 			Stack:  composePath,

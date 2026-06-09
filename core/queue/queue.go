@@ -39,6 +39,8 @@ type JobRecord struct {
 	Error       string         `json:"error,omitempty"`
 }
 
+var globalManager *Manager
+
 // Manager coordinates job queues, workers, and status tracking.
 type Manager struct {
 	mu           sync.RWMutex
@@ -66,6 +68,8 @@ func NewManager(maxWorkers, maxQueueSize int) *Manager {
 		ctx:          ctx,
 		cancel:       cancel,
 	}
+
+	globalManager = m
 
 	go m.workerLoop(ctx)
 	return m

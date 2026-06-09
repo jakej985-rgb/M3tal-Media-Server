@@ -1,4 +1,4 @@
-package routing
+package traefik
 
 import (
 	"fmt"
@@ -24,10 +24,10 @@ type MiddlewareInput struct {
 	Config map[string]string `json:"config"` // type-specific key/value pairs
 }
 
-// GenerateLabels produces the standard set of Traefik Docker labels
+// GenerateRouteLabels produces the standard set of Traefik Docker labels
 // for a given route input. This is the core differentiator — one clean
 // opinionated way to route a service.
-func GenerateLabels(input RouteInput) map[string]string {
+func GenerateRouteLabels(input RouteInput) map[string]string {
 	entrypoints := input.Entrypoints
 	if entrypoints == "" {
 		entrypoints = "web"

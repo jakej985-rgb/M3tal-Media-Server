@@ -1,4 +1,4 @@
-package routing
+package traefik
 
 import (
 	"fmt"
@@ -258,4 +258,16 @@ func (c *ComposeFile) GetContainerPort(service string) int {
 		return 0
 	}
 	return port
+}
+
+func (l yamlLabels) MarshalYAML() (interface{}, error) {
+	return l.Values, nil
+}
+
+func (l yamlList) MarshalYAML() (interface{}, error) {
+	return l.Values, nil
+}
+
+func (e yamlEnvList) MarshalYAML() (interface{}, error) {
+	return e.Values, nil
 }

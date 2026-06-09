@@ -145,3 +145,73 @@ func TestStopStackByName_NotFound(t *testing.T) {
 		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestGetStackByName_NotFound(t *testing.T) {
+	h := &StackHandlers{}
+	req := httptest.NewRequest("GET", "/api/v2/stacks/nonexistent", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "nonexistent")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	h.GetStackByName(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetStackByName_Success(t *testing.T) {
+	// Create temporary stack directory
+	stackDir, err := os.MkdirTemp("", "m3tal-test-api-stacks-get")
+	if err != nil {
+		t.Fatalf("failed to create temp stack dir: %v", err)
+	}
+	defer os.RemoveAll(stackDir)
+
+	t.Setenv("M3TAL_STACK_DIR", stackDir)
+
+	// Create dummy compose file
+	path := filepath.Join(stackDir, "custom-compose.yml")
+	if err := os.WriteFile(path, []byte("version: '3'\nservices:\n  dummy:\n    image: nginx"), 0644); err != nil {
+		t.Fatalf("failed to write dummy compose: %v", err)
+	}
+
+	h := &StackHandlers{}
+	req := httptest.NewRequest("GET", "/api/v2/stacks/custom", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "custom")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	h.GetStackByName(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var apiResponse struct {
+		Status string `json:"status"`
+		Data   struct {
+			Name        string   `json:"name"`
+			ComposePath string   `json:"compose_path"`
+			Services    []string `json:"services"`
+			Status      string   `json:"status"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(w.Body.Bytes(), &apiResponse); err != nil {
+		t.Fatalf("failed to unmarshal response: %v, body: %s", err, w.Body.String())
+	}
+
+	if apiResponse.Status != "success" {
+		t.Errorf("expected success status, got %q", apiResponse.Status)
+	}
+	if apiResponse.Data.Name != "custom" {
+		t.Errorf("expected stack name 'custom', got %q", apiResponse.Data.Name)
+	}
+	if apiResponse.Data.Status != "discovered" {
+		t.Errorf("expected status 'discovered', got %q", apiResponse.Data.Status)
+	}
+}
+

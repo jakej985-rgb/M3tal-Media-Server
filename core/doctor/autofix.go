@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
@@ -110,7 +110,7 @@ func PrintFixes(fixes []Fix) {
 // containerFixes that need `docker start/restart` use the containers.Provider
 // when possible, falling back to exec.
 func ApplyFixes(fixes []Fix) []FixResult {
-	mgr, _ := containers.GetProvider()
+	mgr, _ := docker.GetProvider()
 
 	var results []FixResult
 	for _, f := range fixes {

@@ -16,7 +16,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
@@ -221,7 +221,7 @@ func (m *Manager) SwitchRegion(region string) error {
 	stackDir := system.GetStackDir()
 	networkCompose := filepath.Join(stackDir, "network-compose.yml")
 	if _, err := os.Stat(networkCompose); err == nil {
-		_, errDeploy := engine.DeployStack(networkCompose, 0)
+		_, errDeploy := docker.DeployStack(networkCompose, 0)
 		return errDeploy
 	}
 

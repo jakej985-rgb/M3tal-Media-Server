@@ -1,4 +1,4 @@
-package engine
+package docker
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 )
 
 // ValidationError describes a single validation failure.
@@ -32,7 +32,7 @@ var reservedPorts = map[int]string{
 var domainRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
 
 // ValidateRoute checks a RouteInput for correctness.
-func ValidateRoute(r routing.RouteInput) []ValidationError {
+func ValidateRoute(r traefik.RouteInput) []ValidationError {
 	var errs []ValidationError
 
 	// Service name
@@ -90,7 +90,7 @@ func ValidatePort(port int) []ValidationError {
 }
 
 // ValidateDomainUnique checks that a domain is not already in use.
-func ValidateDomainUnique(domain string, existing []routing.RouteInput) []ValidationError {
+func ValidateDomainUnique(domain string, existing []traefik.RouteInput) []ValidationError {
 	var errs []ValidationError
 	for _, r := range existing {
 		if strings.EqualFold(r.Domain, domain) {
@@ -105,7 +105,7 @@ func ValidateDomainUnique(domain string, existing []routing.RouteInput) []Valida
 }
 
 // ValidateCompose checks a parsed compose file for common issues.
-func ValidateCompose(cf *routing.ComposeFile) []ValidationError {
+func ValidateCompose(cf *traefik.ComposeFile) []ValidationError {
 	var errs []ValidationError
 
 	if len(cf.Services) == 0 {

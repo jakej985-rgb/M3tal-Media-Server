@@ -3,22 +3,23 @@ package api
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	apiMiddleware "github.com/jakej985-rgb/m3tal-core/api/middleware"
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/agents"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/events"
 	"github.com/jakej985-rgb/m3tal-core/core/health"
 	"github.com/jakej985-rgb/m3tal-core/core/queue"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
 	"github.com/jakej985-rgb/m3tal-core/core/system"
+	"github.com/jakej985-rgb/m3tal-core/gui"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
@@ -59,7 +60,7 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 
 	// Start background Docker events forwarder
 	go func() {
-		mgr, err := containers.GetProvider()
+		mgr, err := docker.GetProvider()
 		if err != nil {
 			log.Printf("⚠️ Docker provider unavailable for forwarder: %v", err)
 			return
@@ -99,14 +100,15 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 	r.Use(apiMiddleware.RequestLogger)
 	r.Use(middleware.RealIP)
 
-	// Serve static files for the React GUI
-	workDir, _ := os.Getwd()
-	guiDir := filepath.Join(workDir, "gui", "dist")
-	if _, err := os.Stat(guiDir); err == nil {
-		fileServer(r, "/gui", http.Dir(guiDir))
+	// Serve static files for the React GUI from embedded FS
+	subFS, err := fs.Sub(gui.DistFS, "dist")
+	if err == nil {
+		fileServer(r, "/gui", http.FS(subFS))
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/gui/", http.StatusFound)
 		})
+	} else {
+		log.Printf("⚠️ Failed to load embedded React GUI: %v", err)
 	}
 
 	// Serve the system tray popup UI
@@ -156,6 +158,7 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 
 			// Stacks
 			r.Get("/stacks", stackH.ListStacks)
+			r.Get("/stacks/{name}", stackH.GetStackByName)
 			r.Post("/stacks/load", stackH.LoadStack)
 			r.Post("/stacks/deploy", stackH.DeployStack)
 			r.Post("/stacks/scan", stackH.ScanStacks)
@@ -229,6 +232,7 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/queue/{id}/cancel", CancelQueueJob)
 			r.Get("/ai/models", ListAIModels)
 			r.Post("/ai/run", RunAIInference)
+			r.Post("/system/reconcile", HandleReconcile)
 		})
 
 		log.Println("✅ v2 engine endpoints enabled (SQLite store active)")
@@ -303,6 +307,7 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/queue/{id}/cancel", CancelQueueJob)
 			r.Get("/ai/models", ListAIModels)
 			r.Post("/ai/run", RunAIInference)
+			r.Post("/system/reconcile", HandleReconcile)
 		})
 
 		log.Println("⚠️  v2 engine endpoints disabled (no store configured), plugin endpoints still available")
@@ -399,4 +404,18 @@ func fileServer(r chi.Router, path string, root http.FileSystem) {
 		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
 		fs.ServeHTTP(w, r)
 	})
+}
+
+// HandleReconcile triggers the state reconciliation loop and returns the actions taken.
+// POST /api/v2/system/reconcile
+func HandleReconcile(w http.ResponseWriter, r *http.Request) {
+	actions, err := agents.RunReconcile()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "RECONCILE_FAILED", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]any{
+		"reconciled": true,
+		"actions":    actions,
+	}, nil)
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakej985-rgb/m3tal-core/core/containers"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
@@ -63,7 +63,7 @@ type dockerInspectResult struct {
 // ScanContainers queries Docker for all containers and returns detailed health
 // results. It uses the Docker API for the list and docker inspect for details.
 func ScanContainers() ([]ContainerResult, error) {
-	mgr, err := containers.GetProvider()
+	mgr, err := docker.GetProvider()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to Docker: %w", err)
 	}

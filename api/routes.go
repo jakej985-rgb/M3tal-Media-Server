@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jakej985-rgb/m3tal-core/core/engine"
-	"github.com/jakej985-rgb/m3tal-core/core/routing"
+	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 )
 
 // RouteHandlers provides CRUD operations for Traefik routes.
@@ -33,14 +33,14 @@ func (h *RouteHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
 // CreateRoute validates and creates a new route.
 // POST /api/v2/routes
 func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
-	var input routing.RouteInput
+	var input traefik.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
 	// Validate route input
-	errs := engine.ValidateRoute(input)
+	errs := docker.ValidateRoute(input)
 	if len(errs) > 0 {
 		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return
@@ -48,22 +48,22 @@ func (h *RouteHandlers) CreateRoute(w http.ResponseWriter, r *http.Request) {
 
 	// Check domain uniqueness
 	existing, _ := h.Store.ListRoutes()
-	var existingInputs []routing.RouteInput
+	var existingInputs []traefik.RouteInput
 	for _, r := range existing {
-		existingInputs = append(existingInputs, routing.RouteInput{
+		existingInputs = append(existingInputs, traefik.RouteInput{
 			Service: r.Service,
 			Domain:  r.Domain,
 			Port:    r.Port,
 		})
 	}
-	uniqueErrs := engine.ValidateDomainUnique(input.Domain, existingInputs)
+	uniqueErrs := docker.ValidateDomainUnique(input.Domain, existingInputs)
 	if len(uniqueErrs) > 0 {
 		sendError(w, http.StatusConflict, "DOMAIN_CONFLICT", "domain conflict", map[string]any{"violations": uniqueErrs})
 		return
 	}
 
 	// Generate labels
-	labels := routing.GenerateLabels(input)
+	labels := traefik.GenerateRouteLabels(input)
 
 	// Store in DB
 	id, err := h.Store.CreateRoute(input.Service, input.Domain, input.Port, input.Entrypoints, "", false, "")
@@ -100,18 +100,18 @@ func (h *RouteHandlers) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 // GetRouteLabels generates labels for a route without storing it.
 // POST /api/v2/routes/preview
 func (h *RouteHandlers) GetRouteLabels(w http.ResponseWriter, r *http.Request) {
-	var input routing.RouteInput
+	var input traefik.RouteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
 		return
 	}
 
-	errs := engine.ValidateRoute(input)
+	errs := docker.ValidateRoute(input)
 	if len(errs) > 0 {
 		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "validation failed", map[string]any{"violations": errs})
 		return
 	}
 
-	labels := routing.GenerateLabels(input)
+	labels := traefik.GenerateRouteLabels(input)
 	sendSuccess(w, http.StatusOK, labels, nil)
 }

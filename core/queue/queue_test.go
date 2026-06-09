@@ -230,3 +230,29 @@ func TestQueue_Capacity(t *testing.T) {
 
 	close(blockChan)
 }
+
+func TestQueue_Submit(t *testing.T) {
+	mgr := NewManager(1, 5)
+	defer mgr.Close()
+
+	runChan := make(chan struct{})
+	job := &MockJob{
+		id:       "job-submit",
+		priority: 1,
+		execute: func(ctx context.Context) (any, error) {
+			close(runChan)
+			return nil, nil
+		},
+	}
+
+	err := Submit(job)
+	if err != nil {
+		t.Fatalf("failed to submit job via pkg level Submit: %v", err)
+	}
+
+	select {
+	case <-runChan:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for job to execute")
+	}
+}
