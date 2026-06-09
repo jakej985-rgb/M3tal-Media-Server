@@ -15,6 +15,7 @@ const (
 	TabLogs
 	TabAI
 	TabPlugins
+	TabConfig
 )
 
 // Message types for Bubble Tea
@@ -64,6 +65,11 @@ type actionResultMsg struct {
 	err     error
 }
 
+type configMsg struct {
+	config map[string]string
+	err    error
+}
+
 // Model defines the state model for M3TAL Go TUI dashboard.
 type Model struct {
 	client      *client.Client
@@ -109,6 +115,11 @@ type Model struct {
 	catalog           []models.CatalogItemStatus
 	showCatalog       bool // true = Catalog view, false = Installed view
 	selectedPluginIdx int
+
+	// Config Tab State
+	configData        map[string]string
+	configKeys        []string
+	selectedConfigIdx int
 }
 
 // NewModel initializes the TUI state model.

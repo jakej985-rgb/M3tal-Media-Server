@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -141,6 +142,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		}
 
+	case configMsg:
+		if msg.err == nil {
+			m.configData = msg.config
+			m.err = nil
+			var keys []string
+			for k := range m.configData {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			m.configKeys = keys
+			if m.selectedConfigIdx >= len(m.configKeys) {
+				m.selectedConfigIdx = 0
+			}
+		} else {
+			m.err = msg.err
+		}
+
 	case actionResultMsg:
 		if msg.err != nil {
 			m.SetNotification(fmt.Sprintf("❌ Error: %v", msg.err), 4*time.Second)
@@ -172,6 +190,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.fetchAllDataCmd())
 		case "4":
 			m.activeTab = TabPlugins
+			cmds = append(cmds, m.fetchAllDataCmd())
+		case "5":
+			m.activeTab = TabConfig
 			cmds = append(cmds, m.fetchAllDataCmd())
 
 		case "tab":
@@ -314,6 +335,10 @@ func (m *Model) handleNavigationUp() {
 		if m.selectedPluginIdx > 0 {
 			m.selectedPluginIdx--
 		}
+	case TabConfig:
+		if m.selectedConfigIdx > 0 {
+			m.selectedConfigIdx--
+		}
 	}
 }
 
@@ -353,6 +378,10 @@ func (m *Model) handleNavigationDown() {
 		limit := m.getPluginsListLen()
 		if m.selectedPluginIdx < limit-1 {
 			m.selectedPluginIdx++
+		}
+	case TabConfig:
+		if m.selectedConfigIdx < len(m.configKeys)-1 {
+			m.selectedConfigIdx++
 		}
 	}
 }
@@ -429,6 +458,11 @@ func (m Model) fetchActiveTabCmd() tea.Cmd {
 				finalErr = err2
 			}
 			return pluginsMsg{plugins: plugins, catalog: catalog, err: finalErr}
+		}
+	case TabConfig:
+		return func() tea.Msg {
+			cfg, err := m.client.GetConfig()
+			return configMsg{config: cfg, err: err}
 		}
 	}
 	return nil

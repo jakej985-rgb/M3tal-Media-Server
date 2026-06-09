@@ -108,6 +108,16 @@ func (c *Client) GetStats() (*models.MetricsResponse, error) {
 	return &metrics, nil
 }
 
+// GetConfig returns the active sanitized daemon environment configuration.
+func (c *Client) GetConfig() (map[string]string, error) {
+	var config map[string]string
+	err := c.request("GET", "/api/config", nil, &config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 // GetStatus checks the detailed system components health check report.
 func (c *Client) GetStatus() (*models.Status, error) {
 	var status models.Status

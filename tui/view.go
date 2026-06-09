@@ -118,6 +118,8 @@ func (m Model) View() string {
 			content = m.viewAI(contentHeight)
 		case TabPlugins:
 			content = m.viewPlugins(contentHeight)
+		case TabConfig:
+			content = m.viewConfig(contentHeight)
 		}
 	}
 
@@ -179,7 +181,7 @@ func (m Model) renderHeader() string {
 
 func (m Model) renderTabs() string {
 	var tabs []string
-	tabNames := []string{"[1] Stacks & Services", "[2] Container Logs", "[3] AI Queue & Models", "[4] Plugins Manager"}
+	tabNames := []string{"[1] Stacks & Services", "[2] Container Logs", "[3] AI Queue & Models", "[4] Plugins Manager", "[5] System Config"}
 	for i, name := range tabNames {
 		if Tab(i) == m.activeTab {
 			tabs = append(tabs, styleTabActive.Render(name))
@@ -680,6 +682,66 @@ func (m Model) renderPluginCatalog(width, height int) string {
 	return builder.String()
 }
 
+func (m Model) viewConfig(height int) string {
+	width := m.width - 6
+	panelStyle := styleFocusedPanel
+
+	var builder strings.Builder
+	builder.WriteString(styleHeaderLabel.Render("⚙️ SYSTEM CONFIGURATION (Active Environment Variables)") + "\n")
+	builder.WriteString(strings.Repeat("─", width-4) + "\n")
+
+	if len(m.configKeys) == 0 {
+		if m.err != nil {
+			builder.WriteString(fmt.Sprintf("\n  Error loading config: %v\n", m.err))
+		} else {
+			builder.WriteString("\n  Loading system configuration...\n")
+		}
+		return panelStyle.Width(width).Height(height).Render(builder.String())
+	}
+
+	// Columns headers
+	builder.WriteString(fmt.Sprintf("  %-35s %-50s\n", "PARAMETER", "VALUE"))
+	builder.WriteString(strings.Repeat("─", width-4) + "\n")
+
+	visibleRows := height - 4
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+
+	startIdx := 0
+	if m.selectedConfigIdx >= visibleRows {
+		startIdx = m.selectedConfigIdx - visibleRows + 1
+	}
+	endIdx := startIdx + visibleRows
+	if endIdx > len(m.configKeys) {
+		endIdx = len(m.configKeys)
+	}
+
+	for idx := startIdx; idx < endIdx; idx++ {
+		key := m.configKeys[idx]
+		val := m.configData[key]
+
+		cursor := " "
+		if idx == m.selectedConfigIdx {
+			cursor = ">"
+		}
+
+		keyT := truncateString(key, 33)
+		valT := truncateString(val, width-44)
+
+		row := fmt.Sprintf("%s %-35s %-50s\n", cursor, keyT, valT)
+		builder.WriteString(row)
+	}
+
+	// Print scrolling help if there are offscreen parameters
+	if len(m.configKeys) > visibleRows {
+		scrollHelp := fmt.Sprintf("─ [Line %d-%d of %d] (Arrow Up/Down to scroll) ─", startIdx+1, endIdx, len(m.configKeys))
+		builder.WriteString("\n" + lipgloss.NewStyle().Foreground(colorGray).Render(scrollHelp))
+	}
+
+	return panelStyle.Width(width).Height(height).Render(builder.String())
+}
+
 func (m Model) renderMetricsBar() string {
 	if m.metrics == nil {
 		return "Metrics: loading..."
@@ -708,13 +770,15 @@ func (m Model) renderFooter() string {
 	var keys []string
 	switch m.activeTab {
 	case TabStacks:
-		keys = []string{"1-4: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "u: Deploy Stack", "d: Stop Stack", "s: Start Svc", "x: Stop Svc", "t: Restart Svc", "q: Quit"}
+		keys = []string{"1-5: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "u: Deploy Stack", "d: Stop Stack", "s: Start Svc", "x: Stop Svc", "t: Restart Svc", "q: Quit"}
 	case TabLogs:
-		keys = []string{"1-4: Switch Tabs", "Tab: Select Panel", "Arrows: Navigate/Scroll Logs", "r: Force Refresh", "q: Quit"}
+		keys = []string{"1-5: Switch Tabs", "Tab: Select Panel", "Arrows: Navigate/Scroll Logs", "r: Force Refresh", "q: Quit"}
 	case TabAI:
-		keys = []string{"1-4: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "k: Cancel Job", "q: Quit"}
+		keys = []string{"1-5: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "k: Cancel Job", "q: Quit"}
 	case TabPlugins:
-		keys = []string{"1-4: Switch Tabs", "Arrows: Navigate", "c: Toggle Catalog", "i: Install", "e: Toggle Enable", "q: Quit"}
+		keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "c: Toggle Catalog", "i: Install", "e: Toggle Enable", "q: Quit"}
+	case TabConfig:
+		keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "r: Force Refresh", "q: Quit"}
 	}
 	return styleFooter.Width(m.width).Render("🔑 Keys: " + strings.Join(keys, " | "))
 }
