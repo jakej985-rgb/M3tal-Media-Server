@@ -2,10 +2,12 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
@@ -24,11 +26,9 @@ func NewClient(baseURL, token string) *Client {
 		baseURL = "http://localhost:5050"
 	}
 	return &Client{
-		BaseURL: baseURL,
-		Token:   token,
-		HTTPClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
+		BaseURL:    baseURL,
+		Token:      token,
+		HTTPClient: &http.Client{},
 	}
 }
 
@@ -50,8 +50,16 @@ func (c *Client) request(method, path string, body any, target any) error {
 		bodyReader = bytes.NewReader(jsonData)
 	}
 
+	timeout := 15 * time.Second
+	if method == "POST" || strings.Contains(path, "/doctor") || strings.Contains(path, "/check-leak") {
+		timeout = 15 * time.Minute
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	url := fmt.Sprintf("%s%s", c.BaseURL, path)
-	req, err := http.NewRequest(method, url, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
