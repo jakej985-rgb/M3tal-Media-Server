@@ -19,7 +19,6 @@ const (
 )
 
 // Message types for Bubble Tea
-type errMsg error
 type tickMsg time.Time
 
 type metricsMsg struct {

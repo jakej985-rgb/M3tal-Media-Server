@@ -13,7 +13,6 @@ import (
 // Common UI Styling using Lip Gloss
 var (
 	// Colors
-	colorBg            = lipgloss.Color("#121212")
 	colorPanelBg       = lipgloss.Color("#181818")
 	colorGreen         = lipgloss.Color("#00E676")
 	colorYellow        = lipgloss.Color("#FFD600")
@@ -21,7 +20,6 @@ var (
 	colorCyan          = lipgloss.Color("#00B0FF")
 	colorGray          = lipgloss.Color("#90A4AE")
 	colorDarkGray      = lipgloss.Color("#2A2A2A")
-	colorText          = lipgloss.Color("#E0E0E0")
 	colorHighlightText = lipgloss.Color("#FFFFFF")
 
 	// Styles
@@ -77,9 +75,6 @@ var (
 				Bold(true).
 				Padding(0, 2)
 
-	styleErrorText = lipgloss.NewStyle().
-			Foreground(colorRed).
-			Bold(true)
 
 	styleFooter = lipgloss.NewStyle().
 			Foreground(colorGray).
@@ -495,9 +490,10 @@ func (m Model) renderAIQueue(width, height int) string {
 		}
 
 		prioStr := "Normal"
-		if job.Priority == 3 {
+		switch job.Priority {
+		case 3:
 			prioStr = "High"
-		} else if job.Priority == 1 {
+		case 1:
 			prioStr = "Low"
 		}
 

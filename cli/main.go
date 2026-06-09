@@ -2012,9 +2012,10 @@ func printStatusHeader() {
 	}
 
 	dockerStr := "🟢 running"
-	if status.Components["docker"] == "🔴" {
+	switch status.Components["docker"] {
+	case "🔴":
 		dockerStr = "🔴 degraded"
-	} else if status.Components["docker"] == "🟡" {
+	case "🟡":
 		dockerStr = "🟡 degraded"
 	}
 	if running, ok := status.Details["docker_running"]; ok {
@@ -2024,16 +2025,18 @@ func printStatusHeader() {
 	}
 
 	agentsStr := "🟢 active monitoring"
-	if status.Components["agents"] == "🟡" {
+	switch status.Components["agents"] {
+	case "🟡":
 		agentsStr = "🟡 anomaly idle"
-	} else if status.Components["agents"] == "🔴" {
+	case "🔴":
 		agentsStr = "🔴 stuck/crashed"
 	}
 
 	diskStr := "🟢 ok"
-	if status.Components["disk"] == "🔴" {
+	switch status.Components["disk"] {
+	case "🔴":
 		diskStr = "🔴 full"
-	} else if status.Components["disk"] == "🟡" {
+	case "🟡":
 		diskStr = "🟡 near full"
 	}
 	if pct, ok := status.Details["disk_used_percent"]; ok {
@@ -2383,9 +2386,10 @@ func showAggregatedSignals(_ string) {
 	}
 
 	dockerStr := "🟢 running"
-	if status.Components["docker"] == "🔴" {
+	switch status.Components["docker"] {
+	case "🔴":
 		dockerStr = "🔴 degraded"
-	} else if status.Components["docker"] == "🟡" {
+	case "🟡":
 		dockerStr = "🟡 degraded"
 	}
 	if running, ok := status.Details["docker_running"]; ok {
@@ -2395,16 +2399,18 @@ func showAggregatedSignals(_ string) {
 	}
 
 	agentsStr := "🟢 active monitoring"
-	if status.Components["agents"] == "🟡" {
+	switch status.Components["agents"] {
+	case "🟡":
 		agentsStr = "🟡 anomaly idle"
-	} else if status.Components["agents"] == "🔴" {
+	case "🔴":
 		agentsStr = "🔴 stuck/crashed"
 	}
 
 	diskStr := "🟢 ok"
-	if status.Components["disk"] == "🔴" {
+	switch status.Components["disk"] {
+	case "🔴":
 		diskStr = "🔴 full"
-	} else if status.Components["disk"] == "🟡" {
+	case "🟡":
 		diskStr = "🟡 near full"
 	}
 	if pct, ok := status.Details["disk_used_percent"]; ok {

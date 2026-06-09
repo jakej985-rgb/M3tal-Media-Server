@@ -208,12 +208,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.fetchAllDataCmd())
 
 		case "tab":
-			// Toggle split panel focus
-			if m.activeTab == TabStacks {
+			switch m.activeTab {
+			case TabStacks:
 				m.focusOnStacks = !m.focusOnStacks
-			} else if m.activeTab == TabLogs {
+			case TabLogs:
 				m.focusOnStacks = !m.focusOnStacks // repurposed for logs left/right
-			} else if m.activeTab == TabAI {
+			case TabAI:
 				m.focusOnQueue = !m.focusOnQueue
 			}
 
@@ -294,20 +294,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// --- Plugin Action Hotkeys ---
 		case "c":
-			if m.activeTab == TabPlugins {
+			switch m.activeTab {
+			case TabPlugins:
 				m.showCatalog = !m.showCatalog
 				m.selectedPluginIdx = 0
 				m.SetNotification("Toggled plugins view", 1*time.Second)
-			} else if m.activeTab == TabConfig {
+			case TabConfig:
 				m.showCloudflared = !m.showCloudflared
 				m.cloudflaredScrollOffset = 0
 				m.SetNotification("Toggled configuration view", 1*time.Second)
 			}
 		case "e":
-			if m.activeTab == TabPlugins {
+			switch m.activeTab {
+			case TabPlugins:
 				cmds = append(cmds, m.togglePluginCmd())
-			} else if m.activeTab == TabConfig && m.showCloudflared {
-				cmds = append(cmds, m.editCloudflaredCmd())
+			case TabConfig:
+				if m.showCloudflared {
+					cmds = append(cmds, m.editCloudflaredCmd())
+				}
 			}
 		case "i":
 			if m.activeTab == TabPlugins && m.showCatalog {
@@ -506,7 +510,7 @@ func (m Model) fetchActiveTabCmd() tea.Cmd {
 	return nil
 }
 
-func (m Model) fetchContainersCmd(stackName string) tea.Cmd {
+func (m Model) fetchContainersCmd(_ string) tea.Cmd {
 	return func() tea.Msg {
 		containers, err := m.client.GetContainers()
 		return containersMsg{containers: containers, err: err}

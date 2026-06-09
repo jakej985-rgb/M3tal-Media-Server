@@ -265,7 +265,7 @@ func init() {
 	trayCmd.Flags().StringP("port", "p", "18088", "Port to run the tray web server on")
 }
 
-func runTray(c *client.Client, port string) {
+func runTray(c *client.Client, _ string) {
 	log.Printf("[tray] runTray invoked - targeting API daemon at %s\n", c.BaseURL)
 
 	// Run systray (pure Go, zero CGO, blocks on Run)
