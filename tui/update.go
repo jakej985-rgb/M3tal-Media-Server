@@ -182,7 +182,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.fetchAllDataCmd())
 
 	case tea.KeyMsg:
-		switch msg.String() {
+		keyStr := strings.ToLower(msg.String())
+		switch keyStr {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 
@@ -219,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "up", "k":
-			if msg.String() == "k" && m.activeTab == TabAI && m.focusOnQueue && len(m.queue) > 0 {
+			if keyStr == "k" && m.activeTab == TabAI && m.focusOnQueue && len(m.queue) > 0 {
 				job := m.queue[m.selectedJobIdx]
 				m.SetNotification(fmt.Sprintf("✕ Cancelling AI Job: %s...", job.ID), 5*time.Second)
 				cmds = append(cmds, m.cancelJobCmd(job.ID))
