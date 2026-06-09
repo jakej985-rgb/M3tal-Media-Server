@@ -10,7 +10,6 @@ type ServiceConfig struct {
 func GenerateLabels(s ServiceConfig) map[string]string {
 	return map[string]string{
 		"traefik.enable": "true",
-		"traefik.http.routers." + s.Name + ".rule":
-			"Host(`" + s.Name + ".local`)",
+		"traefik.http.routers." + s.Name + ".rule": "Host(`" + s.Name + ".local`)",
 	}
 }

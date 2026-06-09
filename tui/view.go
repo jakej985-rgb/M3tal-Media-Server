@@ -75,7 +75,6 @@ var (
 				Bold(true).
 				Padding(0, 2)
 
-
 	styleFooter = lipgloss.NewStyle().
 			Foreground(colorGray).
 			Background(colorDarkGray).

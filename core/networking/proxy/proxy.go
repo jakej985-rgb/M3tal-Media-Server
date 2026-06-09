@@ -9,8 +9,8 @@ import (
 
 	"github.com/jakej985-rgb/m3tal-core/core/docker"
 	"github.com/jakej985-rgb/m3tal-core/core/plugins"
-	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 	"github.com/jakej985-rgb/m3tal-core/core/state"
+	"github.com/jakej985-rgb/m3tal-core/core/traefik"
 	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 	"gopkg.in/yaml.v3"
 )

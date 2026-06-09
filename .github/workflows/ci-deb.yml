@@ -21,6 +21,12 @@ jobs:
         cache: false
     - name: Verify dependencies
       run: go mod verify
+    - name: Create Mock GUI Dist
+      # TODO:replace-when-gui-built
+      run: |
+        mkdir -p gui/dist
+        echo "placeholder" > gui/dist/index.html
+      # END TODO:replace-when-gui-built
     - name: Build CLI
       run: go build -v -o m3tal ./cli
     - name: Build API

@@ -214,4 +214,3 @@ func TestGetStackByName_Success(t *testing.T) {
 		t.Errorf("expected status 'discovered', got %q", apiResponse.Data.Status)
 	}
 }
-
