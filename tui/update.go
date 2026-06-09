@@ -258,6 +258,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		// --- Stack Action Hotkeys ---
+		case "a":
+			if m.activeTab == TabStacks {
+				m.SetNotification("🔍 Scanning for stack updates...", 5*time.Second)
+				cmds = append(cmds, m.scanStacksCmd())
+			}
 		case "u":
 			if m.activeTab == TabStacks && len(m.stacks) > 0 {
 				stackName := m.stacks[m.selectedStackIdx].Name
@@ -530,6 +535,13 @@ func (m Model) fetchLogsCmd(cname string) tea.Cmd {
 	return func() tea.Msg {
 		logs, err := m.client.GetLogs(cname)
 		return logsMsg{container: cname, logs: logs, err: err}
+	}
+}
+
+func (m Model) scanStacksCmd() tea.Cmd {
+	return func() tea.Msg {
+		_, err := m.client.ScanStacks()
+		return actionResultMsg{message: "✅ Stacks scanned & synced!", err: err}
 	}
 }
 

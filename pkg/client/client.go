@@ -182,6 +182,18 @@ func (c *Client) GetStacks() ([]models.Stack, error) {
 	return stacks, nil
 }
 
+// ScanStacks triggers a manual scan of compose files.
+func (c *Client) ScanStacks() ([]models.Stack, error) {
+	var result struct {
+		Stacks []models.Stack `json:"stacks"`
+	}
+	err := c.request("POST", "/api/v2/stacks/scan", nil, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result.Stacks, nil
+}
+
 // StartStack deploys a stack by name.
 func (c *Client) StartStack(name string) (any, error) {
 	var result any

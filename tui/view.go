@@ -818,7 +818,7 @@ func (m Model) renderFooter() string {
 	var keys []string
 	switch m.activeTab {
 	case TabStacks:
-		keys = []string{"1-5: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "u: Deploy Stack", "d: Stop Stack", "s: Start Svc", "x: Stop Svc", "t: Restart Svc", "q: Quit"}
+		keys = []string{"1-5: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "a: Scan Stacks", "u: Deploy Stack", "d: Stop Stack", "s: Start Svc", "x: Stop Svc", "t: Restart Svc", "q: Quit"}
 	case TabLogs:
 		keys = []string{"1-5: Switch Tabs", "Tab: Select Panel", "Arrows: Navigate/Scroll Logs", "r: Force Refresh", "q: Quit"}
 	case TabAI:
