@@ -717,3 +717,42 @@ func (s *Server) GetDoctorReport(w http.ResponseWriter, r *http.Request) {
 	report := doctor.GenerateReport(conts, mounts, ports)
 	sendSuccess(w, http.StatusOK, report, nil)
 }
+
+// GetCloudflaredConfig returns the contents of cloudflared-config.yml
+func (s *Server) GetCloudflaredConfig(w http.ResponseWriter, r *http.Request) {
+	configPath := filepath.Join(syspaths.GetStackDir(), "cloudflared-config.yml")
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			sendSuccess(w, http.StatusOK, map[string]string{"content": ""}, nil)
+			return
+		}
+		sendError(w, http.StatusInternalServerError, "READ_FAILED", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]string{"content": string(content)}, nil)
+}
+
+// UpdateCloudflaredConfig updates the contents of cloudflared-config.yml
+func (s *Server) UpdateCloudflaredConfig(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		sendError(w, http.StatusBadRequest, "INVALID_JSON", "invalid JSON body", nil)
+		return
+	}
+
+	configPath := filepath.Join(syspaths.GetStackDir(), "cloudflared-config.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		sendError(w, http.StatusInternalServerError, "DIR_CREATE_FAILED", err.Error(), nil)
+		return
+	}
+
+	if err := os.WriteFile(configPath, []byte(input.Content), 0644); err != nil {
+		sendError(w, http.StatusInternalServerError, "WRITE_FAILED", err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
+}

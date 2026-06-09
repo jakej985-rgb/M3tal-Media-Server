@@ -220,6 +220,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Get("/doctor/report", srv.GetDoctorReport)
 			r.Post("/auth/dashpass", srv.HandleDashpass)
 			r.Post("/stacks/init", srv.HandleInit)
+			r.Get("/config/cloudflared", srv.GetCloudflaredConfig)
+			r.Post("/config/cloudflared", srv.UpdateCloudflaredConfig)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
@@ -295,6 +297,8 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Get("/doctor/report", srv.GetDoctorReport)
 			r.Post("/auth/dashpass", srv.HandleDashpass)
 			r.Post("/stacks/init", srv.HandleInit)
+			r.Get("/config/cloudflared", srv.GetCloudflaredConfig)
+			r.Post("/config/cloudflared", srv.UpdateCloudflaredConfig)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)

@@ -687,7 +687,56 @@ func (m Model) viewConfig(height int) string {
 	panelStyle := styleFocusedPanel
 
 	var builder strings.Builder
-	builder.WriteString(styleHeaderLabel.Render("⚙️ SYSTEM CONFIGURATION (Active Environment Variables)") + "\n")
+
+	if m.showCloudflared {
+		builder.WriteString(styleHeaderLabel.Render("☁️ CLOUDFLARED CONFIGURATION (cloudflared-config.yml - Press 'c' to view System Config)") + "\n")
+		builder.WriteString(strings.Repeat("─", width-4) + "\n")
+
+		if m.cloudflaredContent == "" {
+			if m.err != nil {
+				builder.WriteString(fmt.Sprintf("\n  Error loading config: %v\n", m.err))
+			} else {
+				builder.WriteString("\n  No cloudflared configuration found.\n  Press 'e' to create/edit and save one.\n")
+			}
+			return panelStyle.Width(width).Height(height).Render(builder.String())
+		}
+
+		lines := strings.Split(m.cloudflaredContent, "\n")
+		totalLines := len(lines)
+		visibleRows := height - 3
+		if visibleRows < 1 {
+			visibleRows = 1
+		}
+
+		// Clamp scroll offset
+		if m.cloudflaredScrollOffset < 0 {
+			m.cloudflaredScrollOffset = 0
+		}
+		maxOffset := totalLines - visibleRows
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		if m.cloudflaredScrollOffset > maxOffset {
+			m.cloudflaredScrollOffset = maxOffset
+		}
+
+		endIdx := m.cloudflaredScrollOffset + visibleRows
+		if endIdx > totalLines {
+			endIdx = totalLines
+		}
+
+		for idx := m.cloudflaredScrollOffset; idx < endIdx; idx++ {
+			builder.WriteString(truncateString(lines[idx], width-4) + "\n")
+		}
+
+		// Print scrolling/edit help
+		scrollHelp := fmt.Sprintf("─ [Line %d-%d of %d] (Arrow Up/Down to scroll, 'e' to edit) ─", m.cloudflaredScrollOffset+1, endIdx, totalLines)
+		builder.WriteString("\n" + lipgloss.NewStyle().Foreground(colorGray).Render(scrollHelp))
+
+		return panelStyle.Width(width).Height(height).Render(builder.String())
+	}
+
+	builder.WriteString(styleHeaderLabel.Render("⚙️ SYSTEM CONFIGURATION (Active Environment Variables - Press 'c' to view Cloudflared)") + "\n")
 	builder.WriteString(strings.Repeat("─", width-4) + "\n")
 
 	if len(m.configKeys) == 0 {
@@ -778,7 +827,11 @@ func (m Model) renderFooter() string {
 	case TabPlugins:
 		keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "c: Toggle Catalog", "i: Install", "e: Toggle Enable", "q: Quit"}
 	case TabConfig:
-		keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "r: Force Refresh", "q: Quit"}
+		if m.showCloudflared {
+			keys = []string{"1-5: Switch Tabs", "Arrows: Scroll", "c: Toggle View", "e: Edit Config", "r: Force Refresh", "q: Quit"}
+		} else {
+			keys = []string{"1-5: Switch Tabs", "Arrows: Navigate", "c: Toggle View", "r: Force Refresh", "q: Quit"}
+		}
 	}
 	return styleFooter.Width(m.width).Render("🔑 Keys: " + strings.Join(keys, " | "))
 }

@@ -118,6 +118,24 @@ func (c *Client) GetConfig() (map[string]string, error) {
 	return config, nil
 }
 
+// GetCloudflaredConfig fetches the contents of cloudflared-config.yml via API.
+func (c *Client) GetCloudflaredConfig() (string, error) {
+	var result struct {
+		Content string `json:"content"`
+	}
+	err := c.request("GET", "/api/v2/config/cloudflared", nil, &result)
+	if err != nil {
+		return "", err
+	}
+	return result.Content, nil
+}
+
+// UpdateCloudflaredConfig updates the contents of cloudflared-config.yml via API.
+func (c *Client) UpdateCloudflaredConfig(content string) error {
+	body := map[string]string{"content": content}
+	return c.request("POST", "/api/v2/config/cloudflared", body, nil)
+}
+
 // GetStatus checks the detailed system components health check report.
 func (c *Client) GetStatus() (*models.Status, error) {
 	var status models.Status

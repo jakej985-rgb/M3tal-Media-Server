@@ -628,7 +628,60 @@ Run this before 'm3tal up' to diagnose potential issues.`,
 			printJSON(stacks)
 		},
 	}
-	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd)
+
+	var configCloudflaredCmd = &cobra.Command{
+		Use:   "cloudflared",
+		Short: "View or edit cloudflared configuration",
+		Run: func(cmd *cobra.Command, args []string) {
+			edit, _ := cmd.Flags().GetBool("edit")
+			configPath := filepath.Join(system.GetStackDir(), "cloudflared-config.yml")
+
+			if edit {
+				if _, err := os.Stat(configPath); os.IsNotExist(err) {
+					defaultConfig := `tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: dash.${DOMAIN}
+    service: http://traefik:80
+
+  - hostname: api.${DOMAIN}
+    service: http://traefik:80
+
+  - service: http_status:404
+`
+					_ = os.WriteFile(configPath, []byte(defaultConfig), 0644)
+				}
+
+				editor := os.Getenv("EDITOR")
+				if editor == "" {
+					editor = "nano"
+				}
+
+				c := exec.Command(editor, configPath)
+				c.Stdin = os.Stdin
+				c.Stdout = os.Stdout
+				c.Stderr = os.Stderr
+				if err := c.Run(); err != nil {
+					log.Fatalf("❌ Editor failed: %v", err)
+				}
+				fmt.Println("✅ cloudflared configuration updated.")
+			} else {
+				content, err := os.ReadFile(configPath)
+				if err != nil {
+					if os.IsNotExist(err) {
+						fmt.Println("⚠️  cloudflared configuration does not exist yet. Run 'm3tal config cloudflared --edit' to create it.")
+						return
+					}
+					log.Fatalf("❌ Failed to read cloudflared config: %v", err)
+				}
+				fmt.Println(string(content))
+			}
+		},
+	}
+	configCloudflaredCmd.Flags().BoolP("edit", "e", false, "Edit the cloudflared configuration file in default editor")
+
+	configCmd.AddCommand(configListCmd, configSetCmd, configGetCmd, configScanCmd, configWizardCmd, configCloudflaredCmd)
 
 	// ─── VPN Commands ───
 	var vpnCmd = &cobra.Command{

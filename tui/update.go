@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -145,6 +147,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case configMsg:
 		if msg.err == nil {
 			m.configData = msg.config
+			m.cloudflaredContent = msg.cloudflared
 			m.err = nil
 			var keys []string
 			for k := range m.configData {
@@ -158,6 +161,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.err = msg.err
 		}
+
+	case editFinishedMsg:
+		if msg.err != nil {
+			m.SetNotification(fmt.Sprintf("❌ Edit failed: %v", msg.err), 4*time.Second)
+		} else {
+			m.cloudflaredContent = msg.content
+			m.SetNotification("✅ Cloudflared configuration updated!", 3*time.Second)
+		}
+		cmds = append(cmds, m.fetchAllDataCmd())
 
 	case actionResultMsg:
 		if msg.err != nil {
@@ -286,10 +298,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showCatalog = !m.showCatalog
 				m.selectedPluginIdx = 0
 				m.SetNotification("Toggled plugins view", 1*time.Second)
+			} else if m.activeTab == TabConfig {
+				m.showCloudflared = !m.showCloudflared
+				m.cloudflaredScrollOffset = 0
+				m.SetNotification("Toggled configuration view", 1*time.Second)
 			}
 		case "e":
 			if m.activeTab == TabPlugins {
 				cmds = append(cmds, m.togglePluginCmd())
+			} else if m.activeTab == TabConfig && m.showCloudflared {
+				cmds = append(cmds, m.editCloudflaredCmd())
 			}
 		case "i":
 			if m.activeTab == TabPlugins && m.showCatalog {
@@ -336,8 +354,14 @@ func (m *Model) handleNavigationUp() {
 			m.selectedPluginIdx--
 		}
 	case TabConfig:
-		if m.selectedConfigIdx > 0 {
-			m.selectedConfigIdx--
+		if m.showCloudflared {
+			if m.cloudflaredScrollOffset > 0 {
+				m.cloudflaredScrollOffset--
+			}
+		} else {
+			if m.selectedConfigIdx > 0 {
+				m.selectedConfigIdx--
+			}
 		}
 	}
 }
@@ -380,8 +404,15 @@ func (m *Model) handleNavigationDown() {
 			m.selectedPluginIdx++
 		}
 	case TabConfig:
-		if m.selectedConfigIdx < len(m.configKeys)-1 {
-			m.selectedConfigIdx++
+		if m.showCloudflared {
+			lines := strings.Split(m.cloudflaredContent, "\n")
+			if m.cloudflaredScrollOffset < len(lines)-1 {
+				m.cloudflaredScrollOffset++
+			}
+		} else {
+			if m.selectedConfigIdx < len(m.configKeys)-1 {
+				m.selectedConfigIdx++
+			}
 		}
 	}
 }
@@ -462,7 +493,14 @@ func (m Model) fetchActiveTabCmd() tea.Cmd {
 	case TabConfig:
 		return func() tea.Msg {
 			cfg, err := m.client.GetConfig()
-			return configMsg{config: cfg, err: err}
+			cloudflared, err2 := m.client.GetCloudflaredConfig()
+			var finalErr error
+			if err != nil {
+				finalErr = err
+			} else if err2 != nil {
+				finalErr = err2
+			}
+			return configMsg{config: cfg, cloudflared: cloudflared, err: finalErr}
 		}
 	}
 	return nil
@@ -568,4 +606,49 @@ func (m Model) installPluginCmd() tea.Cmd {
 		err := m.client.InstallPlugin(item.Name, item.Kind)
 		return actionResultMsg{message: fmt.Sprintf("✅ Plugin %s installed successfully!", item.Name), err: err}
 	}
+}
+
+func (m Model) editCloudflaredCmd() tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano"
+	}
+
+	tempFile, err := os.CreateTemp("", "cloudflared-config-*.yml")
+	if err != nil {
+		return func() tea.Msg {
+			return editFinishedMsg{err: fmt.Errorf("failed to create temp file: %w", err)}
+		}
+	}
+	tempPath := tempFile.Name()
+
+	if _, err := tempFile.WriteString(m.cloudflaredContent); err != nil {
+		tempFile.Close()
+		os.Remove(tempPath)
+		return func() tea.Msg {
+			return editFinishedMsg{err: fmt.Errorf("failed to write temp file: %w", err)}
+		}
+	}
+	tempFile.Close()
+
+	c := exec.Command(editor, tempPath)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		if err != nil {
+			os.Remove(tempPath)
+			return editFinishedMsg{err: fmt.Errorf("editor failed: %w", err)}
+		}
+
+		updatedBytes, err := os.ReadFile(tempPath)
+		os.Remove(tempPath)
+		if err != nil {
+			return editFinishedMsg{err: fmt.Errorf("failed to read updated file: %w", err)}
+		}
+
+		err = m.client.UpdateCloudflaredConfig(string(updatedBytes))
+		if err != nil {
+			return editFinishedMsg{err: fmt.Errorf("failed to save config to API: %w", err)}
+		}
+
+		return editFinishedMsg{content: string(updatedBytes)}
+	})
 }
