@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -161,7 +162,18 @@ func (m Model) renderHeader() string {
 		}
 	}
 
-	title := styleAppTitle.Render("M3TAL CONTROL CENTER (Go-TUI)")
+	version := "v1.1.39"
+	for _, p := range []string{"VERSION", "/etc/m3tal/VERSION"} {
+		if bytes, err := os.ReadFile(p); err == nil {
+			v := strings.TrimSpace(string(bytes))
+			if v != "" {
+				version = v
+				break
+			}
+		}
+	}
+
+	title := styleAppTitle.Render(fmt.Sprintf("M3TAL CONTROL CENTER (%s)", version))
 	statusInfo := fmt.Sprintf("💻 Host: %s | Uptime: %s | Health: %s", hostname, uptimeStr, healthStr)
 
 	// Calculate spaces to right-align the status info
