@@ -75,10 +75,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update containers in Stacks view (filtered by selected stack project label)
 			if m.activeTab == TabStacks && m.selectedStackIdx < len(m.stacks) {
 				stackName := strings.ToLower(m.stacks[m.selectedStackIdx].Name)
+				trimmedStackName := strings.TrimLeft(stackName, "0123456789-")
 				var filtered []models.Container
 				for _, c := range msg.containers {
 					proj := strings.ToLower(c.Labels["com.docker.compose.project"])
-					if proj == stackName {
+					mStack := strings.ToLower(c.Labels["m3tal.stack"])
+					configFiles := strings.ToLower(c.Labels["com.docker.compose.project.config_files"])
+
+					// Match if:
+					// 1. Project equals stack name or trimmed stack name
+					// 2. m3tal.stack label matches
+					// 3. com.docker.compose.project.config_files contains the compose filename
+					isMatch := proj == stackName ||
+						proj == trimmedStackName ||
+						mStack == trimmedStackName ||
+						mStack == stackName ||
+						strings.Contains(configFiles, stackName+"-compose.yml") ||
+						strings.Contains(configFiles, trimmedStackName+"-compose.yml")
+
+					if !isMatch && len(c.Names) > 0 {
+						cname := strings.ToLower(strings.TrimPrefix(c.Names[0], "/"))
+						isMatch = strings.HasPrefix(cname, stackName+"-") ||
+							strings.HasPrefix(cname, trimmedStackName+"-") ||
+							strings.HasPrefix(cname, "m3tal-"+trimmedStackName) ||
+							strings.HasPrefix(cname, "m3tal-"+stackName)
+					}
+
+					if isMatch {
 						filtered = append(filtered, c)
 					}
 				}

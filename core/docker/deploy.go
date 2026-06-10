@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jakej985-rgb/m3tal-core/core/traefik"
@@ -34,8 +36,11 @@ func DeployStack(composePath string, timeout time.Duration) (*DeployResult, erro
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	base := filepath.Base(composePath)
+	stackName := strings.TrimSuffix(base, "-compose.yml")
+
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composePath, "up", "-d")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", stackName, "-f", composePath, "up", "-d")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -126,8 +131,11 @@ func PullStack(composePath string, timeout time.Duration) (*DeployResult, error)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	base := filepath.Base(composePath)
+	stackName := strings.TrimSuffix(base, "-compose.yml")
+
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composePath, "pull")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", stackName, "-f", composePath, "pull")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -162,8 +170,11 @@ func StopStack(composePath string, timeout time.Duration) (*DeployResult, error)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	base := filepath.Base(composePath)
+	stackName := strings.TrimSuffix(base, "-compose.yml")
+
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composePath, "down")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", stackName, "-f", composePath, "down")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
