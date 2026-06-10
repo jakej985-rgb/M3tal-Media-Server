@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -39,6 +41,27 @@ func DeployStack(composePath string, timeout time.Duration) (*DeployResult, erro
 	base := filepath.Base(composePath)
 	stackName := strings.TrimSuffix(base, "-compose.yml")
 
+	// Auto-create missing env files referenced in the compose file to prevent startup crashes
+	if data, err := os.ReadFile(composePath); err == nil {
+		dir := filepath.Dir(composePath)
+		re := regexp.MustCompile(`(?m)^\s*-\s*(\.?/[^#\s]+|[^#\s]+)\s*$`)
+		matches := re.FindAllStringSubmatch(string(data), -1)
+		for _, m := range matches {
+			if len(m) > 1 {
+				envFile := strings.Trim(m[1], `"'`)
+				if strings.HasSuffix(envFile, ".env") {
+					envPath := envFile
+					if !filepath.IsAbs(envPath) {
+						envPath = filepath.Join(dir, envPath)
+					}
+					if _, err := os.Stat(envPath); os.IsNotExist(err) {
+						_ = os.WriteFile(envPath, []byte("# Auto-generated empty env file\n"), 0644)
+					}
+				}
+			}
+		}
+	}
+
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", stackName, "-f", composePath, "up", "-d")
 	cmd.Stdout = &stdout
@@ -63,7 +86,7 @@ func DeployStack(composePath string, timeout time.Duration) (*DeployResult, erro
 			Status:   "failed",
 			Duration: duration,
 			Logs:     logs,
-		}, fmt.Errorf("deployment failed: %w", err)
+		}, fmt.Errorf("deployment failed: %w\nLogs:\n%s", err, logs)
 	}
 
 	return &DeployResult{
@@ -149,7 +172,7 @@ func PullStack(composePath string, timeout time.Duration) (*DeployResult, error)
 			Status:   "failed",
 			Duration: duration,
 			Logs:     logs,
-		}, err
+		}, fmt.Errorf("pull failed: %w\nLogs:\n%s", err, logs)
 	}
 
 	return &DeployResult{
@@ -188,7 +211,7 @@ func StopStack(composePath string, timeout time.Duration) (*DeployResult, error)
 			Status:   "failed",
 			Duration: duration,
 			Logs:     logs,
-		}, err
+		}, fmt.Errorf("stop failed: %w\nLogs:\n%s", err, logs)
 	}
 
 	return &DeployResult{
