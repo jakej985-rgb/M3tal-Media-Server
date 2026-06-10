@@ -198,5 +198,9 @@ func (r *Registry) GenerateTraefikConfig() ([]byte, error) {
 		cfg.HTTP.Middlewares[name] = tm
 	}
 
+	if len(cfg.HTTP.Routers) == 0 && len(cfg.HTTP.Services) == 0 && len(cfg.HTTP.Middlewares) == 0 {
+		return []byte("# No active plugin routes or middlewares\n"), nil
+	}
+
 	return yaml.Marshal(cfg)
 }
