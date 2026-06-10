@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
+	"github.com/jakej985-rgb/m3tal-core/pkg/system"
 )
 
 // Init initializes Bubble Tea commands.
@@ -179,6 +181,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			sort.Strings(keys)
 			m.configKeys = keys
+
+			m.refreshConfigFiles()
+			m.loadSelectedConfigContent()
 		} else {
 			m.err = msg.err
 		}
@@ -186,12 +191,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case editFinishedMsg:
 		if msg.err != nil {
 			m.SetNotification(fmt.Sprintf("❌ Edit failed: %v", msg.err), 4*time.Second)
-		} else if msg.isEnvEdit {
-			m.envRawContent = msg.content
-			m.SetNotification("✅ .env configuration updated!", 3*time.Second)
 		} else {
-			m.cloudflaredContent = msg.content
-			m.SetNotification("✅ Cloudflared configuration updated!", 3*time.Second)
+			m.SetNotification("✅ Configuration file updated!", 3*time.Second)
+			m.loadSelectedConfigContent()
 		}
 		cmds = append(cmds, m.fetchAllDataCmd())
 
@@ -230,6 +232,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.fetchAllDataCmd())
 		case "5":
 			m.activeTab = TabConfig
+			m.refreshConfigFiles()
+			m.loadSelectedConfigContent()
 			cmds = append(cmds, m.fetchAllDataCmd())
 
 		case "tab":
@@ -240,6 +244,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusOnStacks = !m.focusOnStacks // repurposed for logs left/right
 			case TabAI:
 				m.focusOnQueue = !m.focusOnQueue
+			case TabConfig:
+				m.focusOnConfig = !m.focusOnConfig
 			}
 
 		case "up", "k":
@@ -329,22 +335,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showCatalog = !m.showCatalog
 				m.selectedPluginIdx = 0
 				m.SetNotification("Toggled plugins view", 1*time.Second)
-			case TabConfig:
-				m.showCloudflared = !m.showCloudflared
-				m.cloudflaredScrollOffset = 0
-				m.envScrollOffset = 0
-				m.SetNotification("Toggled configuration view", 1*time.Second)
 			}
 		case "e":
 			switch m.activeTab {
 			case TabPlugins:
 				cmds = append(cmds, m.togglePluginCmd())
 			case TabConfig:
-				if m.showCloudflared {
-					cmds = append(cmds, m.editCloudflaredCmd())
-				} else {
-					cmds = append(cmds, m.editEnvCmd())
-				}
+				cmds = append(cmds, m.editConfigCmd())
 			}
 		case "i":
 			if m.activeTab == TabPlugins && m.showCatalog {
@@ -391,13 +388,15 @@ func (m *Model) handleNavigationUp() {
 			m.selectedPluginIdx--
 		}
 	case TabConfig:
-		if m.showCloudflared {
-			if m.cloudflaredScrollOffset > 0 {
-				m.cloudflaredScrollOffset--
+		if m.focusOnConfig {
+			if m.selectedConfigIdx > 0 {
+				m.selectedConfigIdx--
+				m.configScrollOffset = 0
+				m.loadSelectedConfigContent()
 			}
 		} else {
-			if m.envScrollOffset > 0 {
-				m.envScrollOffset--
+			if m.configScrollOffset > 0 {
+				m.configScrollOffset--
 			}
 		}
 	}
@@ -441,15 +440,16 @@ func (m *Model) handleNavigationDown() {
 			m.selectedPluginIdx++
 		}
 	case TabConfig:
-		if m.showCloudflared {
-			lines := strings.Split(m.cloudflaredContent, "\n")
-			if m.cloudflaredScrollOffset < len(lines)-1 {
-				m.cloudflaredScrollOffset++
+		if m.focusOnConfig {
+			if m.selectedConfigIdx < len(m.configFiles)-1 {
+				m.selectedConfigIdx++
+				m.configScrollOffset = 0
+				m.loadSelectedConfigContent()
 			}
 		} else {
-			lines := strings.Split(m.envRawContent, "\n")
-			if m.envScrollOffset < len(lines)-1 {
-				m.envScrollOffset++
+			lines := strings.Split(m.selectedConfigContent, "\n")
+			if m.configScrollOffset < len(lines)-1 {
+				m.configScrollOffset++
 			}
 		}
 	}
@@ -656,92 +656,109 @@ func (m Model) installPluginCmd() tea.Cmd {
 	}
 }
 
-func (m Model) editCloudflaredCmd() tea.Cmd {
+func (m *Model) refreshConfigFiles() {
+	m.configFiles = []ConfigFile{}
+
+	// 1. Add the primary system config .env
+	envPath := system.GetConfigPath()
+	m.configFiles = append(m.configFiles, ConfigFile{
+		Name: "System Config (.env)",
+		Path: envPath,
+	})
+
+	// 2. Scan GetStackDir() for other *.env and *config.yml / *config.yaml files
+	stackDir := system.GetStackDir()
+	entries, err := os.ReadDir(stackDir)
+	if err == nil {
+		var found []ConfigFile
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			lower := strings.ToLower(name)
+
+			// Skip if it matches the main envPath to avoid duplication
+			absPath := filepath.Clean(filepath.Join(stackDir, name))
+			absEnvPath, _ := filepath.Abs(envPath)
+			absFilePath, _ := filepath.Abs(absPath)
+			if absEnvPath == absFilePath {
+				continue
+			}
+
+			// Match .env files or config.yml / config.yaml
+			if strings.HasSuffix(lower, ".env") || strings.Contains(lower, "config.yml") || strings.Contains(lower, "config.yaml") {
+				found = append(found, ConfigFile{
+					Name: name,
+					Path: absPath,
+				})
+			}
+		}
+
+		// Sort found files alphabetically
+		sort.Slice(found, func(i, j int) bool {
+			return strings.ToLower(found[i].Name) < strings.ToLower(found[j].Name)
+		})
+
+		m.configFiles = append(m.configFiles, found...)
+	}
+
+	// Clamp selectedConfigIdx
+	if m.selectedConfigIdx >= len(m.configFiles) {
+		m.selectedConfigIdx = 0
+	}
+}
+
+func (m *Model) loadSelectedConfigContent() {
+	if len(m.configFiles) == 0 {
+		m.selectedConfigContent = ""
+		return
+	}
+
+	path := m.configFiles[m.selectedConfigIdx].Path
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		m.selectedConfigContent = fmt.Sprintf("Error reading file: %v", err)
+		return
+	}
+	m.selectedConfigContent = string(bytes)
+}
+
+func (m Model) editConfigCmd() tea.Cmd {
+	if len(m.configFiles) == 0 {
+		return func() tea.Msg {
+			return editFinishedMsg{err: fmt.Errorf("no config file to edit")}
+		}
+	}
+
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		editor = "nano"
 	}
 
-	tempFile, err := os.CreateTemp("", "cloudflared-config-*.yml")
-	if err != nil {
-		return func() tea.Msg {
-			return editFinishedMsg{err: fmt.Errorf("failed to create temp file: %w", err)}
-		}
-	}
-	tempPath := tempFile.Name()
+	filePath := m.configFiles[m.selectedConfigIdx].Path
 
-	if _, err := tempFile.WriteString(m.cloudflaredContent); err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
-		return func() tea.Msg {
-			return editFinishedMsg{err: fmt.Errorf("failed to write temp file: %w", err)}
-		}
-	}
-	tempFile.Close()
-
-	c := exec.Command(editor, tempPath)
+	c := exec.Command(editor, filePath)
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		if err != nil {
-			os.Remove(tempPath)
 			return editFinishedMsg{err: fmt.Errorf("editor failed: %w", err)}
 		}
 
-		updatedBytes, err := os.ReadFile(tempPath)
-		os.Remove(tempPath)
+		updatedBytes, err := os.ReadFile(filePath)
 		if err != nil {
 			return editFinishedMsg{err: fmt.Errorf("failed to read updated file: %w", err)}
 		}
 
-		err = m.client.UpdateCloudflaredConfig(string(updatedBytes))
-		if err != nil {
-			return editFinishedMsg{err: fmt.Errorf("failed to save config to API: %w", err)}
+		// Sync with client API if it's the main .env or cloudflared-config.yml
+		isEnvEdit := (filePath == system.GetConfigPath())
+		isCloudflaredEdit := (filepath.Base(filePath) == "cloudflared-config.yml")
+
+		if isEnvEdit {
+			_ = m.client.UpdateEnvConfig(string(updatedBytes))
+		} else if isCloudflaredEdit {
+			_ = m.client.UpdateCloudflaredConfig(string(updatedBytes))
 		}
 
-		return editFinishedMsg{content: string(updatedBytes)}
-	})
-}
-
-func (m Model) editEnvCmd() tea.Cmd {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "nano"
-	}
-
-	tempFile, err := os.CreateTemp("", "m3tal-env-*.env")
-	if err != nil {
-		return func() tea.Msg {
-			return editFinishedMsg{err: fmt.Errorf("failed to create temp file: %w", err), isEnvEdit: true}
-		}
-	}
-	tempPath := tempFile.Name()
-
-	if _, err := tempFile.WriteString(m.envRawContent); err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
-		return func() tea.Msg {
-			return editFinishedMsg{err: fmt.Errorf("failed to write temp file: %w", err), isEnvEdit: true}
-		}
-	}
-	tempFile.Close()
-
-	c := exec.Command(editor, tempPath)
-	return tea.ExecProcess(c, func(err error) tea.Msg {
-		if err != nil {
-			os.Remove(tempPath)
-			return editFinishedMsg{err: fmt.Errorf("editor failed: %w", err), isEnvEdit: true}
-		}
-
-		updatedBytes, err := os.ReadFile(tempPath)
-		os.Remove(tempPath)
-		if err != nil {
-			return editFinishedMsg{err: fmt.Errorf("failed to read updated file: %w", err), isEnvEdit: true}
-		}
-
-		err = m.client.UpdateEnvConfig(string(updatedBytes))
-		if err != nil {
-			return editFinishedMsg{err: fmt.Errorf("failed to save .env to API: %w", err), isEnvEdit: true}
-		}
-
-		return editFinishedMsg{content: string(updatedBytes), isEnvEdit: true}
+		return editFinishedMsg{content: string(updatedBytes), isEnvEdit: isEnvEdit}
 	})
 }

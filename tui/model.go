@@ -7,6 +7,12 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
+// ConfigFile represents a dynamic configuration file discovered on disk.
+type ConfigFile struct {
+	Name string
+	Path string
+}
+
 // Tab represents each TUI view pane.
 type Tab int
 
@@ -131,6 +137,12 @@ type Model struct {
 	cloudflaredScrollOffset int
 	envRawContent           string // raw .env file content for editor
 	envScrollOffset         int
+
+	configFiles           []ConfigFile
+	selectedConfigIdx     int
+	selectedConfigContent string
+	configScrollOffset    int
+	focusOnConfig         bool // true = left panel (configs list), false = right panel (content viewer)
 }
 
 // NewModel initializes the TUI state model.
@@ -141,6 +153,7 @@ func NewModel(c *client.Client) Model {
 		focusOnStacks: true,
 		focusOnQueue:  true,
 		showCatalog:   false,
+		focusOnConfig: true,
 	}
 }
 
