@@ -11,6 +11,11 @@ import (
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 )
 
+// Version is injected at build time via:
+//
+//	go build -ldflags "-X github.com/jakej985-rgb/m3tal-core/tui.Version=$(cat VERSION)"
+var Version string
+
 // Common UI Styling using Lip Gloss
 var (
 	// Colors
@@ -162,15 +167,16 @@ func (m Model) renderHeader() string {
 		}
 	}
 
-	version := "v1.1.39"
-	for _, p := range []string{"VERSION", "/etc/m3tal/VERSION"} {
-		if bytes, err := os.ReadFile(p); err == nil {
-			v := strings.TrimSpace(string(bytes))
-			if v != "" {
+	version := strings.TrimSpace(Version)
+	if version == "" {
+		if bytes, err := os.ReadFile("/etc/m3tal/VERSION"); err == nil {
+			if v := strings.TrimSpace(string(bytes)); v != "" {
 				version = v
-				break
 			}
 		}
+	}
+	if version == "" {
+		version = "dev"
 	}
 
 	title := styleAppTitle.Render(fmt.Sprintf("M3TAL CONTROL CENTER (%s)", version))

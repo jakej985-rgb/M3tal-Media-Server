@@ -22,9 +22,9 @@ help:
 
 build:
 	@echo "🚀 Building M3TAL CLI..."
-	go build -o m3tal ./cli
+	go build -ldflags "-X github.com/jakej985-rgb/m3tal-core/tui.Version=$(VERSION)" -o m3tal ./cli
 	@echo "🚀 Building M3TAL API..."
-	go build -o m3tal-api ./api/cmd
+	go build -ldflags "-X github.com/jakej985-rgb/m3tal-core/tui.Version=$(VERSION)" -o m3tal-api ./api/cmd
 	@echo "✅ Build complete."
 
 deb: build
