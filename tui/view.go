@@ -91,13 +91,13 @@ func (m Model) View() string {
 		return "Initializing M3TAL TUI..."
 	}
 
-	headerHeight := 4
-	footerHeight := 2
 	notificationHeight := 0
+	nonContentHeight := 9
 	if m.notification != "" && time.Now().Before(m.notificationTimeout) {
 		notificationHeight = 1
+		nonContentHeight = 11
 	}
-	contentHeight := m.height - headerHeight - footerHeight - notificationHeight - 2
+	contentHeight := m.height - nonContentHeight
 
 	var content string
 
@@ -210,7 +210,7 @@ func (m Model) renderConnectionError(width, height int) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorRed).
 		Width(width).
-		Height(height).
+		Height(height-2).
 		Align(lipgloss.Center, lipgloss.Center)
 
 	errMsgStr := fmt.Sprintf("\n\n🚨 [bold %s]API OFFLINE[/bold %s]\n\nConnection Error: %v\n\nChecking connection...", colorRed, colorRed, m.err)
@@ -229,11 +229,10 @@ func (m Model) viewDashboard(height int) string {
 		leftStyle = styleFocusedPanel
 	}
 	leftContent := m.renderDashboardTelemetry(leftWidth-4, height-2)
-	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
+	leftBox := leftStyle.Width(leftWidth).Height(height - 2).Render(leftContent)
 
 	// Right Side: Docker & Doctor Reports & Quick Actions
-	rightContent := m.renderDashboardDetails(rightWidth-2, height-2)
-	rightBox := rightContent
+	rightBox := m.renderDashboardDetails(rightWidth-2, height)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 }
@@ -292,15 +291,15 @@ func (m Model) renderDashboardTelemetry(width, height int) string {
 }
 
 func (m Model) renderDashboardDetails(width, height int) string {
-	topHeight := height/2 - 1
-	bottomHeight := height - topHeight - 2
+	topHeight := (height - 4) / 2
+	bottomHeight := height - 4 - topHeight
 
 	// Doctor Report Panel
 	docStyle := styleUnfocusedPanel
 	if m.dashboardFocusIndex == 1 {
 		docStyle = styleFocusedPanel
 	}
-	docContent := m.renderDashboardDoctor(width-4, topHeight-2)
+	docContent := m.renderDashboardDoctor(width-4, topHeight)
 	topBox := docStyle.Width(width).Height(topHeight).Render(docContent)
 
 	// Quick Actions Panel
@@ -308,7 +307,7 @@ func (m Model) renderDashboardDetails(width, height int) string {
 	if m.dashboardFocusIndex == 2 {
 		actStyle = styleFocusedPanel
 	}
-	actContent := m.renderDashboardQuickActions(width-4, bottomHeight-2)
+	actContent := m.renderDashboardQuickActions(width-4, bottomHeight)
 	bottomBox := actStyle.Width(width).Height(bottomHeight).Render(actContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, topBox, bottomBox)
@@ -457,30 +456,30 @@ func (m Model) viewContainers(height int) string {
 			leftStyle = styleFocusedPanel
 		}
 		leftContent := m.renderStacksList(leftWidth-4, innerContentHeight-2)
-		leftBox := leftStyle.Width(leftWidth).Height(innerContentHeight).Render(leftContent)
+		leftBox := leftStyle.Width(leftWidth).Height(innerContentHeight - 2).Render(leftContent)
 
 		rightStyle := styleFocusedPanel
 		if m.containersTabFocus == 0 {
 			rightStyle = styleUnfocusedPanel
 		}
 		rightContent := m.renderServicesList(rightWidth-2, innerContentHeight-2)
-		rightBox := rightStyle.Width(rightWidth).Height(innerContentHeight).Render(rightContent)
+		rightBox := rightStyle.Width(rightWidth).Height(innerContentHeight - 2).Render(rightContent)
 		innerContent = lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 
 	case 2: // Images
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerImagesList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 
 	case 3: // Volumes
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerVolumesList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 
 	case 4: // Networks
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerNetworksList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	}
 
 	return subTabsHeader + innerContent
@@ -690,14 +689,14 @@ func (m Model) viewLogs(height int) string {
 		leftStyle = styleFocusedPanel
 	}
 	leftContent := m.renderLogsContainerList(leftWidth-4, height-2)
-	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
+	leftBox := leftStyle.Width(leftWidth).Height(height - 2).Render(leftContent)
 
 	rightStyle := styleFocusedPanel
 	if m.focusOnConfig {
 		rightStyle = styleUnfocusedPanel
 	}
 	rightContent := m.renderLogsStream(rightWidth-2, height-2)
-	rightBox := rightStyle.Width(rightWidth).Height(height).Render(rightContent)
+	rightBox := rightStyle.Width(rightWidth).Height(height - 2).Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 }
@@ -856,14 +855,14 @@ func (m Model) viewEditor(height int) string {
 		leftStyle = styleFocusedPanel
 	}
 	leftContent := m.renderConfigsList(leftWidth-4, height-2)
-	leftBox := leftStyle.Width(leftWidth).Height(height).Render(leftContent)
+	leftBox := leftStyle.Width(leftWidth).Height(height - 2).Render(leftContent)
 
 	rightStyle := styleFocusedPanel
 	if m.focusOnConfig {
 		rightStyle = styleUnfocusedPanel
 	}
 	rightContent := m.renderSelectedConfigViewer(rightWidth-4, height-2)
-	rightBox := rightStyle.Width(rightWidth).Height(height).Render(rightContent)
+	rightBox := rightStyle.Width(rightWidth).Height(height - 2).Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 }
@@ -921,7 +920,7 @@ func (m Model) renderSelectedConfigViewer(width, height int) string {
 
 	lines := strings.Split(m.selectedConfigContent, "\n")
 	totalLines := len(lines)
-	visibleRows := height - 3
+	visibleRows := height - 4
 	if visibleRows < 1 {
 		visibleRows = 1
 	}
@@ -976,16 +975,16 @@ func (m Model) viewSystem(height int) string {
 	switch m.systemTabFocus {
 	case 0: // Services
 		content := m.renderSystemServices(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	case 1: // Partitions
 		content := m.renderSystemPartitions(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	case 2: // Cron
 		content := m.renderSystemCron(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	case 3: // Updates
 		content := m.renderSystemUpdates(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	}
 
 	return subTabsHeader + innerContent
@@ -1189,10 +1188,10 @@ func (m Model) viewTerminal(height int) string {
 	switch m.terminalTabFocus {
 	case 0: // Shell Launcher
 		content := m.renderLocalShellLauncher(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	case 1: // SSH profiles
 		content := m.renderSSHProfiles(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	case 2, 3: // AI Queue & Models
 		leftWidth := m.width * 7 / 10
 		if leftWidth < 40 {
@@ -1205,14 +1204,14 @@ func (m Model) viewTerminal(height int) string {
 			leftStyle = styleFocusedPanel
 		}
 		leftContent := m.renderAIQueue(leftWidth-4, innerContentHeight-2)
-		leftBox := leftStyle.Width(leftWidth).Height(innerContentHeight).Render(leftContent)
+		leftBox := leftStyle.Width(leftWidth).Height(innerContentHeight - 2).Render(leftContent)
 
 		rightStyle := styleFocusedPanel
 		if m.terminalTabFocus == 2 {
 			rightStyle = styleUnfocusedPanel
 		}
 		rightContent := m.renderAIModels(rightWidth-2, innerContentHeight-2)
-		rightBox := rightStyle.Width(rightWidth).Height(innerContentHeight).Render(rightContent)
+		rightBox := rightStyle.Width(rightWidth).Height(innerContentHeight - 2).Render(rightContent)
 		innerContent = lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 	case 4: // Plugins
 		width := m.width - 6
@@ -1222,7 +1221,7 @@ func (m Model) viewTerminal(height int) string {
 		} else {
 			content = m.renderPluginsList(width-4, innerContentHeight-2)
 		}
-		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight - 2).Render(content)
 	}
 
 	return subTabsHeader + innerContent
