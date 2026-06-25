@@ -225,6 +225,22 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Get("/config/env", srv.GetEnvConfig)
 			r.Post("/config/env", srv.UpdateEnvConfig)
 
+			// System Services, Storage, Cron, and Updates
+			r.Get("/system/services", srv.GetSystemServices)
+			r.Post("/system/services/{name}/{action}", srv.ControlSystemService)
+			r.Get("/system/storage", srv.GetSystemStorage)
+			r.Get("/system/cron", srv.GetCronJobs)
+			r.Get("/system/updates", srv.GetSystemUpdates)
+			r.Post("/system/updates/apply", srv.ApplySystemUpdates)
+
+			// Docker Controls
+			r.Get("/docker/images", srv.GetDockerImages)
+			r.Post("/docker/images/prune", srv.PruneDockerImages)
+			r.Get("/docker/volumes", srv.GetDockerVolumes)
+			r.Post("/docker/volumes/prune", srv.PruneDockerVolumes)
+			r.Get("/docker/networks", srv.GetDockerNetworks)
+			r.Post("/docker/networks/prune", srv.PruneDockerNetworks)
+
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)
 			r.Get("/ws/logs/{name}", srv.GetWSLogs)
@@ -303,6 +319,22 @@ func StartServerWithStore(port string, token string, db *state.Store) error {
 			r.Post("/config/cloudflared", srv.UpdateCloudflaredConfig)
 			r.Get("/config/env", srv.GetEnvConfig)
 			r.Post("/config/env", srv.UpdateEnvConfig)
+
+			// System Services, Storage, Cron, and Updates
+			r.Get("/system/services", srv.GetSystemServices)
+			r.Post("/system/services/{name}/{action}", srv.ControlSystemService)
+			r.Get("/system/storage", srv.GetSystemStorage)
+			r.Get("/system/cron", srv.GetCronJobs)
+			r.Get("/system/updates", srv.GetSystemUpdates)
+			r.Post("/system/updates/apply", srv.ApplySystemUpdates)
+
+			// Docker Controls
+			r.Get("/docker/images", srv.GetDockerImages)
+			r.Post("/docker/images/prune", srv.PruneDockerImages)
+			r.Get("/docker/volumes", srv.GetDockerVolumes)
+			r.Post("/docker/volumes/prune", srv.PruneDockerVolumes)
+			r.Get("/docker/networks", srv.GetDockerNetworks)
+			r.Post("/docker/networks/prune", srv.PruneDockerNetworks)
 
 			// WebSockets
 			r.Get("/ws/events", srv.GetWSEvents)

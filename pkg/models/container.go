@@ -21,3 +21,28 @@ type Container struct {
 	Ports    []PortInfo        `json:"ports,omitempty"`
 	Networks []string          `json:"networks,omitempty"`
 }
+
+// DockerImage represents a docker image.
+type DockerImage struct {
+	ID          string   `json:"id"`
+	Repository  string   `json:"repository"`
+	Tag         string   `json:"tag"`
+	Size        int64    `json:"size"` // bytes
+	Created     int64    `json:"created"` // timestamp
+}
+
+// DockerVolume represents a docker volume.
+type DockerVolume struct {
+	Name       string            `json:"name"`
+	Driver     string            `json:"driver"`
+	Mountpoint string            `json:"mountpoint"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+// DockerNetwork represents a docker network.
+type DockerNetwork struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Driver string `json:"driver"`
+	Scope  string `json:"scope"`
+}

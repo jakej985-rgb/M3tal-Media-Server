@@ -17,19 +17,20 @@ type ConfigFile struct {
 type Tab int
 
 const (
-	TabStacks Tab = iota
+	TabDashboard Tab = iota
+	TabContainers
 	TabLogs
-	TabAI
-	TabPlugins
-	TabConfig
+	TabEditor
+	TabSystem
+	TabTerminal
 )
 
 // Message types for Bubble Tea
 type tickMsg time.Time
 
-type metricsMsg struct {
-	metrics *models.MetricsResponse
-	err     error
+type detailedMetricsMsg struct {
+	stats *models.DetailedStats
+	err   error
 }
 
 type statusMsg struct {
@@ -53,18 +54,6 @@ type logsMsg struct {
 	err       error
 }
 
-type aiMsg struct {
-	queue  []models.JobRecord
-	models []string
-	err    error
-}
-
-type pluginsMsg struct {
-	plugins *models.PluginsResponse
-	catalog []models.CatalogItemStatus
-	err     error
-}
-
 type actionResultMsg struct {
 	message string
 	err     error
@@ -83,6 +72,59 @@ type editFinishedMsg struct {
 	err       error
 }
 
+type doctorReportMsg struct {
+	report models.DoctorReport
+	err    error
+}
+
+type dockerImagesMsg struct {
+	images []models.DockerImage
+	err    error
+}
+
+type dockerVolumesMsg struct {
+	volumes []models.DockerVolume
+	err     error
+}
+
+type dockerNetworksMsg struct {
+	networks []models.DockerNetwork
+	err      error
+}
+
+type systemServicesMsg struct {
+	services []models.ServiceStatus
+	err      error
+}
+
+type systemStorageMsg struct {
+	partitions []models.DiskPartition
+	samba      []models.SambaShare
+	err        error
+}
+
+type cronJobsMsg struct {
+	jobs []models.CronJob
+	err  error
+}
+
+type systemUpdatesMsg struct {
+	updates *models.SystemUpdates
+	err     error
+}
+
+type aiMsg struct {
+	queue  []models.JobRecord
+	models []string
+	err    error
+}
+
+type pluginsMsg struct {
+	plugins *models.PluginsResponse
+	catalog []models.CatalogItemStatus
+	err     error
+}
+
 // Model defines the state model for M3TAL Go TUI dashboard.
 type Model struct {
 	client      *client.Client
@@ -96,64 +138,101 @@ type Model struct {
 	notification        string
 	notificationTimeout time.Time
 
-	// API Data
-	metrics *models.MetricsResponse
-	status  *models.Status
+	// API Data (Detailed)
+	detailedStats *models.DetailedStats
+	status        *models.Status
 
-	// Stacks Tab State
-	stacks               []models.Stack
-	selectedStackIdx     int
-	containers           []models.Container
-	selectedContainerIdx int
-	focusOnStacks        bool // true = stacks list, false = services list
+	// Tab 1: Dashboard State
+	doctorReport           models.DoctorReport
+	dashboardFocusIndex    int // 0 = metrics/health, 1 = doctor alerts, 2 = quick actions
+	selectedQuickActionIdx int
 
-	// Logs Tab State
+	// Tab 2: Containers & Docker Controls State
+	containersTabFocus    int // 0 = stacks list, 1 = services list, 2 = images, 3 = volumes, 4 = networks
+	stacks                []models.Stack
+	selectedStackIdx      int
+	containers            []models.Container
+	selectedContainerIdx  int
+	dockerImages          []models.DockerImage
+	selectedImageIdx      int
+	dockerVolumes         []models.DockerVolume
+	selectedVolumeIdx     int
+	dockerNetworks        []models.DockerNetwork
+	selectedNetworkIdx    int
+
+	// Tab 3: Logs State
 	logContainers           []models.Container
 	selectedLogContainerIdx int
 	logs                    string
 	logScrollOffset         int
 	logScrollHeight         int
 	lastLogContainer        string
-	lastLogContent          string
+	logLevelFilter          string // "ALL", "INFO", "WARN", "ERROR"
+	logSearchQuery          string
+	logFollow               bool
+	showLogSearchPrompt     bool // state of search prompt input
 
-	// AI Queue & Models State
+	// Tab 4: Editor State
+	configFiles             []ConfigFile
+	selectedConfigIdx       int
+	selectedConfigContent   string
+	configScrollOffset      int
+	focusOnConfig           bool // true = left panel (configs list), false = right panel (content viewer)
+	diffContent             string
+	showDiff                bool
+	cloudflaredContent      string
+	envRawContent           string
+
+	// Tab 5: System Admin State
+	systemTabFocus          int // 0 = services, 1 = disks/mounts, 2 = cron, 3 = updates
+	systemServices          []models.ServiceStatus
+	selectedServiceIdx      int
+	diskPartitions          []models.DiskPartition
+	selectedPartitionIdx    int
+	sambaShares             []models.SambaShare
+	selectedSambaIdx        int
+	cronJobs                []models.CronJob
+	selectedCronIdx         int
+	systemUpdates           *models.SystemUpdates
+	selectedUpdateIdx       int
+
+	// Tab 6: Terminal & Integrations State
+	terminalTabFocus        int // 0 = Terminal Launcher, 1 = Saved SSH, 2 = Env variables, 3 = AI Queue, 4 = Plugins
+	sshProfiles             []string
+	selectedSSHIdx          int
+	envVars                 []string
+	selectedEnvVarIdx       int
+	savedAliases            []string
+	selectedAliasIdx        int
+
+	// AI Queue & Models State (integrated under Terminal/Shell view)
 	queue            []models.JobRecord
 	selectedJobIdx   int
 	aiModels         []string
 	selectedModelIdx int
-	focusOnQueue     bool // true = job queue list, false = Ollama models list
 
-	// Plugins Tab State
+	// Plugins State (integrated under Terminal/Shell view)
 	plugins           *models.PluginsResponse
 	catalog           []models.CatalogItemStatus
 	showCatalog       bool // true = Catalog view, false = Installed view
 	selectedPluginIdx int
-
-	// Config Tab State
-	configData              map[string]string
-	configKeys              []string
-	showCloudflared         bool // true = cloudflared-config.yml, false = system env config
-	cloudflaredContent      string
-	cloudflaredScrollOffset int
-	envRawContent           string // raw .env file content for editor
-	envScrollOffset         int
-
-	configFiles           []ConfigFile
-	selectedConfigIdx     int
-	selectedConfigContent string
-	configScrollOffset    int
-	focusOnConfig         bool // true = left panel (configs list), false = right panel (content viewer)
 }
 
 // NewModel initializes the TUI state model.
 func NewModel(c *client.Client) Model {
 	return Model{
-		client:        c,
-		activeTab:     TabStacks,
-		focusOnStacks: true,
-		focusOnQueue:  true,
-		showCatalog:   false,
-		focusOnConfig: true,
+		client:             c,
+		activeTab:          TabDashboard,
+		containersTabFocus: 0,
+		logFollow:          true,
+		logLevelFilter:     "ALL",
+		focusOnConfig:      true,
+		systemTabFocus:     0,
+		terminalTabFocus:   0,
+		sshProfiles:        []string{"localhost", "staging-server", "production-edge"},
+		envVars:            []string{"BASE_STORAGE_PATH=/docker", "API_TOKEN=m3tal-secret", "DASHBOARD_PORT=8082"},
+		savedAliases:       []string{"dc=docker compose", "dps=docker ps --format 'table {{.Names}}\t{{.Status}}'", "dprune=docker system prune -a --volumes"},
+		showCatalog:        false,
 	}
 }
 

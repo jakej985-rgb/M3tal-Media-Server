@@ -797,3 +797,182 @@ func (s *Server) UpdateEnvConfig(w http.ResponseWriter, r *http.Request) {
 
 	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
 }
+
+// GetSystemServices retrieves status of all systemd services.
+// GET /api/v2/system/services
+func (s *Server) GetSystemServices(w http.ResponseWriter, r *http.Request) {
+	services, err := system.ListServices()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "SYSTEMD_LIST_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, services, nil)
+}
+
+// ControlSystemService starts, stops, restarts, enables, or disables a service.
+// POST /api/v2/system/services/{name}/{action}
+func (s *Server) ControlSystemService(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	action := chi.URLParam(r, "action")
+
+	if name == "" || action == "" {
+		sendError(w, http.StatusBadRequest, "VALIDATION_FAILED", "name and action are required", nil)
+		return
+	}
+
+	if err := system.ControlService(name, action); err != nil {
+		sendError(w, http.StatusInternalServerError, "SYSTEMD_ACTION_FAILED", err.Error(), nil)
+		return
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
+}
+
+// GetSystemStorage retrieves host mounts, partitions, and Samba shares.
+// GET /api/v2/system/storage
+func (s *Server) GetSystemStorage(w http.ResponseWriter, r *http.Request) {
+	partitions, err := system.GetDiskPartitions()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "STORAGE_ERROR", err.Error(), nil)
+		return
+	}
+
+	shares, err := system.GetSambaShares()
+	if err != nil {
+		log.Printf("⚠️ Failed to parse Samba shares: %v", err)
+		shares = []models.SambaShare{}
+	}
+
+	sendSuccess(w, http.StatusOK, map[string]any{
+		"partitions": partitions,
+		"samba":      shares,
+	}, nil)
+}
+
+// GetCronJobs retrieves scheduled tasks from crontab and systemd timers.
+// GET /api/v2/system/cron
+func (s *Server) GetCronJobs(w http.ResponseWriter, r *http.Request) {
+	jobs, err := system.ListCronJobs()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "CRON_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, jobs, nil)
+}
+
+// GetSystemUpdates checks for available packages upgrades.
+// GET /api/v2/system/updates
+func (s *Server) GetSystemUpdates(w http.ResponseWriter, r *http.Request) {
+	updates, err := system.CheckUpdates()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "UPDATES_CHECK_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, updates, nil)
+}
+
+// ApplySystemUpdates triggers package upgrades.
+// POST /api/v2/system/updates/apply
+func (s *Server) ApplySystemUpdates(w http.ResponseWriter, r *http.Request) {
+	if err := system.TriggerUpdates(); err != nil {
+		sendError(w, http.StatusInternalServerError, "UPDATES_TRIGGER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]bool{"ok": true}, nil)
+}
+
+// GetDockerImages retrieves all Docker images on the host.
+// GET /api/v2/docker/images
+func (s *Server) GetDockerImages(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	images, err := provider.ListImages()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, images, nil)
+}
+
+// PruneDockerImages prunes unused Docker images.
+// POST /api/v2/docker/images/prune
+func (s *Server) PruneDockerImages(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	reclaimed, err := provider.PruneImages()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]any{"reclaimed": reclaimed}, nil)
+}
+
+// GetDockerVolumes retrieves all Docker volumes.
+// GET /api/v2/docker/volumes
+func (s *Server) GetDockerVolumes(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	volumes, err := provider.ListVolumes()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, volumes, nil)
+}
+
+// PruneDockerVolumes prunes unused Docker volumes.
+// POST /api/v2/docker/volumes/prune
+func (s *Server) PruneDockerVolumes(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	reclaimed, err := provider.PruneVolumes()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]any{"reclaimed": reclaimed}, nil)
+}
+
+// GetDockerNetworks retrieves all Docker networks.
+// GET /api/v2/docker/networks
+func (s *Server) GetDockerNetworks(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	networks, err := provider.ListNetworks()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, networks, nil)
+}
+
+// PruneDockerNetworks prunes unused Docker networks.
+// POST /api/v2/docker/networks/prune
+func (s *Server) PruneDockerNetworks(w http.ResponseWriter, r *http.Request) {
+	provider, err := docker.GetProvider()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	prunedCount, err := provider.PruneNetworks()
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "DOCKER_ERROR", err.Error(), nil)
+		return
+	}
+	sendSuccess(w, http.StatusOK, map[string]any{"pruned_count": prunedCount}, nil)
+}

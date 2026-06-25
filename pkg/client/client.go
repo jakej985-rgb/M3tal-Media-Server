@@ -527,5 +527,100 @@ func (c *Client) SyncPlugins() (any, error) {
 func (c *Client) ReconcileSystem() (map[string]any, error) {
 	var result map[string]any
 	err := c.request("POST", "/api/v2/system/reconcile", nil, &result)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetSystemServices retrieves the systemd services list.
+func (c *Client) GetSystemServices() ([]models.ServiceStatus, error) {
+	var list []models.ServiceStatus
+	err := c.request("GET", "/api/v2/system/services", nil, &list)
+	return list, err
+}
+
+// ControlSystemService controls systemd services.
+func (c *Client) ControlSystemService(name, action string) error {
+	return c.request("POST", fmt.Sprintf("/api/v2/system/services/%s/%s", name, action), nil, nil)
+}
+
+// StorageResponse holds disk partitions and samba shares
+type StorageResponse struct {
+	Partitions []models.DiskPartition `json:"partitions"`
+	Samba      []models.SambaShare    `json:"samba"`
+}
+
+// GetSystemStorage retrieves partition and Samba info.
+func (c *Client) GetSystemStorage() (*StorageResponse, error) {
+	var resp StorageResponse
+	err := c.request("GET", "/api/v2/system/storage", nil, &resp)
+	return &resp, err
+}
+
+// GetCronJobs retrieves scheduled cron and systemd timer jobs.
+func (c *Client) GetCronJobs() ([]models.CronJob, error) {
+	var list []models.CronJob
+	err := c.request("GET", "/api/v2/system/cron", nil, &list)
+	return list, err
+}
+
+// GetSystemUpdates retrieves available upgrades.
+func (c *Client) GetSystemUpdates() (*models.SystemUpdates, error) {
+	var updates models.SystemUpdates
+	err := c.request("GET", "/api/v2/system/updates", nil, &updates)
+	return &updates, err
+}
+
+// ApplySystemUpdates triggers system package upgrades.
+func (c *Client) ApplySystemUpdates() error {
+	return c.request("POST", "/api/v2/system/updates/apply", nil, nil)
+}
+
+// GetDockerImages lists Docker images.
+func (c *Client) GetDockerImages() ([]models.DockerImage, error) {
+	var list []models.DockerImage
+	err := c.request("GET", "/api/v2/docker/images", nil, &list)
+	return list, err
+}
+
+// PruneDockerImages prunes unused images and returns space saved.
+func (c *Client) PruneDockerImages() (int64, error) {
+	var res struct {
+		Reclaimed int64 `json:"reclaimed"`
+	}
+	err := c.request("POST", "/api/v2/docker/images/prune", nil, &res)
+	return res.Reclaimed, err
+}
+
+// GetDockerVolumes lists volumes.
+func (c *Client) GetDockerVolumes() ([]models.DockerVolume, error) {
+	var list []models.DockerVolume
+	err := c.request("GET", "/api/v2/docker/volumes", nil, &list)
+	return list, err
+}
+
+// PruneDockerVolumes prunes unused volumes and returns space saved.
+func (c *Client) PruneDockerVolumes() (int64, error) {
+	var res struct {
+		Reclaimed int64 `json:"reclaimed"`
+	}
+	err := c.request("POST", "/api/v2/docker/volumes/prune", nil, &res)
+	return res.Reclaimed, err
+}
+
+// GetDockerNetworks lists networks.
+func (c *Client) GetDockerNetworks() ([]models.DockerNetwork, error) {
+	var list []models.DockerNetwork
+	err := c.request("GET", "/api/v2/docker/networks", nil, &list)
+	return list, err
+}
+
+// PruneDockerNetworks prunes unused networks and returns count.
+func (c *Client) PruneDockerNetworks() (int, error) {
+	var res struct {
+		PrunedCount int `json:"pruned_count"`
+	}
+	err := c.request("POST", "/api/v2/docker/networks/prune", nil, &res)
+	return res.PrunedCount, err
 }
