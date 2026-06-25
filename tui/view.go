@@ -91,13 +91,34 @@ func (m Model) View() string {
 		return "Initializing M3TAL TUI..."
 	}
 
+	header := m.renderHeader()
+	tabs := m.renderTabs()
+	metrics := m.renderMetricsBar()
+	footer := m.renderFooter()
+
 	notificationHeight := 0
-	nonContentHeight := 9
+	var notificationStr string
 	if m.notification != "" && time.Now().Before(m.notificationTimeout) {
-		notificationHeight = 1
-		nonContentHeight = 11
+		notificationStr = styleNotification.Render(fmt.Sprintf("🔔 %s", m.notification))
+		notificationHeight = lipgloss.Height(notificationStr)
 	}
-	contentHeight := m.height - nonContentHeight
+
+	headerHeight := lipgloss.Height(header)
+	tabsHeight := lipgloss.Height(tabs)
+	metricsHeight := lipgloss.Height(metrics)
+	footerHeight := lipgloss.Height(footer)
+
+	// Spacing newlines count:
+	// 1 after header, 1 after tabs, 1 after notification (if present), 1 after content, 1 after metrics.
+	spacingLines := 4
+	if notificationHeight > 0 {
+		spacingLines = 5
+	}
+
+	contentHeight := m.height - (headerHeight + tabsHeight + notificationHeight + metricsHeight + footerHeight + spacingLines)
+	if contentHeight < 4 {
+		contentHeight = 4
+	}
 
 	var content string
 
@@ -120,17 +141,11 @@ func (m Model) View() string {
 		}
 	}
 
-	header := m.renderHeader()
-	tabs := m.renderTabs()
-	metrics := m.renderMetricsBar()
-	footer := m.renderFooter()
-
 	var builder strings.Builder
 	builder.WriteString(header + "\n")
 	builder.WriteString(tabs + "\n")
 
 	if notificationHeight > 0 {
-		notificationStr := styleNotification.Render(fmt.Sprintf("🔔 %s", m.notification))
 		builder.WriteString(notificationStr + "\n")
 	}
 
@@ -237,10 +252,10 @@ func (m Model) viewDashboard(height int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 }
 
-func (m Model) renderDashboardTelemetry(width, height int) string {
+func (m Model) renderDashboardTelemetry(width, _ int) string {
 	var builder strings.Builder
 	builder.WriteString(styleHeaderLabel.Render("⚡ SYSTEM METRICS") + "\n")
-	builder.WriteString(strings.Repeat("─", width) + "\n\n")
+	builder.WriteString(strings.Repeat("─", width) + "\n")
 
 	if m.detailedStats == nil {
 		builder.WriteString("  Loading resource telemetry...\n")
@@ -259,32 +274,30 @@ func (m Model) renderDashboardTelemetry(width, height int) string {
 		return fmt.Sprintf("[%s%s] %.1f%%", strings.Repeat("█", filled), strings.Repeat("░", empty), val)
 	}
 
-	builder.WriteString(fmt.Sprintf("💻 CPU Usage: %s\n", progBar(m.detailedStats.CPUUsage)))
+	builder.WriteString(fmt.Sprintf("💻 CPU: %s", progBar(m.detailedStats.CPUUsage)))
 	if m.detailedStats.CPUTemp > 0 {
-		builder.WriteString(fmt.Sprintf("🌡️  CPU Temp:  %.1f°C\n", m.detailedStats.CPUTemp))
+		builder.WriteString(fmt.Sprintf("  🌡️ %.1f°C", m.detailedStats.CPUTemp))
 	}
 	builder.WriteString("\n")
 
 	memPct := m.detailedStats.MemoryUsage
-	builder.WriteString(fmt.Sprintf("🧠 RAM Usage: %s\n", progBar(memPct)))
-	builder.WriteString(fmt.Sprintf("   Used/Total: %.2f / %.2f GB\n\n", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal))
+	builder.WriteString(fmt.Sprintf("🧠 RAM: %s  (%.1f/%.1f GB)\n", progBar(memPct), m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal))
 
 	diskPct := m.detailedStats.DiskUsage
-	builder.WriteString(fmt.Sprintf("💿 Disk (/):  %s\n", progBar(diskPct)))
-	builder.WriteString(fmt.Sprintf("   Used/Total: %.2f / %.2f GB\n\n", m.detailedStats.DiskUsed, m.detailedStats.DiskTotal))
+	builder.WriteString(fmt.Sprintf("💿 Dsk: %s  (%.1f/%.1f GB)\n", progBar(diskPct), m.detailedStats.DiskUsed, m.detailedStats.DiskTotal))
 
 	if m.detailedStats.GPUModel != "No GPU Detected" && m.detailedStats.GPUModel != "" {
 		builder.WriteString(styleHeaderLabel.Render("📟 GPU: "+m.detailedStats.GPUModel) + "\n")
-		builder.WriteString(fmt.Sprintf("   Core Load: %s\n", progBar(m.detailedStats.GPUUsage)))
+		builder.WriteString(fmt.Sprintf("   Core: %s", progBar(m.detailedStats.GPUUsage)))
 		if m.detailedStats.GPUTemp > 0 {
-			builder.WriteString(fmt.Sprintf("   Temp:      %.1f°C\n", m.detailedStats.GPUTemp))
+			builder.WriteString(fmt.Sprintf("  🌡️ %.1f°C", m.detailedStats.GPUTemp))
 		}
+		builder.WriteString("\n")
 		vramPct := 0.0
 		if m.detailedStats.GPUMemTotal > 0 {
 			vramPct = (m.detailedStats.GPUMemUsed / m.detailedStats.GPUMemTotal) * 100.0
 		}
-		builder.WriteString(fmt.Sprintf("   VRAM Load: %s\n", progBar(vramPct)))
-		builder.WriteString(fmt.Sprintf("   VRAM Used: %.0f / %.0f MB\n", m.detailedStats.GPUMemUsed, m.detailedStats.GPUMemTotal))
+		builder.WriteString(fmt.Sprintf("   VRAM: %s  (%.0f/%.0f MB)\n", progBar(vramPct), m.detailedStats.GPUMemUsed, m.detailedStats.GPUMemTotal))
 	}
 
 	return builder.String()
@@ -389,10 +402,10 @@ func (m Model) renderDashboardDoctor(width, height int) string {
 	return builder.String()
 }
 
-func (m Model) renderDashboardQuickActions(width, height int) string {
+func (m Model) renderDashboardQuickActions(width, _ int) string {
 	var builder strings.Builder
 	builder.WriteString(styleHeaderLabel.Render("⚡ QUICK CONSOLE ACTIONS") + "\n")
-	builder.WriteString(strings.Repeat("─", width) + "\n\n")
+	builder.WriteString(strings.Repeat("─", width) + "\n")
 
 	actions := []string{
 		"🔍 Scan Compose Stacks",
@@ -412,7 +425,6 @@ func (m Model) renderDashboardQuickActions(width, height int) string {
 		builder.WriteString(fmt.Sprintf("%s %s\n", cursor, labelStyle.Render(act)))
 	}
 
-	builder.WriteString("\n  (Press TAB to select panel, Enter to trigger selected action)")
 	return builder.String()
 }
 
