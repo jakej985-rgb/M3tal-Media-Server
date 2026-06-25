@@ -148,17 +148,17 @@ type Model struct {
 	selectedQuickActionIdx int
 
 	// Tab 2: Containers & Docker Controls State
-	containersTabFocus    int // 0 = stacks list, 1 = services list, 2 = images, 3 = volumes, 4 = networks
-	stacks                []models.Stack
-	selectedStackIdx      int
-	containers            []models.Container
-	selectedContainerIdx  int
-	dockerImages          []models.DockerImage
-	selectedImageIdx      int
-	dockerVolumes         []models.DockerVolume
-	selectedVolumeIdx     int
-	dockerNetworks        []models.DockerNetwork
-	selectedNetworkIdx    int
+	containersTabFocus   int // 0 = stacks list, 1 = services list, 2 = images, 3 = volumes, 4 = networks
+	stacks               []models.Stack
+	selectedStackIdx     int
+	containers           []models.Container
+	selectedContainerIdx int
+	dockerImages         []models.DockerImage
+	selectedImageIdx     int
+	dockerVolumes        []models.DockerVolume
+	selectedVolumeIdx    int
+	dockerNetworks       []models.DockerNetwork
+	selectedNetworkIdx   int
 
 	// Tab 3: Logs State
 	logContainers           []models.Container
@@ -173,37 +173,37 @@ type Model struct {
 	showLogSearchPrompt     bool // state of search prompt input
 
 	// Tab 4: Editor State
-	configFiles             []ConfigFile
-	selectedConfigIdx       int
-	selectedConfigContent   string
-	configScrollOffset      int
-	focusOnConfig           bool // true = left panel (configs list), false = right panel (content viewer)
-	diffContent             string
-	showDiff                bool
-	cloudflaredContent      string
-	envRawContent           string
+	configFiles           []ConfigFile
+	selectedConfigIdx     int
+	selectedConfigContent string
+	configScrollOffset    int
+	focusOnConfig         bool // true = left panel (configs list), false = right panel (content viewer)
+	diffContent           string
+	showDiff              bool
+	cloudflaredContent    string
+	envRawContent         string
 
 	// Tab 5: System Admin State
-	systemTabFocus          int // 0 = services, 1 = disks/mounts, 2 = cron, 3 = updates
-	systemServices          []models.ServiceStatus
-	selectedServiceIdx      int
-	diskPartitions          []models.DiskPartition
-	selectedPartitionIdx    int
-	sambaShares             []models.SambaShare
-	selectedSambaIdx        int
-	cronJobs                []models.CronJob
-	selectedCronIdx         int
-	systemUpdates           *models.SystemUpdates
-	selectedUpdateIdx       int
+	systemTabFocus       int // 0 = services, 1 = disks/mounts, 2 = cron, 3 = updates
+	systemServices       []models.ServiceStatus
+	selectedServiceIdx   int
+	diskPartitions       []models.DiskPartition
+	selectedPartitionIdx int
+	sambaShares          []models.SambaShare
+	selectedSambaIdx     int
+	cronJobs             []models.CronJob
+	selectedCronIdx      int
+	systemUpdates        *models.SystemUpdates
+	selectedUpdateIdx    int
 
 	// Tab 6: Terminal & Integrations State
-	terminalTabFocus        int // 0 = Terminal Launcher, 1 = Saved SSH, 2 = Env variables, 3 = AI Queue, 4 = Plugins
-	sshProfiles             []string
-	selectedSSHIdx          int
-	envVars                 []string
-	selectedEnvVarIdx       int
-	savedAliases            []string
-	selectedAliasIdx        int
+	terminalTabFocus  int // 0 = Terminal Launcher, 1 = Saved SSH, 2 = Env variables, 3 = AI Queue, 4 = Plugins
+	sshProfiles       []string
+	selectedSSHIdx    int
+	envVars           []string
+	selectedEnvVarIdx int
+	savedAliases      []string
+	selectedAliasIdx  int
 
 	// AI Queue & Models State (integrated under Terminal/Shell view)
 	queue            []models.JobRecord

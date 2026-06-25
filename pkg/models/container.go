@@ -24,11 +24,11 @@ type Container struct {
 
 // DockerImage represents a docker image.
 type DockerImage struct {
-	ID          string   `json:"id"`
-	Repository  string   `json:"repository"`
-	Tag         string   `json:"tag"`
-	Size        int64    `json:"size"` // bytes
-	Created     int64    `json:"created"` // timestamp
+	ID         string `json:"id"`
+	Repository string `json:"repository"`
+	Tag        string `json:"tag"`
+	Size       int64  `json:"size"`    // bytes
+	Created    int64  `json:"created"` // timestamp
 }
 
 // DockerVolume represents a docker volume.

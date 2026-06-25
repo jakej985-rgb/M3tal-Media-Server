@@ -448,9 +448,9 @@ func (m *MockProvider) StreamLogs(ctx context.Context, name string, tail string)
 	return io.NopCloser(strings.NewReader("mock streaming logs for " + name + "\n")), nil
 }
 
-func (m *MockProvider) ListImages() ([]models.DockerImage, error)  { return nil, nil }
-func (m *MockProvider) PruneImages() (int64, error)                { return 0, nil }
-func (m *MockProvider) ListVolumes() ([]models.DockerVolume, error) { return nil, nil }
-func (m *MockProvider) PruneVolumes() (int64, error)               { return 0, nil }
+func (m *MockProvider) ListImages() ([]models.DockerImage, error)     { return nil, nil }
+func (m *MockProvider) PruneImages() (int64, error)                   { return 0, nil }
+func (m *MockProvider) ListVolumes() ([]models.DockerVolume, error)   { return nil, nil }
+func (m *MockProvider) PruneVolumes() (int64, error)                  { return 0, nil }
 func (m *MockProvider) ListNetworks() ([]models.DockerNetwork, error) { return nil, nil }
-func (m *MockProvider) PruneNetworks() (int, error)                { return 0, nil }
+func (m *MockProvider) PruneNetworks() (int, error)                   { return 0, nil }

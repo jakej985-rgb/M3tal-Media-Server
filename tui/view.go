@@ -250,8 +250,12 @@ func (m Model) renderDashboardTelemetry(width, height int) string {
 
 	progBar := func(val float64) string {
 		filled := int(math.Round(val / 10.0))
-		if filled < 0 { filled = 0 }
-		if filled > 10 { filled = 10 }
+		if filled < 0 {
+			filled = 0
+		}
+		if filled > 10 {
+			filled = 10
+		}
 		empty := 10 - filled
 		return fmt.Sprintf("[%s%s] %.1f%%", strings.Repeat("█", filled), strings.Repeat("░", empty), val)
 	}
@@ -466,17 +470,17 @@ func (m Model) viewContainers(height int) string {
 	case 2: // Images
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerImagesList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 
 	case 3: // Volumes
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerVolumesList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 
 	case 4: // Networks
 		panelStyle := styleFocusedPanel
 		content := m.renderDockerNetworksList(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	}
 
 	return subTabsHeader + innerContent
@@ -801,7 +805,9 @@ func (m Model) renderLogsStream(width, height int) string {
 	if m.showLogSearchPrompt {
 		scrollAreaHeight = height - 5
 	}
-	if scrollAreaHeight < 1 { scrollAreaHeight = 1 }
+	if scrollAreaHeight < 1 {
+		scrollAreaHeight = 1
+	}
 
 	m.logScrollHeight = scrollAreaHeight
 
@@ -970,16 +976,16 @@ func (m Model) viewSystem(height int) string {
 	switch m.systemTabFocus {
 	case 0: // Services
 		content := m.renderSystemServices(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	case 1: // Partitions
 		content := m.renderSystemPartitions(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	case 2: // Cron
 		content := m.renderSystemCron(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	case 3: // Updates
 		content := m.renderSystemUpdates(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	}
 
 	return subTabsHeader + innerContent
@@ -1068,9 +1074,13 @@ func (m Model) renderSystemPartitions(width, height int) string {
 			name := truncateString(s.Name, 23)
 			path := truncateString(s.Path, 28)
 			ro := "no"
-			if s.ReadOnly { ro = "yes" }
+			if s.ReadOnly {
+				ro = "yes"
+			}
 			goOk := "no"
-			if s.GuestOk { goOk = "yes" }
+			if s.GuestOk {
+				goOk = "yes"
+			}
 
 			row := fmt.Sprintf("  %-25s %-30s %-12s %-12s\n", name, path, ro, goOk)
 			builder.WriteString(row)
@@ -1179,13 +1189,15 @@ func (m Model) viewTerminal(height int) string {
 	switch m.terminalTabFocus {
 	case 0: // Shell Launcher
 		content := m.renderLocalShellLauncher(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	case 1: // SSH profiles
 		content := m.renderSSHProfiles(m.width-6, innerContentHeight-2)
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	case 2, 3: // AI Queue & Models
 		leftWidth := m.width * 7 / 10
-		if leftWidth < 40 { leftWidth = 40 }
+		if leftWidth < 40 {
+			leftWidth = 40
+		}
 		rightWidth := m.width - leftWidth - 6
 
 		leftStyle := styleUnfocusedPanel
@@ -1210,7 +1222,7 @@ func (m Model) viewTerminal(height int) string {
 		} else {
 			content = m.renderPluginsList(width-4, innerContentHeight-2)
 		}
-		innerContent = panelStyle.Width(m.width-2).Height(innerContentHeight).Render(content)
+		innerContent = panelStyle.Width(m.width - 2).Height(innerContentHeight).Render(content)
 	}
 
 	return subTabsHeader + innerContent
@@ -1469,8 +1481,12 @@ func (m Model) renderMetricsBar() string {
 
 	progBar := func(val float64) string {
 		filled := int(math.Round(val / 10.0))
-		if filled < 0 { filled = 0 }
-		if filled > 10 { filled = 10 }
+		if filled < 0 {
+			filled = 0
+		}
+		if filled > 10 {
+			filled = 10
+		}
 		empty := 10 - filled
 		return fmt.Sprintf("[%s%s] %.1f%%", strings.Repeat("█", filled), strings.Repeat("░", empty), val)
 	}
