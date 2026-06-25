@@ -91,6 +91,10 @@ func (m Model) View() string {
 		return "Initializing M3TAL TUI..."
 	}
 
+	if m.width < 80 || m.height < 18 {
+		return fmt.Sprintf("\n  ⚠️  Terminal size too small (%dx%d)\n  Minimum required size: 80x18\n  Please enlarge your terminal window.", m.width, m.height)
+	}
+
 	header := m.renderHeader()
 	tabs := m.renderTabs()
 	metrics := m.renderMetricsBar()
