@@ -503,7 +503,13 @@ func (m Model) renderDashboardDetails(width, height int) string {
 
 func (m Model) renderDashboardDoctor(width, height int) string {
 	var builder strings.Builder
-	builder.WriteString(styleHeaderLabel.Render("🩺 PRE-FLIGHT DIAGNOSTIC ALERTS") + "\n")
+	expanded := m.preflightExpanded
+	if expanded {
+		builder.WriteString(styleHeaderLabel.Render("🩺 PRE-FLIGHT DIAGNOSTIC ALERTS") + " " +
+			lipgloss.NewStyle().Foreground(colorYellow).Render("[EXPANDED — Enter to collapse]") + "\n")
+	} else {
+		builder.WriteString(styleHeaderLabel.Render("🩺 PRE-FLIGHT DIAGNOSTIC ALERTS") + "\n")
+	}
 	builder.WriteString(strings.Repeat("─", width) + "\n")
 
 	hasContainers := len(m.doctorReport.Containers) > 0
@@ -517,11 +523,29 @@ func (m Model) renderDashboardDoctor(width, height int) string {
 
 	visibleRows := height - 2
 	count := 0
+	first := true // used for blank-line spacing in expanded mode
+
+	writeRow := func(row string) {
+		if expanded {
+			if !first {
+				builder.WriteString("\n") // blank line between alerts
+			}
+			first = false
+			wrapped := wordWrapRow(row, width)
+			builder.WriteString(wrapped + "\n")
+		} else {
+			if count >= visibleRows {
+				return
+			}
+			builder.WriteString(truncateString(row, width) + "\n")
+			count++
+		}
+	}
 
 	// 1. Containers anomalies
 	for _, c := range m.doctorReport.Containers {
 		if c.Severity != models.SeverityPass {
-			if count >= visibleRows {
+			if !expanded && count >= visibleRows {
 				break
 			}
 			statusColor := colorYellow
@@ -533,16 +557,14 @@ func (m Model) renderDashboardDoctor(width, height int) string {
 			if msg == "" {
 				msg = fmt.Sprintf("State: %s (Health: %s)", c.State, c.Health)
 			}
-			row := fmt.Sprintf("  [%s] Container %s: %s", statusStyled, c.Name, msg)
-			builder.WriteString(truncateString(row, width) + "\n")
-			count++
+			writeRow(fmt.Sprintf("  [%s] Container %s: %s", statusStyled, c.Name, msg))
 		}
 	}
 
 	// 2. Mounts anomalies
 	for _, mt := range m.doctorReport.Mounts {
 		if mt.Severity != models.SeverityPass {
-			if count >= visibleRows {
+			if !expanded && count >= visibleRows {
 				break
 			}
 			statusColor := colorYellow
@@ -550,16 +572,14 @@ func (m Model) renderDashboardDoctor(width, height int) string {
 				statusColor = colorRed
 			}
 			statusStyled := lipgloss.NewStyle().Foreground(statusColor).Bold(true).Render(strings.ToUpper(string(mt.Severity)))
-			row := fmt.Sprintf("  [%s] Mount %s: %s", statusStyled, mt.Target, mt.Issue)
-			builder.WriteString(truncateString(row, width) + "\n")
-			count++
+			writeRow(fmt.Sprintf("  [%s] Mount %s: %s", statusStyled, mt.Target, mt.Issue))
 		}
 	}
 
 	// 3. Ports anomalies
 	for _, pt := range m.doctorReport.Ports {
 		if pt.Severity != models.SeverityPass {
-			if count >= visibleRows {
+			if !expanded && count >= visibleRows {
 				break
 			}
 			statusColor := colorYellow
@@ -567,17 +587,75 @@ func (m Model) renderDashboardDoctor(width, height int) string {
 				statusColor = colorRed
 			}
 			statusStyled := lipgloss.NewStyle().Foreground(statusColor).Bold(true).Render(strings.ToUpper(string(pt.Severity)))
-			row := fmt.Sprintf("  [%s] Port conflict %d: %s", statusStyled, pt.Port, pt.Note)
-			builder.WriteString(truncateString(row, width) + "\n")
-			count++
+			writeRow(fmt.Sprintf("  [%s] Port conflict %d: %s", statusStyled, pt.Port, pt.Note))
 		}
 	}
 
-	if count == 0 {
+	if count == 0 && !expanded {
 		builder.WriteString("\n  🟢 All diagnostics checks report PASS state!\n")
 	}
 
 	return builder.String()
+}
+
+// wordWrapRow wraps a string (which may contain ANSI escape codes) at `width`
+// characters, preserving ANSI sequences. Continuation lines are indented by 5
+// spaces to align with the message text after the "[FAIL] " prefix.
+func wordWrapRow(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	// Split into words while preserving ANSI codes inline.
+	// We use a simple approach: scan rune-by-rune, accumulate visible chars,
+	// and break at space boundaries.
+	const indent = "     " // 5 spaces to align continuation lines
+	var lines []string
+	var cur strings.Builder
+	curWidth := 0
+	inEscape := false
+	runes := []rune(s)
+	for _, r := range runes {
+		if r == '\x1b' {
+			inEscape = true
+			cur.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			cur.WriteRune(r)
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		if r == '\n' {
+			lines = append(lines, cur.String())
+			cur.Reset()
+			if len(lines) > 1 {
+				cur.WriteString(indent)
+				curWidth = len(indent)
+			} else {
+				curWidth = 0
+			}
+			continue
+		}
+		rw := lipgloss.Width(string(r))
+		if curWidth+rw > width && curWidth > 0 {
+			// Break line — trim trailing space
+			lines = append(lines, strings.TrimRight(cur.String(), " "))
+			cur.Reset()
+			cur.WriteString(indent)
+			curWidth = len(indent)
+			if r == ' ' {
+				continue // skip leading space on wrapped line
+			}
+		}
+		cur.WriteRune(r)
+		curWidth += rw
+	}
+	if cur.Len() > 0 {
+		lines = append(lines, cur.String())
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) renderDashboardQuickActions(width, _ int) string {
