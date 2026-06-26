@@ -146,6 +146,7 @@ type Model struct {
 	doctorReport           models.DoctorReport
 	dashboardFocusIndex    int // 0 = metrics/health, 1 = doctor alerts, 2 = quick actions
 	selectedQuickActionIdx int
+	preflightExpanded      bool
 
 	// Tab 2: Containers & Docker Controls State
 	containersTabFocus   int // 0 = stacks list, 1 = services list, 2 = images, 3 = volumes, 4 = networks

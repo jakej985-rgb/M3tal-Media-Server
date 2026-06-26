@@ -285,6 +285,36 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		return fmt.Sprintf("[%s%s]", styledFilled, emptyStr)
 	}
 
+	type telemetryEntry struct {
+		label    string
+		hasBar   bool
+		barPct   float64
+		barColor lipgloss.Color
+		suffix   string
+		isText   bool
+		text     string
+	}
+
+	var entries []telemetryEntry
+
+	addBar := func(label string, pct float64, color lipgloss.Color, suffix string) {
+		entries = append(entries, telemetryEntry{
+			label:    strings.ReplaceAll(label, "\ufe0f", ""),
+			hasBar:   true,
+			barPct:   pct,
+			barColor: color,
+			suffix:   suffix,
+		})
+	}
+
+	addText := func(label string, text string) {
+		entries = append(entries, telemetryEntry{
+			label:  strings.ReplaceAll(label, "\ufe0f", ""),
+			isText: true,
+			text:   text,
+		})
+	}
+
 	// 1. CPU Usage
 	cpuVal := m.detailedStats.CPUUsage
 	var cpuColor lipgloss.Color
@@ -295,7 +325,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 	} else {
 		cpuColor = colorRed
 	}
-	builder.WriteString(fmt.Sprintf("💻 CPU: %s %.1f%%\n", coloredBar(cpuVal, cpuColor), cpuVal))
+	addBar("💻 CPU:", cpuVal, cpuColor, fmt.Sprintf("%.1f%%", cpuVal))
 
 	// 2. CPU Temp
 	if m.detailedStats.CPUTemp > 0 {
@@ -309,7 +339,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		} else {
 			tempColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf("💻 CPU 🌡️: %s %.1f°F\n", coloredBar(tempC, tempColor), tempF))
+		addBar("💻 CPU 🌡️:", tempC, tempColor, fmt.Sprintf("%.1f°F", tempF))
 	}
 
 	// 3. RAM Usage
@@ -322,14 +352,14 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 	} else {
 		ramColor = colorRed
 	}
-	builder.WriteString(fmt.Sprintf("🧠 RAM: %s %.1f%%\n", coloredBar(ramVal, ramColor), ramVal))
+	addBar("🧠 RAM:", ramVal, ramColor, fmt.Sprintf("%.1f%%", ramVal))
 
 	// 4. RAM Stats
 	freqStr := ""
 	if m.detailedStats.MemoryFrequency != "" && m.detailedStats.MemoryFrequency != "Unknown" {
 		freqStr = " @ " + m.detailedStats.MemoryFrequency
 	}
-	builder.WriteString(fmt.Sprintf("🧠 📊: %.1f/%.1f GB%s\n", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal, freqStr))
+	addText("🧠 📊:", fmt.Sprintf("%.1f/%.1f GB%s", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal, freqStr))
 
 	// 5. Disk Partitions
 	if len(m.detailedStats.DiskPartitions) > 0 {
@@ -347,7 +377,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 			if label == "" {
 				label = filepath.Base(p.Device)
 			}
-			builder.WriteString(fmt.Sprintf("💿 %s: %s %.1f%%\n", label, coloredBar(freePct, diskColor), p.UsedPercent))
+			addBar(fmt.Sprintf("💿 %s:", label), freePct, diskColor, fmt.Sprintf("%.1f%%", p.UsedPercent))
 		}
 	} else {
 		freePct := 100.0 - m.detailedStats.DiskUsage
@@ -359,12 +389,13 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		} else {
 			diskColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf("💿 root: %s %.1f%%\n", coloredBar(freePct, diskColor), m.detailedStats.DiskUsage))
+		addBar("💿 root:", freePct, diskColor, fmt.Sprintf("%.1f%%", m.detailedStats.DiskUsage))
 	}
 
 	// 6. GPU Stats
-	if m.detailedStats.GPUModel != "No GPU Detected" && m.detailedStats.GPUModel != "" {
-		builder.WriteString(styleHeaderLabel.Render("📟 GPU: "+m.detailedStats.GPUModel) + "\n")
+	showGPU := m.detailedStats.GPUModel != "No GPU Detected" && m.detailedStats.GPUModel != ""
+	if showGPU {
+		addText(styleHeaderLabel.Render("📟 GPU: "+m.detailedStats.GPUModel), "")
 
 		// GPU Core
 		gpuVal := m.detailedStats.GPUUsage
@@ -376,7 +407,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		} else {
 			gpuColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf("📟 Core: %s %.1f%%\n", coloredBar(gpuVal, gpuColor), gpuVal))
+		addBar("📟 Core:", gpuVal, gpuColor, fmt.Sprintf("%.1f%%", gpuVal))
 
 		// GPU Temp
 		if m.detailedStats.GPUTemp > 0 {
@@ -390,7 +421,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 			} else {
 				gpuTempColor = colorRed
 			}
-			builder.WriteString(fmt.Sprintf("📟 GPU 🌡️: %s %.1f°F\n", coloredBar(gpuTempC, gpuTempColor), gpuTempF))
+			addBar("📟 GPU 🌡️:", gpuTempC, gpuTempColor, fmt.Sprintf("%.1f°F", gpuTempF))
 		}
 
 		// GPU VRAM
@@ -406,13 +437,46 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		} else {
 			vramColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf("📟 VRAM: %s %.1f%%\n", coloredBar(vramPct, vramColor), vramPct))
+		addBar("📟 VRAM:", vramPct, vramColor, fmt.Sprintf("%.1f%%", vramPct))
+	}
+
+	// Calculate max width for entries with a bar
+	maxW := 0
+	for _, e := range entries {
+		if e.hasBar {
+			w := lipgloss.Width(e.label)
+			if w > maxW {
+				maxW = w
+			}
+		}
+	}
+
+	// Render entries
+	for _, e := range entries {
+		if e.hasBar {
+			padding := strings.Repeat(" ", maxW-lipgloss.Width(e.label)+2)
+			builder.WriteString(fmt.Sprintf("%s%s%s  %s\n", e.label, padding, coloredBar(e.barPct, e.barColor), e.suffix))
+		} else {
+			if e.text == "" {
+				builder.WriteString(e.label + "\n")
+			} else {
+				builder.WriteString(fmt.Sprintf("%s %s\n", e.label, e.text))
+			}
+		}
 	}
 
 	return builder.String()
 }
 
 func (m Model) renderDashboardDetails(width, height int) string {
+	if m.preflightExpanded {
+		topHeight := height - 4
+		docStyle := styleFocusedPanel
+		docContent := m.renderDashboardDoctor(width-4, topHeight)
+		topBox := fitHeight(docStyle.Width(width).Height(topHeight).Render(docContent), topHeight+2, true)
+		return topBox
+	}
+
 	topHeight := (height - 4) / 2
 	bottomHeight := height - 4 - topHeight
 
@@ -1627,7 +1691,15 @@ func (m Model) renderFooter() string {
 	var keys []string
 	switch m.activeTab {
 	case TabDashboard:
-		keys = []string{"1-6: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "Enter: Trigger Action", "q: Quit"}
+		actionKey := "Enter: Trigger Action"
+		if m.dashboardFocusIndex == 1 {
+			if m.preflightExpanded {
+				actionKey = "Enter: Collapse Alerts"
+			} else {
+				actionKey = "Enter: Expand Alerts"
+			}
+		}
+		keys = []string{"1-6: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", actionKey, "q: Quit"}
 	case TabContainers:
 		keys = []string{"1-6: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "s/x/t: Start/Stop/Restart", "u/d: Stack Up/Down", "p: Pull images", "e: Exec in container", "q: Quit"}
 	case TabLogs:
@@ -1646,10 +1718,40 @@ func truncateString(s string, limit int) string {
 	if limit <= 3 {
 		return "..."
 	}
-	if len(s) > limit {
-		return s[:limit-3] + "..."
+	if lipgloss.Width(s) <= limit {
+		return s
 	}
-	return s
+
+	var builder strings.Builder
+	visibleWidth := 0
+	inEscape := false
+
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '\x1b' {
+			inEscape = true
+			builder.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			builder.WriteRune(r)
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+
+		w := lipgloss.Width(string(r))
+		if visibleWidth+w > limit-3 {
+			builder.WriteString("...")
+			builder.WriteString("\x1b[0m")
+			break
+		}
+		builder.WriteRune(r)
+		visibleWidth += w
+	}
+	return builder.String()
 }
 
 func fitHeight(rendered string, targetHeight int, hasBorder bool) string {

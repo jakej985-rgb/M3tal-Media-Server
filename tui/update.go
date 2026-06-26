@@ -726,27 +726,36 @@ func (m *Model) postNavCmds() []tea.Cmd {
 
 func (m *Model) handleEnterAction() []tea.Cmd {
 	var cmds []tea.Cmd
-	if m.activeTab == TabDashboard && m.dashboardFocusIndex == 2 {
-		// Quick Actions: 0 = Scan Stacks, 1 = Prune Docker, 2 = System Reconcile
-		switch m.selectedQuickActionIdx {
-		case 0:
-			m.SetNotification("🔍 Scanning stacks...", 5*time.Second)
-			cmds = append(cmds, m.scanStacksCmd())
-		case 1:
-			m.SetNotification("🧹 Pruning unused Docker resources...", 10*time.Second)
-			cmds = append(cmds, func() tea.Msg {
-				imagesSize, _ := m.client.PruneDockerImages()
-				volSize, _ := m.client.PruneDockerVolumes()
-				netCount, _ := m.client.PruneDockerNetworks()
-				totalGB := float64(imagesSize+volSize) / (1024 * 1024 * 1024)
-				return actionResultMsg{message: fmt.Sprintf("✅ Pruned Docker! Space saved: %.2f GB. Networks removed: %d", totalGB, netCount)}
-			})
-		case 2:
-			m.SetNotification("⚙️ Reconciling M3TAL State...", 8*time.Second)
-			cmds = append(cmds, func() tea.Msg {
-				_, err := m.client.ReconcileSystem()
-				return actionResultMsg{message: "✅ Daemon state reconciled!", err: err}
-			})
+	if m.activeTab == TabDashboard {
+		if m.dashboardFocusIndex == 1 {
+			m.preflightExpanded = !m.preflightExpanded
+			if m.preflightExpanded {
+				m.SetNotification("🩺 Pre-flight Alerts panel expanded! Press Enter to collapse.", 3*time.Second)
+			} else {
+				m.SetNotification("🩺 Pre-flight Alerts panel collapsed.", 2*time.Second)
+			}
+		} else if m.dashboardFocusIndex == 2 {
+			// Quick Actions: 0 = Scan Stacks, 1 = Prune Docker, 2 = System Reconcile
+			switch m.selectedQuickActionIdx {
+			case 0:
+				m.SetNotification("🔍 Scanning stacks...", 5*time.Second)
+				cmds = append(cmds, m.scanStacksCmd())
+			case 1:
+				m.SetNotification("🧹 Pruning unused Docker resources...", 10*time.Second)
+				cmds = append(cmds, func() tea.Msg {
+					imagesSize, _ := m.client.PruneDockerImages()
+					volSize, _ := m.client.PruneDockerVolumes()
+					netCount, _ := m.client.PruneDockerNetworks()
+					totalGB := float64(imagesSize+volSize) / (1024 * 1024 * 1024)
+					return actionResultMsg{message: fmt.Sprintf("✅ Pruned Docker! Space saved: %.2f GB. Networks removed: %d", totalGB, netCount)}
+				})
+			case 2:
+				m.SetNotification("⚙️ Reconciling M3TAL State...", 8*time.Second)
+				cmds = append(cmds, func() tea.Msg {
+					_, err := m.client.ReconcileSystem()
+					return actionResultMsg{message: "✅ Daemon state reconciled!", err: err}
+				})
+			}
 		}
 	} else if m.activeTab == TabTerminal {
 		if m.terminalTabFocus == 0 {
