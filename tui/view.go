@@ -113,14 +113,15 @@ func (m Model) View() string {
 	metricsHeight := lipgloss.Height(metrics)
 	footerHeight := lipgloss.Height(footer)
 
-	// Spacing newlines count:
-	// 1 after header, 1 after tabs, 1 after notification (if present), 1 after content, 1 after metrics.
-	spacingLines := 4
+	// Fixed separator newlines written in the builder below:
+	// 1 after header, 1 after tabs, [1 after notification], 1 after content, 1 after metrics.
+	// footer has no trailing newline, so no separator after it.
+	separators := 4 // header\n + tabs\n + content\n + metrics\n
 	if notificationHeight > 0 {
-		spacingLines = 5
+		separators++ // notification\n
 	}
 
-	contentHeight := m.height - (headerHeight + tabsHeight + notificationHeight + metricsHeight + footerHeight + spacingLines)
+	contentHeight := m.height - (headerHeight + tabsHeight + notificationHeight + metricsHeight + footerHeight + separators)
 	if contentHeight < 4 {
 		contentHeight = 4
 	}
@@ -1791,7 +1792,18 @@ func (m Model) renderFooter() string {
 	case TabTerminal:
 		keys = []string{"1-6: Switch Tabs", "Tab: Swap Panels", "Arrows: Navigate", "Enter: Launch Connection/Shell", "c: Catalog Catalog/Installed", "i/g: Plugin Install/Toggle Enable", "q: Quit"}
 	}
-	return styleFooter.Width(m.width).Render("🔑 Keys: " + strings.Join(keys, " | "))
+	// Build the full hint string then truncate to one line so it never wraps
+	// and throws off the height budget.
+	full := "🔑 Keys: " + strings.Join(keys, " | ")
+	// styleFooter has Padding(0,1) which consumes 2 cols; leave 1 spare.
+	availWidth := m.width - 3
+	if availWidth < 10 {
+		availWidth = 10
+	}
+	if lipgloss.Width(full) > availWidth {
+		full = truncateString(full, availWidth)
+	}
+	return styleFooter.Width(m.width).Render(full)
 }
 
 func truncateString(s string, limit int) string {
