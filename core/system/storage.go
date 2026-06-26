@@ -33,9 +33,9 @@ func getDeviceLabel(devicePath string) string {
 	return filepath.Base(devicePath)
 }
 
-// GetDiskPartitions returns detailed disk usage for all mounted physical partitions.
+// GetDiskPartitions returns detailed disk usage for all mounted partitions (physical and network shares).
 func GetDiskPartitions() ([]models.DiskPartition, error) {
-	partitions, err := disk.Partitions(false) // physical only
+	partitions, err := disk.Partitions(true) // all partitions including network mounts
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +50,17 @@ func GetDiskPartitions() ([]models.DiskPartition, error) {
 			seenMounts[p.Mountpoint] {
 			continue
 		}
+
+		// Check if it is a real physical or network device
+		isReal := (strings.HasPrefix(p.Device, "/dev/") && !strings.HasPrefix(p.Device, "/dev/loop")) ||
+			strings.HasPrefix(p.Device, "//") ||
+			strings.Contains(p.Device, ":/") ||
+			p.Fstype == "cifs" || strings.HasPrefix(p.Fstype, "nfs")
+
+		if !isReal {
+			continue
+		}
+
 		seenMounts[p.Mountpoint] = true
 
 		usage, err := disk.Usage(p.Mountpoint)

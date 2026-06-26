@@ -139,7 +139,7 @@ func getGPUStats() (usage float64, temp float64, memUsed float64, memTotal float
 }
 
 func getMemoryFrequency() string {
-	out, err := exec.Command("inxi", "-m").Output()
+	out, err := exec.Command("/usr/bin/inxi", "-m").Output()
 	if err != nil {
 		return "Unknown"
 	}

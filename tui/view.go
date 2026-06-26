@@ -309,7 +309,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		} else {
 			tempColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf("💻 🌡️: %s %.1f°F\n", coloredBar(tempC, tempColor), tempF))
+		builder.WriteString(fmt.Sprintf("💻 CPU 🌡️: %s %.1f°F\n", coloredBar(tempC, tempColor), tempF))
 	}
 
 	// 3. RAM Usage
@@ -390,7 +390,7 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 			} else {
 				gpuTempColor = colorRed
 			}
-			builder.WriteString(fmt.Sprintf("📟 🌡️: %s %.1f°F\n", coloredBar(gpuTempC, gpuTempColor), gpuTempF))
+			builder.WriteString(fmt.Sprintf("📟 GPU 🌡️: %s %.1f°F\n", coloredBar(gpuTempC, gpuTempColor), gpuTempF))
 		}
 
 		// GPU VRAM
