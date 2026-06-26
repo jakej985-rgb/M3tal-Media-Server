@@ -355,11 +355,13 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 	addBar("🧠 RAM:", ramVal, ramColor, fmt.Sprintf("%.1f%%", ramVal))
 
 	// 4. RAM Stats
-	freqStr := ""
+	var ramTextVal string
 	if m.detailedStats.MemoryFrequency != "" && m.detailedStats.MemoryFrequency != "Unknown" {
-		freqStr = " @ " + m.detailedStats.MemoryFrequency
+		ramTextVal = fmt.Sprintf("[%.1f/%.1f GB]  [%s]", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal, m.detailedStats.MemoryFrequency)
+	} else {
+		ramTextVal = fmt.Sprintf("[%.1f/%.1f GB]", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal)
 	}
-	addText("🧠 📊:", fmt.Sprintf("%.1f/%.1f GB%s", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal, freqStr))
+	addText("🧠 RAM 📊:", ramTextVal)
 
 	// 5. Disk Partitions
 	if len(m.detailedStats.DiskPartitions) > 0 {
