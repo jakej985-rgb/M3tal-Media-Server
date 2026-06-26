@@ -3,11 +3,35 @@ package system
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"github.com/shirou/gopsutil/v3/disk"
 )
+
+// getDeviceLabel resolves the volume label for a device by scanning /dev/disk/by-label symlinks.
+// If no label is found, it returns the base name of the device (e.g., sda4).
+func getDeviceLabel(devicePath string) string {
+	absDev, err := filepath.Abs(devicePath)
+	if err != nil {
+		absDev = devicePath
+	}
+	files, err := os.ReadDir("/dev/disk/by-label")
+	if err == nil {
+		for _, file := range files {
+			linkPath := filepath.Join("/dev/disk/by-label", file.Name())
+			target, err := os.Readlink(linkPath)
+			if err == nil {
+				resolvedTarget := filepath.Clean(filepath.Join("/dev/disk/by-label", target))
+				if resolvedTarget == absDev {
+					return file.Name()
+				}
+			}
+		}
+	}
+	return filepath.Base(devicePath)
+}
 
 // GetDiskPartitions returns detailed disk usage for all mounted physical partitions.
 func GetDiskPartitions() ([]models.DiskPartition, error) {
@@ -44,6 +68,7 @@ func GetDiskPartitions() ([]models.DiskPartition, error) {
 
 		list = append(list, models.DiskPartition{
 			Device:      p.Device,
+			Label:       getDeviceLabel(p.Device),
 			Mountpoint:  p.Mountpoint,
 			FSType:      p.Fstype,
 			Total:       totalGB,

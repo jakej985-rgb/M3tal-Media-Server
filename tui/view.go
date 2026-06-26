@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -269,8 +270,8 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 		return builder.String()
 	}
 
-	progBar := func(val float64) string {
-		filled := int(math.Round(val / 10.0))
+	coloredBar := func(pct float64, color lipgloss.Color) string {
+		filled := int(math.Round(pct / 10.0))
 		if filled < 0 {
 			filled = 0
 		}
@@ -278,47 +279,134 @@ func (m Model) renderDashboardTelemetry(width, _ int) string {
 			filled = 10
 		}
 		empty := 10 - filled
-		return fmt.Sprintf("[%s%s] %.1f%%", strings.Repeat("█", filled), strings.Repeat("░", empty), val)
+		filledStr := strings.Repeat("█", filled)
+		emptyStr := strings.Repeat("░", empty)
+		styledFilled := lipgloss.NewStyle().Foreground(color).Render(filledStr)
+		return fmt.Sprintf("[%s%s]", styledFilled, emptyStr)
 	}
 
-	builder.WriteString(fmt.Sprintf("💻 CPU: %s", progBar(m.detailedStats.CPUUsage)))
+	// 1. CPU Usage
+	cpuVal := m.detailedStats.CPUUsage
+	var cpuColor lipgloss.Color
+	if cpuVal < 50.0 {
+		cpuColor = colorGreen
+	} else if cpuVal < 85.0 {
+		cpuColor = colorYellow
+	} else {
+		cpuColor = colorRed
+	}
+	builder.WriteString(fmt.Sprintf("💻 CPU: %s %.1f%%\n", coloredBar(cpuVal, cpuColor), cpuVal))
+
+	// 2. CPU Temp
 	if m.detailedStats.CPUTemp > 0 {
-		builder.WriteString(fmt.Sprintf("  🌡️ %.1f°C", m.detailedStats.CPUTemp))
+		tempC := m.detailedStats.CPUTemp
+		tempF := tempC*1.8 + 32.0
+		var tempColor lipgloss.Color
+		if tempC < 60.0 {
+			tempColor = colorGreen
+		} else if tempC < 80.0 {
+			tempColor = colorYellow
+		} else {
+			tempColor = colorRed
+		}
+		builder.WriteString(fmt.Sprintf("💻 🌡️: %s %.1f°F\n", coloredBar(tempC, tempColor), tempF))
 	}
-	builder.WriteString("\n")
 
-	memFormat := "🧠 RAM: %s  (%.1f/%.1f GB)\n"
-	diskFormat := "💿 Dsk: %s  (%.1f/%.1f GB)\n"
-	if width < 38 {
-		memFormat = "🧠 RAM: %s  (%.0f/%.0fG)\n"
-		diskFormat = "💿 Dsk: %s  (%.0f/%.0fG)\n"
-	} else if width < 42 {
-		memFormat = "🧠 RAM: %s  (%.0f/%.0f GB)\n"
-		diskFormat = "💿 Dsk: %s  (%.0f/%.0f GB)\n"
+	// 3. RAM Usage
+	ramVal := m.detailedStats.MemoryUsage
+	var ramColor lipgloss.Color
+	if ramVal < 70.0 {
+		ramColor = colorGreen
+	} else if ramVal < 90.0 {
+		ramColor = colorYellow
+	} else {
+		ramColor = colorRed
+	}
+	builder.WriteString(fmt.Sprintf("🧠 RAM: %s %.1f%%\n", coloredBar(ramVal, ramColor), ramVal))
+
+	// 4. RAM Stats
+	freqStr := ""
+	if m.detailedStats.MemoryFrequency != "" && m.detailedStats.MemoryFrequency != "Unknown" {
+		freqStr = " @ " + m.detailedStats.MemoryFrequency
+	}
+	builder.WriteString(fmt.Sprintf("🧠 📊: %.1f/%.1f GB%s\n", m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal, freqStr))
+
+	// 5. Disk Partitions
+	if len(m.detailedStats.DiskPartitions) > 0 {
+		for _, p := range m.detailedStats.DiskPartitions {
+			freePct := 100.0 - p.UsedPercent
+			var diskColor lipgloss.Color
+			if freePct > 30.0 {
+				diskColor = colorGreen
+			} else if freePct >= 10.0 {
+				diskColor = colorYellow
+			} else {
+				diskColor = colorRed
+			}
+			label := p.Label
+			if label == "" {
+				label = filepath.Base(p.Device)
+			}
+			builder.WriteString(fmt.Sprintf("💿 %s: %s %.1f%%\n", label, coloredBar(freePct, diskColor), p.UsedPercent))
+		}
+	} else {
+		freePct := 100.0 - m.detailedStats.DiskUsage
+		var diskColor lipgloss.Color
+		if freePct > 30.0 {
+			diskColor = colorGreen
+		} else if freePct >= 10.0 {
+			diskColor = colorYellow
+		} else {
+			diskColor = colorRed
+		}
+		builder.WriteString(fmt.Sprintf("💿 root: %s %.1f%%\n", coloredBar(freePct, diskColor), m.detailedStats.DiskUsage))
 	}
 
-	memPct := m.detailedStats.MemoryUsage
-	builder.WriteString(fmt.Sprintf(memFormat, progBar(memPct), m.detailedStats.MemoryUsed, m.detailedStats.MemoryTotal))
-
-	diskPct := m.detailedStats.DiskUsage
-	builder.WriteString(fmt.Sprintf(diskFormat, progBar(diskPct), m.detailedStats.DiskUsed, m.detailedStats.DiskTotal))
-
+	// 6. GPU Stats
 	if m.detailedStats.GPUModel != "No GPU Detected" && m.detailedStats.GPUModel != "" {
 		builder.WriteString(styleHeaderLabel.Render("📟 GPU: "+m.detailedStats.GPUModel) + "\n")
-		builder.WriteString(fmt.Sprintf("   Core: %s", progBar(m.detailedStats.GPUUsage)))
-		if m.detailedStats.GPUTemp > 0 {
-			builder.WriteString(fmt.Sprintf("  🌡️ %.1f°C", m.detailedStats.GPUTemp))
+
+		// GPU Core
+		gpuVal := m.detailedStats.GPUUsage
+		var gpuColor lipgloss.Color
+		if gpuVal < 50.0 {
+			gpuColor = colorGreen
+		} else if gpuVal < 85.0 {
+			gpuColor = colorYellow
+		} else {
+			gpuColor = colorRed
 		}
-		builder.WriteString("\n")
+		builder.WriteString(fmt.Sprintf("📟 Core: %s %.1f%%\n", coloredBar(gpuVal, gpuColor), gpuVal))
+
+		// GPU Temp
+		if m.detailedStats.GPUTemp > 0 {
+			gpuTempC := m.detailedStats.GPUTemp
+			gpuTempF := gpuTempC*1.8 + 32.0
+			var gpuTempColor lipgloss.Color
+			if gpuTempC < 60.0 {
+				gpuTempColor = colorGreen
+			} else if gpuTempC < 80.0 {
+				gpuTempColor = colorYellow
+			} else {
+				gpuTempColor = colorRed
+			}
+			builder.WriteString(fmt.Sprintf("📟 🌡️: %s %.1f°F\n", coloredBar(gpuTempC, gpuTempColor), gpuTempF))
+		}
+
+		// GPU VRAM
 		vramPct := 0.0
 		if m.detailedStats.GPUMemTotal > 0 {
 			vramPct = (m.detailedStats.GPUMemUsed / m.detailedStats.GPUMemTotal) * 100.0
 		}
-		vramFormat := "   VRAM: %s  (%.0f/%.0f MB)\n"
-		if width < 38 {
-			vramFormat = "   VRM: %s  (%.0f/%.0fM)\n"
+		var vramColor lipgloss.Color
+		if vramPct < 70.0 {
+			vramColor = colorGreen
+		} else if vramPct < 90.0 {
+			vramColor = colorYellow
+		} else {
+			vramColor = colorRed
 		}
-		builder.WriteString(fmt.Sprintf(vramFormat, progBar(vramPct), m.detailedStats.GPUMemUsed, m.detailedStats.GPUMemTotal))
+		builder.WriteString(fmt.Sprintf("📟 VRAM: %s %.1f%%\n", coloredBar(vramPct, vramColor), vramPct))
 	}
 
 	return builder.String()

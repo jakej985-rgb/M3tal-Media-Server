@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jakej985-rgb/m3tal-core/pkg/models"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -17,25 +18,6 @@ type SystemStats struct {
 	CPUUsage    float64 `json:"cpu_usage"`
 	MemoryUsage float64 `json:"memory_usage"`
 	DiskUsage   float64 `json:"disk_usage"`
-	Uptime      uint64  `json:"uptime"`
-	Hostname    string  `json:"hostname"`
-}
-
-// DetailedStats represents extended system metrics for dashboard/tray
-type DetailedStats struct {
-	CPUUsage    float64 `json:"cpu_usage"`
-	CPUTemp     float64 `json:"cpu_temp"`
-	MemoryUsage float64 `json:"memory_usage"`
-	MemoryUsed  float64 `json:"memory_used"`  // GB
-	MemoryTotal float64 `json:"memory_total"` // GB
-	DiskUsage   float64 `json:"disk_usage"`
-	DiskUsed    float64 `json:"disk_used"`  // GB
-	DiskTotal   float64 `json:"disk_total"` // GB
-	GPUUsage    float64 `json:"gpu_usage"`
-	GPUTemp     float64 `json:"gpu_temp"`
-	GPUMemUsed  float64 `json:"gpu_mem_used"`  // MB
-	GPUMemTotal float64 `json:"gpu_mem_total"` // MB
-	GPUModel    string  `json:"gpu_model"`
 	Uptime      uint64  `json:"uptime"`
 	Hostname    string  `json:"hostname"`
 }
@@ -73,8 +55,8 @@ func GetStats() (*SystemStats, error) {
 }
 
 // GetDetailedStats collects rich metrics including GPU, temp, and details
-func GetDetailedStats() (*DetailedStats, error) {
-	stats := &DetailedStats{}
+func GetDetailedStats() (*models.DetailedStats, error) {
+	stats := &models.DetailedStats{}
 
 	// CPU Usage
 	percentages, err := cpu.Percent(200*time.Millisecond, false)
@@ -93,12 +75,20 @@ func GetDetailedStats() (*DetailedStats, error) {
 		stats.MemoryTotal = float64(vm.Total) / (1024 * 1024 * 1024)
 	}
 
+	// Memory Frequency
+	stats.MemoryFrequency = getMemoryFrequency()
+
 	// Disk
 	usage, err := disk.Usage("/")
 	if err == nil {
 		stats.DiskUsage = usage.UsedPercent
 		stats.DiskUsed = float64(usage.Used) / (1024 * 1024 * 1024)
 		stats.DiskTotal = float64(usage.Total) / (1024 * 1024 * 1024)
+	}
+
+	// Disk Partitions
+	if partitions, err := GetDiskPartitions(); err == nil {
+		stats.DiskPartitions = partitions
 	}
 
 	// Host Info
@@ -146,4 +136,21 @@ func getGPUStats() (usage float64, temp float64, memUsed float64, memTotal float
 		model = strings.TrimSpace(parts[4])
 	}
 	return
+}
+
+func getMemoryFrequency() string {
+	out, err := exec.Command("inxi", "-m").Output()
+	if err != nil {
+		return "Unknown"
+	}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "speed:") {
+			parts := strings.Split(line, "speed:")
+			if len(parts) >= 2 {
+				return strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	return "Unknown"
 }
